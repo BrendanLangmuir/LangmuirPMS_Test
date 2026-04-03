@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>APOLLO Production Board</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; color: #fff; font-family: system-ui, sans-serif; min-height: 100vh; padding: 24px; }
+
+  /* ── Top bar ── */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; position: relative; }
+  .brand { font-size: 22px; font-weight: 800; letter-spacing: 0.08em; }
+  .brand span { color: #378ADD; }
+  .top-right { display: flex; align-items: center; gap: 16px; }
+  .datetime .date  { font-size: 12px; color: #555; text-align: right; }
+  .datetime .clock { font-size: 18px; font-weight: 600; color: #aaa; text-align: right; }
+  .timer-pill { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #1a1500; border: 1.5px solid #EF9F2744; border-radius: 16px; padding: 16px 40px; position: absolute; left: 50%; transform: translateX(-50%); top: 60px; }
+  .timer-pill .label { font-size: 12px; color: #EF9F2788; text-transform: uppercase; letter-spacing: 0.1em; }
+  .timer-pill .time  { font-size: 64px; font-weight: 800; letter-spacing: -3px; color: #EF9F27; transition: color 0.4s; }
+  .timer-pill .time.warning { color: #E24B4A; }
+  .timer-pill .time.over    { color: #E24B4A; }
+  .timer-pill .time.paused  { color: #378ADD; }
+
+  /* ── Controls ── */
+  .controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; margin-top: 80px; flex-wrap: wrap; gap: 12px; }
+  .ctrl-left { display: flex; gap: 10px; align-items: center; }
+  .btn { padding: 10px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-start  { background: #378ADD; color: #fff; } .btn-start:hover  { background: #185FA5; }
+  .btn-end    { background: #E24B4A; color: #fff; } .btn-end:hover    { background: #A32D2D; }
+  .btn-pause  { background: #2a2a2a; color: #aaa; border: 1.5px solid #333; }
+  .btn-pause:hover  { background: #333; color: #fff; }
+  .btn-resume { background: #378ADD22; color: #378ADD; border: 1.5px solid #378ADD66; }
+  .btn-resume:hover { background: #378ADD44; }
+  .cycle-info { font-size: 13px; color: #555; }
+  .cycle-info span { font-size: 20px; font-weight: 700; color: #fff; margin-left: 6px; }
+
+  /* ── Break banner ── */
+  .break-banner { display: none; align-items: center; justify-content: center; gap: 14px; background: #0d1a2a; border: 1.5px solid #378ADD55; border-radius: 14px; padding: 16px 24px; margin-bottom: 20px; animation: banner-pulse 2s ease-in-out infinite; }
+  .break-banner.lunch   { background: #1a1a0a; border-color: #EF9F2755; }
+  .break-banner.visible { display: flex; }
+  @keyframes banner-pulse { 0%,100%{opacity:1}50%{opacity:0.75} }
+  .banner-icon  { font-size: 32px; }
+  .banner-title { font-size: 20px; font-weight: 800; color: #fff; }
+  .banner-sub   { font-size: 13px; color: #555; margin-top: 2px; }
+  .banner-timer { font-size: 28px; font-weight: 800; color: #378ADD; letter-spacing: -1px; }
+  .break-banner.lunch .banner-timer { color: #EF9F27; }
+
+  /* ── Tab bar ── */
+  .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; background: #1a1a1a; border-radius: 12px; padding: 4px; width: fit-content; }
+  .tab { padding: 8px 20px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; border: none; background: none; transition: all 0.2s; }
+  .tab.active { background: #2a2a2a; color: #fff; }
+  .tab:hover:not(.active) { color: #aaa; }
+
+  /* ── Main layout ── */
+  .main-layout { display: flex; gap: 20px; align-items: flex-start; }
+  .stations-col { flex: 1; min-width: 0; }
+  .feed-col { width: 300px; flex-shrink: 0; }
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #555; margin: 0 0 10px; }
+
+  /* ── Station grids ── */
+  .grid { display: grid; gap: 12px; margin-bottom: 20px; }
+  .grid-main { grid-template-columns: repeat(4, 1fr); }
+  .grid-sub  { grid-template-columns: repeat(3, 1fr); }
+
+  /* ── Cards ── */
+  .card { border-radius: 14px; padding: 16px 14px; text-align: center; transition: background 0.4s, border-color 0.4s; border: 1.5px solid #222; }
+  .card.idle    { background: #1a1a1a; border-color: #2a2a2a; }
+  .card.running { background: #2a200a; border-color: #EF9F27; }
+  .card.done    { background: #0d1f0a; border-color: #639922; }
+  .card.on-hold { background: #1a1020; border-color: #554477; }
+  .card.has-request { border-color: #9B6BCC !important; }
+  .card.andon-line    { animation: pulse-yellow 1s ease-in-out infinite; border-color: #EF9F27 !important; }
+  .card.andon-manager { animation: pulse-red    1s ease-in-out infinite; border-color: #E24B4A !important; }
+  @keyframes pulse-yellow { 0%,100%{background:#2a200a;box-shadow:0 0 0 #EF9F2700}50%{background:#3d2e00;box-shadow:0 0 24px #EF9F2799} }
+  @keyframes pulse-red    { 0%,100%{background:#2a0a0a;box-shadow:0 0 0 #E24B4A00}50%{background:#3d0000;box-shadow:0 0 24px #E24B4A99} }
+
+  .light { width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 10px; transition: background 0.4s; }
+  .card.idle    .light { background: #333; }
+  .card.running .light { background: #EF9F27; box-shadow: 0 0 14px #EF9F2766; }
+  .card.done    .light { background: #639922; box-shadow: 0 0 14px #63992266; }
+  .card.on-hold .light { background: #554477; box-shadow: 0 0 14px #55447766; }
+  .card.andon-line    .light { background: #EF9F27; box-shadow: 0 0 18px #EF9F27cc; }
+  .card.andon-manager .light { background: #E24B4A; box-shadow: 0 0 18px #E24B4Acc; }
+
+  .card-name   { font-size: 13px; font-weight: 600; color: #eee; margin-bottom: 2px; }
+  .card-status { font-size: 11px; color: #666; min-height: 14px; margin-bottom: 2px; }
+  .card.done    .card-status { color: #97C459; }
+  .card.on-hold .card-status { color: #9B6BCC; }
+  .card-active-time { font-size: 10px; color: #444; min-height: 12px; }
+  .card.running .card-active-time { color: #EF9F2788; }
+
+  .andon-badge { margin-top: 8px; padding: 5px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .andon-badge.line    { background: #3d2e00; color: #EF9F27; border: 1px solid #EF9F2766; }
+  .andon-badge.manager { background: #3d0000; color: #E24B4A; border: 1px solid #E24B4A66; }
+
+  .card-request { margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: #1e1030; border: 1px solid #9B6BCC; font-size: 11px; color: #C89EF0; text-align: left; display: flex; align-items: flex-start; gap: 6px; }
+  .card-request .req-text { flex: 1; word-break: break-word; }
+  .dismiss-btn { background: none; border: none; color: #9B6BCC; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; flex-shrink: 0; }
+  .dismiss-btn:hover { color: #E24B4A; }
+  .req-count { font-size: 10px; color: #9B6BCC; margin-top: 4px; }
+
+  /* ── Station Management Panel ── */
+  .mgmt-panel { }
+  .mgmt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+  .mgmt-card { background: #141414; border: 1.5px solid #222; border-radius: 14px; padding: 14px; }
+  .mgmt-card.active { border-color: #639922; }
+  .mgmt-card.on-hold { border-color: #554477; }
+  .mgmt-card.done   { border-color: #2a4020; }
+  .mgmt-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .mgmt-name { font-size: 13px; font-weight: 700; color: #eee; }
+  .mgmt-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .mgmt-badge.active  { background: #0d1f0a; color: #97C459; border: 1px solid #63992266; }
+  .mgmt-badge.on-hold { background: #1a1020; color: #9B6BCC; border: 1px solid #55447766; }
+  .mgmt-badge.done    { background: #0d1f0a; color: #639922; border: 1px solid #63992266; }
+  .mgmt-active-time { font-size: 11px; color: #555; margin-bottom: 10px; }
+  .mgmt-active-time span { color: #97C459; font-weight: 600; }
+  .mgmt-hold-reason { font-size: 11px; color: #9B6BCC; margin-bottom: 10px; font-style: italic; }
+  .mgmt-actions { display: flex; flex-direction: column; gap: 6px; }
+  .mgmt-btn { padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; width: 100%; }
+  .mgmt-btn-activate { background: #0d2a0d; color: #97C459; border: 1px solid #63992244; }
+  .mgmt-btn-activate:hover { background: #1a3a1a; }
+  .mgmt-btn-hold { background: #1a1020; color: #9B6BCC; border: 1px solid #55447744; }
+  .mgmt-btn-hold:hover { background: #251530; }
+  .mgmt-btn:disabled { opacity: 0.3; cursor: default; }
+  .hold-reason-select { width: 100%; background: #1a1020; border: 1px solid #554477; border-radius: 8px; color: #C89EF0; font-size: 12px; padding: 7px 10px; margin-bottom: 6px; outline: none; }
+
+  /* ── Feed panel ── */
+  .feed-panel { background: #141414; border: 1.5px solid #222; border-radius: 14px; padding: 16px; position: sticky; top: 24px; }
+  .feed-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .feed-title { font-size: 13px; font-weight: 700; color: #eee; }
+  .feed-badge { background: #9B6BCC; color: #fff; font-size: 11px; font-weight: 700; border-radius: 20px; padding: 2px 8px; min-width: 22px; text-align: center; }
+  .feed-badge.has-andon { background: #E24B4A; }
+  .feed-empty { font-size: 13px; color: #444; text-align: center; padding: 24px 0; }
+  .feed-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #555; margin: 12px 0 8px; }
+  .feed-section-title:first-child { margin-top: 0; }
+  .feed-item { border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .feed-item:last-child { margin-bottom: 0; }
+  .feed-item.inv     { background: #1e1030; border: 1px solid #9B6BCC44; }
+  .feed-item.andon-l { background: #2a1f00; border: 1px solid #EF9F2766; }
+  .feed-item.andon-m { background: #2a0a0a; border: 1px solid #E24B4A66; }
+  .feed-item.hold    { background: #1a1020; border: 1px solid #55447766; }
+  .feed-item-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .feed-station { font-size: 11px; font-weight: 700; }
+  .feed-station.inv     { color: #9B6BCC; }
+  .feed-station.andon-l { color: #EF9F27; }
+  .feed-station.andon-m { color: #E24B4A; }
+  .feed-station.hold    { color: #9B6BCC; }
+  .feed-time    { font-size: 10px; color: #555; }
+  .feed-msg     { font-size: 13px; color: #ddd; word-break: break-word; }
+  .feed-dismiss { background: none; border: none; color: #555; cursor: pointer; font-size: 12px; margin-top: 6px; padding: 0; }
+  .feed-dismiss:hover { color: #E24B4A; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand"><span>APOLLO</span> Production Board</div>
+  <div class="top-right">
+    <div class="datetime">
+      <div class="date"  id="date-display"></div>
+      <div class="clock" id="clock-display"></div>
+    </div>
+    <div class="timer-pill">
+      <div class="label">Takt</div>
+      <div class="time" id="timer">3:00:00</div>
+    </div>
+  </div>
+</div>
+
+<div class="break-banner" id="break-banner">
+  <div class="banner-icon"  id="banner-icon">☕</div>
+  <div class="banner-text">
+    <div class="banner-title" id="banner-title">Morning Break</div>
+    <div class="banner-sub"   id="banner-sub">Timer paused — auto-resumes when break ends</div>
+  </div>
+  <div class="banner-timer" id="banner-timer"></div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-left">
+    <button class="btn btn-start" id="main-btn"  onclick="handleBtn()">Start Takt</button>
+    <button class="btn btn-pause" id="pause-btn" onclick="handlePause()" style="display:none">⏸ Pause</button>
+  </div>
+  <div class="cycle-info">Cycles completed<span id="cycle-count">0</span></div>
+</div>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('board')">📊 Board</button>
+  <button class="tab"        onclick="showTab('mgmt')">⚙️ Station Management</button>
+</div>
+
+<!-- Board view -->
+<div id="tab-board" class="main-layout">
+  <div class="stations-col">
+    <div class="section-label">Main Line</div>
+    <div class="grid grid-main" id="main-grid"></div>
+    <div class="section-label">Subassembly</div>
+    <div class="grid grid-sub"  id="sub-grid"></div>
+  </div>
+  <div class="feed-col">
+    <div class="feed-panel">
+      <div class="feed-header">
+        <div class="feed-title">🚨 Live Alerts</div>
+        <div class="feed-badge" id="feed-badge">0</div>
+      </div>
+      <div id="feed-list"><div class="feed-empty">No active alerts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Station Management view -->
+<div id="tab-mgmt" style="display:none">
+  <div class="section-label">Main Line</div>
+  <div class="mgmt-grid" id="mgmt-main"></div>
+  <div class="section-label">Subassembly</div>
+  <div class="mgmt-grid" id="mgmt-sub"></div>
+</div>
+
+<script>
+let state = null, taktSec = 10800, timerInt = null;
+let holdReasons = ['No operator assigned','No frame/material at station','Secured (end of day)','Waiting for previous station'];
+
+const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
+ws.onmessage = e => { applyMsg(JSON.parse(e.data)); };
+
+setInterval(async () => {
+  try {
+    const d = await (await fetch('/api/state')).json();
+    state = d.state; taktSec = d.taktSeconds;
+    if (d.holdReasons) holdReasons = d.holdReasons;
+    render();
+  } catch {}
+}, 2000);
+
+function applyMsg(msg) {
+  if (msg.type === 'start') {
+    state = { running: true, startTime: msg.startTime, cycleCount: msg.cycleCount, stations: msg.stations, paused: false, pauseLabel: null, pauseStart: null, totalPausedMs: 0 };
+    taktSec = msg.taktSeconds;
+    if (msg.holdReasons) holdReasons = msg.holdReasons;
+  }
+  if (msg.type === 'state') {
+    state = msg.state; taktSec = msg.taktSeconds;
+    if (msg.holdReasons) holdReasons = msg.holdReasons;
+  }
+  render();
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('date-display').textContent = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('clock-display').textContent = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+updateClock(); setInterval(updateClock, 1000);
+
+function showTab(tab) {
+  document.getElementById('tab-board').style.display = tab === 'board' ? 'flex' : 'none';
+  document.getElementById('tab-mgmt').style.display  = tab === 'mgmt'  ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach((t,i) => t.className = 'tab' + ((['board','mgmt'][i] === tab) ? ' active' : ''));
+}
+
+function handleBtn() {
+  if (!state?.running) ws.send(JSON.stringify({ type: 'start' }));
+  else ws.send(JSON.stringify({ type: 'end' }));
+}
+function handlePause() { ws.send(JSON.stringify({ type: 'pause' })); }
+function dismissReq(stationId, reqId) { ws.send(JSON.stringify({ type: 'dismiss', stationId, reqId })); }
+
+function boardActivateStation(id) { ws.send(JSON.stringify({ type: 'station-start', stationId: id })); }
+function boardHoldStation(id) {
+  const sel = document.getElementById('hold-sel-' + id);
+  const reason = sel ? sel.value : holdReasons[0];
+  ws.send(JSON.stringify({ type: 'station-hold', stationId: id, reason }));
+}
+
+// ── Active time (live) ───────────────────────────────────────
+function liveActiveMs(st) {
+  let ms = st.activeMs || 0;
+  if (st.stationStatus === 'active' && st.stationStartTime) ms += Date.now() - st.stationStartTime;
+  return ms;
+}
+
+function render() {
+  if (!state) return;
+  clearInterval(timerInt);
+
+  const mainBtn  = document.getElementById('main-btn');
+  const pauseBtn = document.getElementById('pause-btn');
+  if (state.running) {
+    mainBtn.textContent = 'End Cycle'; mainBtn.className = 'btn btn-end';
+    pauseBtn.style.display = '';
+    pauseBtn.textContent = state.paused ? '▶ Resume' : '⏸ Pause';
+    pauseBtn.className   = state.paused ? 'btn btn-resume' : 'btn btn-pause';
+    timerInt = setInterval(tick, 500); tick();
+  } else {
+    mainBtn.textContent = 'Start Takt'; mainBtn.className = 'btn btn-start';
+    pauseBtn.style.display = 'none';
+    const el = document.getElementById('timer');
+    el.textContent = fmt(taktSec); el.className = 'time';
+  }
+
+  document.getElementById('cycle-count').textContent = state.cycleCount;
+  renderBanner();
+  renderGrid('main-grid', state.stations.filter(s => s.type === 'main'));
+  renderGrid('sub-grid',  state.stations.filter(s => s.type === 'sub'));
+  renderFeed(state.stations);
+  renderMgmt('mgmt-main', state.stations.filter(s => s.type === 'main'));
+  renderMgmt('mgmt-sub',  state.stations.filter(s => s.type === 'sub'));
+}
+
+function renderBanner() {
+  const banner = document.getElementById('break-banner');
+  if (!state?.running || !state.paused) { banner.className = 'break-banner'; return; }
+  const label = state.pauseLabel || 'Paused';
+  const isLunch = label === 'Lunch', isManual = label === 'Paused';
+  banner.className = 'break-banner visible' + (isLunch ? ' lunch' : '');
+  document.getElementById('banner-icon').textContent  = isManual ? '⏸' : isLunch ? '🍽️' : '☕';
+  document.getElementById('banner-title').textContent = label;
+  document.getElementById('banner-sub').textContent   = isManual ? 'Timer paused manually' : 'Timer paused — auto-resumes when break ends';
+}
+
+function renderGrid(id, stations) {
+  document.getElementById(id).innerHTML = stations.map(s => {
+    const isHold = s.stationStatus === 'hold' && !s.done;
+    let cls = !state.running ? 'idle' : s.done ? 'done' : isHold ? 'on-hold' : 'running';
+    if (s.andon === 'line-lead')        cls += ' andon-line';
+    else if (s.andon === 'floor-manager') cls += ' andon-manager';
+    else if (s.requests?.length)        cls += ' has-request';
+
+    let statusStr = '';
+    if (s.done)       statusStr = fmtSec(s.completedAt);
+    else if (!state.running) statusStr = '';
+    else if (isHold)  statusStr = s.holdReason || 'On Hold';
+    else              statusStr = s.andon ? '⏸ Paused (andon)' : 'Active';
+
+    const activeStr = state.running && !s.done
+      ? 'Active: ' + fmtMs(liveActiveMs(s)) : '';
+
+    const andonHtml = s.andon
+      ? `<div class="andon-badge ${s.andon==='line-lead'?'line':'manager'}">${s.andon==='line-lead'?'⚠️ Line Lead':'🚨 Floor Manager'}</div>` : '';
+
+    const reqs = s.requests || [], latest = reqs[reqs.length - 1];
+    const reqHtml = latest
+      ? `<div class="card-request"><span class="req-text">📦 ${esc(latest.text)}</span><button class="dismiss-btn" onclick="dismissReq(${s.id},${latest.id})">✕</button></div>
+         ${reqs.length > 1 ? `<div class="req-count">+${reqs.length-1} more in feed</div>` : ''}` : '';
+
+    return `<div class="card ${cls}">
+      <div class="light"></div>
+      <div class="card-name">${s.name}</div>
+      <div class="card-status">${statusStr}</div>
+      <div class="card-active-time">${activeStr}</div>
+      ${andonHtml}${reqHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderMgmt(id, stations) {
+  document.getElementById(id).innerHTML = stations.map(s => {
+    const isHold = s.stationStatus === 'hold' && !s.done;
+    const badgeCls = s.done ? 'done' : isHold ? 'on-hold' : 'active';
+    const badgeTxt = s.done ? 'Complete' : isHold ? 'On Hold' : 'Active';
+    const activeTime = fmtMs(liveActiveMs(s));
+    const canActivate = state.running && !state.paused && !s.done && isHold;
+    const canHold     = state.running && !s.done && !isHold;
+
+    const reasonOpts = holdReasons.map(r =>
+      `<option value="${esc(r)}" ${s.holdReason===r?'selected':''}>${esc(r)}</option>`
+    ).join('');
+
+    return `<div class="mgmt-card ${badgeCls}">
+      <div class="mgmt-top">
+        <div class="mgmt-name">${s.name}</div>
+        <div class="mgmt-badge ${badgeCls}">${badgeTxt}</div>
+      </div>
+      <div class="mgmt-active-time">Active time: <span>${activeTime}</span></div>
+      ${isHold && s.holdReason ? `<div class="mgmt-hold-reason">${esc(s.holdReason)}</div>` : ''}
+      <div class="mgmt-actions">
+        ${isHold ? `<select class="hold-reason-select" id="hold-sel-${s.id}">${reasonOpts}</select>` : ''}
+        <button class="mgmt-btn mgmt-btn-activate" onclick="boardActivateStation(${s.id})" ${canActivate?'':'disabled'}>▶ Set Active</button>
+        <button class="mgmt-btn mgmt-btn-hold"     onclick="boardHoldStation(${s.id})"     ${canHold?'':'disabled'}>⏸ Put On Hold</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFeed(stations) {
+  const andons  = stations.filter(s => s.andon);
+  const holds   = stations.filter(s => s.stationStatus==='hold' && !s.done && state.running);
+  const reqs    = stations.filter(s => s.requests?.length);
+  const total   = andons.length + reqs.reduce((n,s) => n + s.requests.length, 0);
+
+  const badge = document.getElementById('feed-badge');
+  badge.textContent = total + holds.length;
+  badge.className   = 'feed-badge' + (andons.length ? ' has-andon' : '');
+
+  let html = '';
+  if (andons.length) {
+    html += '<div class="feed-section-title">Andon Calls</div>';
+    html += andons.map(s => {
+      const m = s.andon === 'floor-manager';
+      return `<div class="feed-item ${m?'andon-m':'andon-l'}">
+        <div class="feed-item-top"><span class="feed-station ${m?'andon-m':'andon-l'}">${m?'🚨':'⚠️'} ${s.name}</span><span class="feed-time">${s.andonTime||''}</span></div>
+        <div class="feed-msg">${m?'Floor Manager needed':'Line Lead needed'}</div>
+      </div>`;
+    }).join('');
+  }
+  if (holds.length) {
+    html += '<div class="feed-section-title">Stations On Hold</div>';
+    html += holds.map(s => `<div class="feed-item hold">
+      <div class="feed-item-top"><span class="feed-station hold">⏸ ${s.name}</span></div>
+      <div class="feed-msg">${esc(s.holdReason || 'On Hold')}</div>
+    </div>`).join('');
+  }
+  if (reqs.length) {
+    html += '<div class="feed-section-title">Inventory Requests</div>';
+    reqs.forEach(s => s.requests.forEach(r => {
+      html += `<div class="feed-item inv">
+        <div class="feed-item-top"><span class="feed-station inv">${s.name}</span><span class="feed-time">${r.time}</span></div>
+        <div class="feed-msg">📦 ${esc(r.text)}</div>
+        <button class="feed-dismiss" onclick="dismissReq(${s.id},${r.id})">✕ Dismiss</button>
+      </div>`;
+    }));
+  }
+  if (!html) html = '<div class="feed-empty">No active alerts</div>';
+  document.getElementById('feed-list').innerHTML = html;
+}
+
+function tick() {
+  if (!state?.running) return;
+  const el = document.getElementById('timer');
+  if (state.paused) {
+    const pausedSoFar = state.totalPausedMs + (state.pauseStart ? Date.now() - state.pauseStart : 0);
+    const remaining = taktSec - (Date.now() - state.startTime - pausedSoFar) / 1000;
+    el.textContent = remaining <= 0 ? '-'+fmt(Math.abs(remaining)) : fmt(Math.ceil(remaining));
+    el.className = 'time paused';
+    updateBannerTimer();
+    return;
+  }
+  const remaining = taktSec - (Date.now() - state.startTime - state.totalPausedMs) / 1000;
+  if (remaining <= 0)               { el.textContent = '-'+fmt(Math.abs(Math.round(remaining))); el.className = 'time over'; }
+  else if (remaining < taktSec*0.1) { el.textContent = fmt(Math.ceil(remaining)); el.className = 'time warning'; }
+  else                               { el.textContent = fmt(Math.ceil(remaining)); el.className = 'time'; }
+}
+
+function updateBannerTimer() {
+  const el = document.getElementById('banner-timer');
+  if (!state?.paused || state.pauseLabel === 'Paused') { el.textContent = ''; return; }
+  const ENDS = { 'Morning Break':[10,45], 'Lunch':[13,30], 'Afternoon Break':[15,15] };
+  const ends = ENDS[state.pauseLabel]; if (!ends) { el.textContent=''; return; }
+  const now = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Chicago'}));
+  const end = new Date(now); end.setHours(ends[0],ends[1],0,0);
+  const left = Math.max(0, Math.round((end-now)/1000));
+  el.textContent = left > 0 ? fmt(left) : '';
+}
+
+function fmt(s) { s=Math.round(Math.abs(s)); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+function fmtSec(s) { if(!s&&s!==0)return''; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return (h?h+'h ':'')+(m?m+'m ':'')+sec+'s'; }
+function fmtMs(ms) { return fmtSec(Math.floor(ms/1000)); }
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
