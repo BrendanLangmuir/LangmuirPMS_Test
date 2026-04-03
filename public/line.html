@@ -16,39 +16,46 @@
   .card { background: #141414; border: 1.5px solid #222; border-radius: 14px; padding: 20px; width: 100%; max-width: 400px; margin-bottom: 20px; }
 
   .inv-loading { font-size: 13px; color: #555; padding: 8px 0; }
-  .inv-form    { display: flex; gap: 8px; margin-bottom: 10px; }
-  .inv-select  { flex: 1; min-width: 0; background: #1e1030; border: 1.5px solid #554477; border-radius: 10px; color: #C89EF0; font-size: 14px; padding: 10px 14px; outline: none; cursor: pointer; }
+
+  .inv-form { display: flex; gap: 8px; margin-bottom: 10px; }
+  .inv-select { flex: 1; min-width: 0; background: #1e1030; border: 1.5px solid #554477; border-radius: 10px; color: #C89EF0; font-size: 14px; padding: 10px 14px; outline: none; cursor: pointer; }
   .inv-select:focus { border-color: #9B6BCC; }
   .inv-select option { background: #1e1030; }
 
-  .qty-row     { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .qty-label   { font-size: 13px; color: #888; }
-  .qty-btn     { width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid #333; background: #222; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  .qty-btn:hover { background: #333; }
-  .qty-val     { font-size: 20px; font-weight: 800; min-width: 32px; text-align: center; }
+  .stock-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; min-height: 28px; }
+  .stock-badge { font-size: 12px; font-weight: 700; border-radius: 8px; padding: 4px 12px; }
+  .stock-ok  { background: #0d2a0d; border: 1px solid #63992266; color: #97C459; }
+  .stock-low { background: #2a1f00; border: 1px solid #EF9F2766; color: #EF9F27; }
+  .stock-out { background: #2a0a0a; border: 1px solid #E24B4A66; color: #E24B4A; }
+  .stock-warn { font-size: 12px; color: #E24B4A; }
 
-  .send-btn    { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #9B6BCC; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .qty-row   { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .qty-label { font-size: 13px; color: #888; }
+  .qty-btn   { width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid #333; background: #222; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .qty-btn:hover { background: #333; }
+  .qty-val   { font-size: 20px; font-weight: 800; min-width: 32px; text-align: center; }
+
+  .send-btn  { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #9B6BCC; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 4px; }
   .send-btn:hover { background: #7A4BAA; }
   .send-btn:active { transform: scale(0.98); }
+  .send-btn.grey { background: #333; color: #888; }
 
-  .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 16px; width: 100%; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 16px; }
   .divider hr { flex: 1; border: none; border-top: 1px solid #2a2a2a; }
   .divider span { font-size: 11px; color: #444; }
 
-  .text-input  { width: 100%; background: #222; border: 1.5px solid #333; border-radius: 10px; color: #fff; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 12px; }
+  .text-input { width: 100%; background: #222; border: 1.5px solid #333; border-radius: 10px; color: #fff; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 12px; }
   .text-input:focus { border-color: #9B6BCC; }
   .text-input::placeholder { color: #555; }
 
-  .req-list    { width: 100%; max-width: 400px; }
-  .req-item    { background: #1e1030; border: 1px solid #9B6BCC44; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; }
-  .req-text    { flex: 1; font-size: 13px; color: #C89EF0; word-break: break-word; }
-  .req-meta    { font-size: 10px; color: #666; margin-top: 2px; }
-  .req-cancel  { background: none; border: none; color: #9B6BCC; cursor: pointer; font-size: 16px; padding: 0; flex-shrink: 0; }
-  .req-cancel:hover { color: #E24B4A; }
+  .sent-flash { background: #0d2a0d; border: 1.5px solid #63992266; border-radius: 12px; padding: 12px; text-align: center; color: #97C459; font-size: 14px; font-weight: 700; display: none; margin-bottom: 12px; }
 
-  .stock-badge-ok  { background: #0d2a0d; border: 1px solid #63992266; color: #97C459; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 3px 10px; margin-left: 8px; }
-  .stock-badge-low { background: #2a1f00; border: 1px solid #EF9F2766; color: #EF9F27; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 3px 10px; margin-left: 8px; }
-  .stock-badge-out { background: #2a0a0a; border: 1px solid #E24B4A66; color: #E24B4A; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 3px 10px; margin-left: 8px; }
+  .req-list  { width: 100%; max-width: 400px; }
+  .req-item  { background: #1e1030; border: 1px solid #9B6BCC44; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; }
+  .req-text  { flex: 1; font-size: 13px; color: #C89EF0; word-break: break-word; }
+  .req-meta  { font-size: 10px; color: #666; margin-top: 2px; }
+  .req-cancel { background: none; border: none; color: #9B6BCC; cursor: pointer; font-size: 16px; padding: 0; flex-shrink: 0; }
+  .req-cancel:hover { color: #E24B4A; }
 </style>
 </head>
 <body>
@@ -59,53 +66,53 @@
 <div class="section-label">Select from inventory</div>
 <div class="card">
   <div id="inv-loading" class="inv-loading">Loading inventory...</div>
+
   <div id="inv-form" style="display:none">
     <div class="inv-form">
-      <select class="inv-select" id="inv-select">
+      <select class="inv-select" id="inv-select" onchange="onPartSelected()">
         <option value="">— Select a part —</option>
       </select>
     </div>
+
+    <div class="stock-row">
+      <span id="stock-badge" style="display:none"></span>
+      <span id="stock-warn"  style="display:none" class="stock-warn">⚠️ Requesting more than available stock</span>
+    </div>
+
     <div class="qty-row">
       <span class="qty-label">Qty:</span>
       <button class="qty-btn" onclick="changeQty(-1)">−</button>
       <span class="qty-val" id="qty-val">1</span>
       <button class="qty-btn" onclick="changeQty(1)">+</button>
-      <span id="stock-badge" style="display:none"></span>
     </div>
-    <div id="stock-warning" style="display:none; font-size:12px; color:#E24B4A; margin-bottom:10px;">
-      ⚠️ Requesting more than available stock
-    </div>
+
     <div class="sent-flash" id="sent-flash">✓ Request sent!</div>
     <button class="send-btn" onclick="sendDropdown()">📦 Send Request</button>
   </div>
 
-  <div class="divider"><hr/><span>or</span><hr/></div>
-
-  <input class="text-input" id="text-input" type="text" maxlength="120" placeholder="Type a custom request..." onkeydown="if(event.key==='Enter')sendText()"/>
-  <button class="send-btn" style="background:#555" onclick="sendText()">Send Custom Request</button>
+  <div class="divider"><hr/><span>or type a custom request</span><hr/></div>
+  <input class="text-input" id="text-input" type="text" maxlength="120"
+         placeholder="Describe what you need..." onkeydown="if(event.key==='Enter')sendText()"/>
+  <button class="send-btn grey" onclick="sendText()">Send Custom Request</button>
 </div>
 
 <div class="section-label">Active requests</div>
 <div class="req-list" id="req-list"></div>
 
 <script>
-const params  = new URLSearchParams(location.search);
+const params   = new URLSearchParams(location.search);
 const lineName = decodeURIComponent(params.get('line') || 'Unknown');
 document.getElementById('line-name').textContent = lineName;
 document.title = lineName + ' — Inventory';
 
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
-let myRequests = [], qty = 1, nextId = 1;
+let myRequests = [], qty = 1, inventoryData = [], currentStock = null;
 
 ws.onmessage = e => {
   const msg = JSON.parse(e.data);
-  if (msg.type === 'requests') {
-    myRequests = msg.requests.filter(r => r.line === lineName);
-    renderList();
-  }
+  if (msg.type === 'requests') { myRequests = msg.requests.filter(r => r.line === lineName); renderList(); }
 };
 
-// Polling fallback
 setInterval(async () => {
   try {
     const d = await (await fetch('/api/requests')).json();
@@ -114,23 +121,27 @@ setInterval(async () => {
   } catch {}
 }, 3000);
 
-// Load inventory
+// ── Load inventory ───────────────────────────────────────────
 async function loadInventory() {
   try {
     const r = await fetch('/api/inventory');
     const d = await r.json();
-    if (d.success && d.inventory) {
-      const items = d.inventory[lineName] || [];
+    if (d.success) {
+      if (d.locations) inventoryData = d.locations;
+      const items = (d.inventory && d.inventory[lineName]) || [];
       const sel   = document.getElementById('inv-select');
+      document.getElementById('inv-loading').style.display = 'none';
+      document.getElementById('inv-form').style.display    = '';
       if (items.length) {
         sel.innerHTML = '<option value="">— Select a part —</option>' +
-          items.map(i => `<option value="${esc(i.partNum+'|'+i.partName)}">${esc(i.partNum)} — ${esc(i.partName)}</option>`).join('');
-        document.getElementById('inv-loading').style.display = 'none';
-        document.getElementById('inv-form').style.display    = '';
+          items.map(i => '<option value="' + esc(i.partNum + '|' + i.partName) + '">' +
+            esc(i.partNum) + ' — ' + esc(i.partName) + ' (' + (i.quantity || 0) + ' in stock)</option>').join('');
       } else {
-        document.getElementById('inv-loading').textContent = 'No parts listed for this line';
-        document.getElementById('inv-form').style.display  = '';
+        sel.innerHTML = '<option value="">No parts listed for this line</option>';
       }
+    } else {
+      document.getElementById('inv-loading').textContent = 'Could not load inventory';
+      document.getElementById('inv-form').style.display  = '';
     }
   } catch(e) {
     document.getElementById('inv-loading').textContent = 'Could not load inventory';
@@ -139,21 +150,72 @@ async function loadInventory() {
 }
 loadInventory();
 
+// ── Part selected — show stock level ────────────────────────
+function onPartSelected() {
+  const sel     = document.getElementById('inv-select');
+  const badge   = document.getElementById('stock-badge');
+  const warning = document.getElementById('stock-warn');
+  currentStock  = null;
+
+  if (!sel.value) { badge.style.display = 'none'; warning.style.display = 'none'; return; }
+
+  const [partNum, ...rest] = sel.value.split('|');
+  const partName = rest.join('|');
+  const loc = inventoryData.find(l =>
+    l.partNum.toLowerCase()  === partNum.trim().toLowerCase() ||
+    l.partName.toLowerCase() === partName.trim().toLowerCase()
+  );
+
+  if (loc) {
+    currentStock = Number(loc.quantity) || 0;
+    badge.style.display = '';
+    if (currentStock === 0) {
+      badge.className = 'stock-badge stock-out'; badge.textContent = 'Out of stock';
+    } else if (currentStock <= 3) {
+      badge.className = 'stock-badge stock-low'; badge.textContent = 'Stock: ' + currentStock + ' (low)';
+    } else {
+      badge.className = 'stock-badge stock-ok';  badge.textContent = 'In stock: ' + currentStock;
+    }
+  } else {
+    badge.style.display = 'none';
+  }
+  checkWarning();
+}
+
+function checkWarning() {
+  const warning = document.getElementById('stock-warn');
+  warning.style.display = (currentStock !== null && qty > currentStock) ? '' : 'none';
+}
+
+// ── Qty controls ─────────────────────────────────────────────
 function changeQty(d) {
   qty = Math.max(1, qty + d);
   document.getElementById('qty-val').textContent = qty;
+  checkWarning();
 }
 
+// ── Send from dropdown ───────────────────────────────────────
 function sendDropdown() {
   const sel = document.getElementById('inv-select');
   if (!sel.value) return;
   const [partNum, ...rest] = sel.value.split('|');
-  const partName = rest.join('|');
-  ws.send(JSON.stringify({ type: 'request', line: lineName, partNum, partName, text: partNum + ' — ' + partName, qty }));
-  sel.value = ''; qty = 1; document.getElementById('qty-val').textContent = '1';
+  const partName = rest.join('|').replace(/ \(\d+ in stock\)$/, '');
+  ws.send(JSON.stringify({
+    type: 'request', line: lineName,
+    partNum: partNum.trim(), partName: partName.trim(),
+    text: partNum.trim() + ' — ' + partName.trim(),
+    qty,
+    overStock: currentStock !== null && qty > currentStock,
+  }));
+  sel.value = ''; qty = 1;
+  document.getElementById('qty-val').textContent = '1';
+  document.getElementById('stock-badge').style.display = 'none';
+  document.getElementById('stock-warn').style.display  = 'none';
+  currentStock = null;
   flashSent();
 }
 
+// ── Send custom text ─────────────────────────────────────────
 function sendText() {
   const input = document.getElementById('text-input');
   const text  = input.value.trim();
@@ -169,10 +231,9 @@ function flashSent() {
   setTimeout(() => { el.style.display = 'none'; }, 2000);
 }
 
-function cancelReq(id) {
-  ws.send(JSON.stringify({ type: 'fulfill', reqId: id }));
-}
+function cancelReq(id) { ws.send(JSON.stringify({ type: 'fulfill', reqId: id })); }
 
+// ── Render active requests ───────────────────────────────────
 function renderList() {
   const el = document.getElementById('req-list');
   if (!myRequests.length) { el.innerHTML = ''; return; }
