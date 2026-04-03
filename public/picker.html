@@ -49,9 +49,8 @@
   .req-meta-item .meta-val.location { color: #EF9F27; }
   .req-qty-badge { background: #2a200a; border: 1px solid #EF9F2766; color: #EF9F27; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 3px 10px; white-space: nowrap; }
 
-  .fulfill-btn { background: #0d2a0d; border: 1.5px solid #63992266; color: #97C459; font-size: 13px; font-weight: 700; border-radius: 10px; padding: 10px 18px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.2s; }
-  .fulfill-btn:hover { background: #1a3a1a; }
-  .fulfill-btn:active { transform: scale(0.96); }
+  .req-card.over-stock { border-color: #E24B4A !important; background: #1a0a0a; }
+  .over-stock-badge { background: #E24B4A; color: #fff; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 2px 8px; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -138,11 +137,12 @@ function render() {
   queue.innerHTML = filtered.map(r => {
     const partLabel = r.partNum && r.partName ? r.partNum + ' — ' + r.partName : r.text;
     const partNum   = r.partNum || '';
-    return `<div class="req-card ${lineClass(r.line)}">
+    return `<div class="req-card ${lineClass(r.line)}${r.overStock ? ' over-stock' : ''}">
       <div class="req-main">
         <div class="req-top">
           <span class="req-line">${esc(r.line)}</span>
           ${r.station ? `<span class="req-station">· ${esc(r.station)}</span>` : ''}
+          ${r.overStock ? `<span class="over-stock-badge">⚠️ OVER STOCK</span>` : ''}
           <span class="req-time">${r.time}</span>
         </div>
         <div class="req-part">${esc(partLabel)}</div>
