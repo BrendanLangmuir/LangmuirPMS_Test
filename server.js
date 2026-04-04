@@ -402,17 +402,17 @@ wss.on('connection', (ws, req) => {
               action:   'subtract',
               partNum:  req.partNum  || '',
               partName: req.partName || '',
+              location: msg.location || '',
               qty:      req.qty      || 1,
             }),
             redirect: 'follow',
           }).then(r => r.json())
             .then(d => {
               console.log('Qty subtracted:', d);
-              // Update local cache so next lookup is fresh
               if (d.success && d.newQty !== undefined) {
                 const loc = locationsCache.find(l =>
-                  l.partNum.toLowerCase() === (req.partNum||'').toLowerCase() ||
-                  l.partName.toLowerCase() === (req.partName||'').toLowerCase()
+                  l.partNum.toLowerCase() === (req.partNum||'').toLowerCase() &&
+                  l.location === (msg.location || l.location)
                 );
                 if (loc) loc.quantity = String(d.newQty);
               }
