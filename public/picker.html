@@ -139,19 +139,23 @@ function render() {
   queue.innerHTML = filtered.map(r => {
     const partLabel = r.partNum && r.partName ? r.partNum + ' — ' + r.partName : r.text;
     const partNum   = r.partNum || '';
-    const stockNum   = parseInt(r.totalQty) || 0;
-    const isLowStock = r.totalQty !== '—' && stockNum < (r.qty || 1);
     const locs       = r.allLocations || [];
+    const qtyNeeded  = r.qty || 1;
     const locButtons = locs.length
-      ? locs.map(l => `
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:8px 10px;background:#111;border-radius:8px;gap:10px;">
+      ? locs.map(l => {
+          const locQty  = parseInt(l.quantity) || 0;
+          const isLow   = locQty < qtyNeeded;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:8px 10px;background:#111;border-radius:8px;gap:10px;">
             <span style="color:#EF9F27;font-weight:700;font-size:13px;">📍 ${esc(l.location)}</span>
-            <span style="color:#aaa;font-size:12px;">Qty: ${esc(l.quantity)}</span>
-            <button class="fulfill-btn" style="padding:6px 14px;font-size:12px;" onclick="fulfill(${r.id},'${esc(l.location)}')">✓ Pick this</button>
-          </div>`).join('')
+            <span style="${isLow ? 'color:#E24B4A;font-weight:700;' : 'color:#aaa;'}font-size:12px;">${isLow ? '⚠️ ' : ''}Qty: ${esc(String(locQty))}</span>
+            <button class="fulfill-btn" style="padding:6px 14px;font-size:12px;" onclick="fulfill(${r.id},'${esc(l.location)}')">✓ Pick</button>
+          </div>`;
+        }).join('')
       : `<button class="fulfill-btn" onclick="fulfill(${r.id},'')">✓ Picked</button>`;
 
-    return `<div class="req-card ${lineClass(r.line)}${isLowStock ? ' low-stock' : ''}">
+    const totalQty   = locs.reduce((s, l) => s + (parseInt(l.quantity) || 0), 0);
+
+    return `<div class="req-card ${lineClass(r.line)}">
       <div class="req-main">
         <div class="req-top">
           <span class="req-line">${esc(r.line)}</span>
@@ -163,10 +167,9 @@ function render() {
         <div class="req-meta">
           <div class="req-meta-item">
             <span class="meta-lbl">Total in stock:</span>
-            <span class="meta-val">${esc(r.totalQty || '—')}</span>
+            <span class="meta-val">${totalQty}</span>
           </div>
-          <span class="req-qty-badge">Qty needed: ${esc(String(r.qty || 1))}</span>
-          ${isLowStock ? `<span class="low-stock-badge">⚠️ Low Stock</span>` : ''}
+          <span class="req-qty-badge">Qty needed: ${esc(String(qtyNeeded))}</span>
         </div>
         ${locButtons}
       </div>
