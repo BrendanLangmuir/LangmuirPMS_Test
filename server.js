@@ -395,6 +395,7 @@ wss.on('connection', (ws, req) => {
     // ── Picker: fulfill request ──────────────────────────────
     if (msg.type === 'fulfill') {
       const req = allRequests.find(r => r.id === msg.reqId);
+      console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: req?.qty });
       if (req) {
         req.fulfilled = true;
         // Subtract quantity from sheet
