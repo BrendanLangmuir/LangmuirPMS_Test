@@ -139,6 +139,13 @@ function fulfill(reqId, location) {
   ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
 }
 
+function handlePick(btn) {
+  const reqId    = parseInt(btn.getAttribute('data-reqid'));
+  const location = btn.getAttribute('data-location');
+  console.log('handlePick:', reqId, location);
+  ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
+}
+
 function fulfillDirect(reqId, location) {
   console.log('fulfillDirect called: reqId=' + reqId + ' location=' + location);
   ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
@@ -187,11 +194,10 @@ function render() {
       ? locs.map((l) => {
           const lq    = parseInt(l.quantity) || 0;
           const isLow = lq < qtyNeeded;
-          const safeLoc = l.location.replace(/'/g, "\\'");
           return '<div class="loc-row">' +
             '<span class="loc-name">📍 ' + esc(l.location) + '</span>' +
             '<span class="loc-qty ' + (isLow ? 'low' : 'ok') + '">' + (isLow ? '⚠️ ' : '') + lq + ' in stock</span>' +
-            '<button class="pick-btn" onclick="fulfillDirect(' + r.id + ',\`' + l.location + '\`)">✓ Pick</button>' +
+            '<button class="pick-btn" data-reqid="' + r.id + '" data-location="' + esc(l.location) + '" onclick="handlePick(this)">✓ Pick</button>' +
             '</div>';
         }).join('')
       : '<div class="no-loc">No warehouse location found for this part</div>';
