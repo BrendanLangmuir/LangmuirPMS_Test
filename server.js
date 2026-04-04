@@ -196,11 +196,19 @@ fetchLocations();
 setInterval(fetchLocations, 30 * 60 * 1000); // refresh every 30 min
 
 function lookupLocation(partNum, partName) {
-  const match = locationsCache.find(l =>
-    l.partNum.toLowerCase() === String(partNum).toLowerCase() ||
-    l.partName.toLowerCase() === String(partName).toLowerCase()
+  const matches = locationsCache.filter(l =>
+    l.partNum.toLowerCase() === String(partNum).toLowerCase()
   );
-  return match ? { location: match.location, quantity: match.quantity } : { location: '—', quantity: '—' };
+  if (!matches.length) return { location: '—', quantity: '—', totalQty: '—', allLocations: [] };
+  const totalQty = matches.reduce((sum, l) => sum + (parseInt(l.quantity) || 0), 0);
+  return {
+    location:     matches[0].location,
+    quantity:     matches[0].quantity,
+    totalQty:     String(totalQty),
+    allLocations: matches.map(l => ({ location: l.location, quantity: l.quantity })),
+    partNum:      matches[0].partNum,
+    partName:     matches[0].partName,
+  };
 }
 
 // ── Sheets post ──────────────────────────────────────────────
@@ -385,7 +393,7 @@ wss.on('connection', (ws, req) => {
       const req = allRequests.find(r => r.id === msg.reqId);
       if (req) {
         req.fulfilled = true;
-        // Subtract quantity from warehouse sheet
+        // Subtract quantity from sheet
         if (LOCATIONS_URL && (req.partNum || req.partName)) {
           fetch(LOCATIONS_URL, {
             method: 'POST',
@@ -400,8 +408,14 @@ wss.on('connection', (ws, req) => {
           }).then(r => r.json())
             .then(d => {
               console.log('Qty subtracted:', d);
-              // Refresh locations cache so next request shows updated qty
-              fetchLocations();
+              // Update local cache so next lookup is fresh
+              if (d.success && d.newQty !== undefined) {
+                const loc = locationsCache.find(l =>
+                  l.partNum.toLowerCase() === (req.partNum||'').toLowerCase() ||
+                  l.partName.toLowerCase() === (req.partName||'').toLowerCase()
+                );
+                if (loc) loc.quantity = String(d.newQty);
+              }
             })
             .catch(e => console.error('Subtract failed:', e.message));
         }
