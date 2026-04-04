@@ -94,7 +94,8 @@ let activeFilter = 'all';
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?picker=1');
 ws.onmessage = e => {
   const msg = JSON.parse(e.data);
-  if (msg.type === 'requests') { requests = msg.requests; render(); }
+  if (msg.type === 'requests')  { requests = msg.requests; render(); }
+  if (msg.type === 'locations') { locationsData = msg.locations; render(); }
 };
 
 // ── Polling fallback ──────────────────────────────────────
@@ -138,11 +139,19 @@ function fulfill(reqId, location) {
   ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
 }
 
+function fulfillDirect(reqId, location) {
+  console.log('fulfillDirect called: reqId=' + reqId + ' location=' + location);
+  ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
+}
+
 function fulfillLoc(reqId, locIdx) {
-  const req      = requests.find(r => r.id === reqId);
-  if (!req) return;
-  const locs     = getLocsForPart(req.partNum);
-  const location = locs[locIdx]?.location || '';
+  const req  = requests.find(r => r.id === reqId);
+  if (!req) { console.error('Request not found:', reqId); return; }
+  const locs = getLocsForPart(req.partNum);
+  console.log('fulfillLoc called: reqId=' + reqId + ' locIdx=' + locIdx + ' locs=' + JSON.stringify(locs));
+  if (!locs[locIdx]) { console.error('Location index not found:', locIdx); return; }
+  const location = locs[locIdx].location;
+  console.log('Sending fulfill with location:', location);
   ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
 }
 
@@ -175,13 +184,14 @@ function render() {
     const totalQty  = locs.reduce((s, l) => s + (parseInt(l.quantity) || 0), 0);
 
     const locRows = locs.length
-      ? locs.map((l, idx) => {
+      ? locs.map((l) => {
           const lq    = parseInt(l.quantity) || 0;
           const isLow = lq < qtyNeeded;
+          const safeLoc = l.location.replace(/'/g, "\\'");
           return '<div class="loc-row">' +
             '<span class="loc-name">📍 ' + esc(l.location) + '</span>' +
             '<span class="loc-qty ' + (isLow ? 'low' : 'ok') + '">' + (isLow ? '⚠️ ' : '') + lq + ' in stock</span>' +
-            '<button class="pick-btn" onclick="fulfillLoc(' + r.id + ',' + idx + ')">✓ Pick</button>' +
+            '<button class="pick-btn" onclick="fulfillDirect(' + r.id + ',\`' + l.location + '\`)">✓ Pick</button>' +
             '</div>';
         }).join('')
       : '<div class="no-loc">No warehouse location found for this part</div>';
