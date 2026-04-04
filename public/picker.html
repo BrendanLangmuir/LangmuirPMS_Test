@@ -43,8 +43,7 @@
   .clock { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.05em; }
   .date  { font-size: 11px; color: #6b7280; margin-top: 2px; }
 
-  /* ── Page body ── */
-  .page { padding: 28px; }
+  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; } padding: 28px; }
 
   /* ── Summary ── */
   .summary-bar {
@@ -164,6 +163,8 @@
     <div class="date"  id="date"></div>
   </div>
 </div>
+
+<div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
 
 <div class="page">
 
