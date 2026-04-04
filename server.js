@@ -123,7 +123,9 @@ function broadcastState() {
 }
 function broadcastRequests() {
   const active = allRequests.filter(r => !r.fulfilled);
-  broadcastAll({ type: 'requests', requests: active });
+  const msg    = JSON.stringify({ type: 'requests', requests: active });
+  // Send to all clients — Apollo workers, line pages, and pickers
+  wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
 // ── Pause / Resume ───────────────────────────────────────────
@@ -265,8 +267,6 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'state', state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS }));
     ws.send(JSON.stringify({ type: 'requests', requests: allRequests.filter(r => !r.fulfilled) }));
   }
-
-  ws.on('close', () => { apolloClients.delete(ws); pickerClients.delete(ws); });
 
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
