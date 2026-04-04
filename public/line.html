@@ -145,13 +145,17 @@ async function loadInventory() {
   }
 }
 
+function onQtyChange() {
+  onPartSelected();
+}
+
 function onPartSelected() {
   const sel      = document.getElementById('inv-select');
   const stockEl  = document.getElementById('stock-info');
   if (!sel.value) { stockEl.style.display = 'none'; return; }
   const [partNum, ...rest] = sel.value.split('|');
   const partName = rest.join('|');
-  const locs     = window._locations || [];
+  const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
   const match    = locs.find(l =>
     l.partNum.toLowerCase() === partNum.toLowerCase() ||
     l.partName.toLowerCase() === partName.toLowerCase()
@@ -182,12 +186,13 @@ function onQtyChange() {
 function sendDropdown() {
   const sel = document.getElementById('inv-select');
   if (!sel.value) return;
-  const qtyEl = document.getElementById('qty-input');
-  qty = Math.max(1, parseInt(qtyEl.value) || 1);
+  const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
   const [partNum, ...rest] = sel.value.split('|');
   const partName = rest.join('|');
   ws.send(JSON.stringify({ type: 'request', line: lineName, partNum, partName, text: partNum + ' — ' + partName, qty }));
-  sel.value = ''; qty = 1; document.getElementById('qty-input').value = '1';
+  sel.value = '';
+  document.getElementById('qty-input').value = '1';
+  document.getElementById('stock-info').style.display = 'none';
   flashSent();
 }
 
