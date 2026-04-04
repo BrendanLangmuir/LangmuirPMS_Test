@@ -86,9 +86,9 @@
 </div>
 
 <script>
-let requests     = [];
-let locationsData = [];
-let activeFilter = 'all';
+// Store location data keyed by a simple numeric key to avoid any string passing issues
+const pickMap = {};
+let pickMapKey = 0;
 
 // ── WebSocket ─────────────────────────────────────────────
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?picker=1');
@@ -139,11 +139,11 @@ function fulfill(reqId, location) {
   ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
 }
 
-function handlePick(btn) {
-  const reqId    = parseInt(btn.getAttribute('data-reqid'));
-  const location = btn.getAttribute('data-location');
-  console.log('handlePick:', reqId, location);
-  ws.send(JSON.stringify({ type: 'fulfill', reqId, location }));
+function handlePick(key) {
+  const entry = pickMap[key];
+  if (!entry) { console.error('pickMap entry not found:', key); return; }
+  console.log('handlePick:', entry.reqId, entry.location);
+  ws.send(JSON.stringify({ type: 'fulfill', reqId: entry.reqId, location: entry.location }));
 }
 
 function fulfillDirect(reqId, location) {
@@ -194,10 +194,12 @@ function render() {
       ? locs.map((l) => {
           const lq    = parseInt(l.quantity) || 0;
           const isLow = lq < qtyNeeded;
+          const key   = pickMapKey++;
+          pickMap[key] = { reqId: r.id, location: l.location };
           return '<div class="loc-row">' +
             '<span class="loc-name">📍 ' + esc(l.location) + '</span>' +
             '<span class="loc-qty ' + (isLow ? 'low' : 'ok') + '">' + (isLow ? '⚠️ ' : '') + lq + ' in stock</span>' +
-            '<button class="pick-btn" data-reqid="' + r.id + '" data-location="' + esc(l.location) + '" onclick="handlePick(this)">✓ Pick</button>' +
+            '<button class="pick-btn" onclick="handlePick(' + key + ')">✓ Pick</button>' +
             '</div>';
         }).join('')
       : '<div class="no-loc">No warehouse location found for this part</div>';
