@@ -39,7 +39,7 @@
   /* ── Page ── */
   .page { padding: 28px; max-width: 480px; margin: 0 auto; }
 
-  .section-label {
+  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
     font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
     text-transform: uppercase; color: #6b7280; margin-bottom: 12px;
     display: flex; align-items: center; gap: 8px;
@@ -151,6 +151,10 @@
   <div class="line-badge" id="line-badge">—</div>
 </div>
 
+<div class="conn-status" id="conn-status">
+  ⚠ Connection lost — reconnecting...
+</div>
+
 <div class="page">
 
   <div class="section-label">Select from inventory</div>
@@ -189,8 +193,36 @@ document.title = lineName + ' — Inventory';
 
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
 let myRequests = [];
+let wsAlive = true;
+
+ws.onopen = function() {
+  wsAlive = true;
+  document.getElementById('conn-status').style.display = 'none';
+};
+ws.onclose = function() {
+  wsAlive = false;
+  document.getElementById('conn-status').style.display = 'flex';
+  // Auto reconnect after 3 seconds
+  setTimeout(function() { location.reload(); }, 3000);
+};
+ws.onerror = function() {
+  wsAlive = false;
+  document.getElementById('conn-status').style.display = 'flex';
+};
+
+// Heartbeat — send ping every 25s to keep connection alive
+setInterval(function() {
+  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
+}, 25000);
+
+// If connection drops for 35s, force reload
+let lastPong = Date.now();
+setInterval(function() {
+  if (Date.now() - lastPong > 35000) location.reload();
+}, 5000);
 
 ws.onmessage = function(e) {
+  lastPong = Date.now();
   const msg = JSON.parse(e.data);
   if (msg.type === 'requests') {
     myRequests = msg.requests.filter(function(r){ return r.line === lineName; });
