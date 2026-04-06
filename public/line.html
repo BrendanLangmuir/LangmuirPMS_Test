@@ -1,346 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
-<title>Inventory Request</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #1a1e24;
-    color: #fff;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
-  }
-
-  /* ── Header ── */
-  .header {
-    background: #12151a;
-    border-bottom: 3px solid #C8102E;
-    padding: 16px 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-icon {
-    width: 36px; height: 36px; background: #C8102E;
-    border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0;
-  }
-  .brand-text .top { font-size: 11px; font-weight: 600; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
-  .brand-text .btm { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
-  .line-badge {
-    background: #C8102E; color: #fff; font-size: 13px; font-weight: 800;
-    padding: 6px 16px; border-radius: 4px; letter-spacing: 0.1em; text-transform: uppercase;
-  }
-
-  /* ── Page ── */
-  .page { padding: 28px; max-width: 480px; margin: 0 auto; }
-
-  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
-    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
-    text-transform: uppercase; color: #6b7280; margin-bottom: 12px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .section-label::after { content: ''; flex: 1; height: 1px; background: #2d3340; }
-
-  /* ── Card ── */
-  .card {
-    background: #12151a; border: 1px solid #2d3340;
-    border-radius: 8px; padding: 20px; margin-bottom: 24px;
-  }
-
-  /* ── Inventory ── */
-  .inv-loading { font-size: 13px; color: #6b7280; padding: 8px 0; text-align: center; }
-
-  select {
-    width: 100%; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600;
-    padding: 12px 14px; outline: none; cursor: pointer; margin-bottom: 14px;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 14px center;
-  }
-  select:focus { border-color: #C8102E; }
-  select option { background: #1f2937; }
-
-  /* ── Stock info ── */
-  .stock-info {
-    font-size: 13px; margin-bottom: 14px; padding: 10px 14px;
-    border-radius: 6px; font-weight: 600;
-  }
-  .stock-ok   { color: #4ade80; background: #052e16; border: 1px solid #166534; }
-  .stock-warn { color: #f87171; background: #2d0a0a; border: 1px solid #7f1d1d; }
-
-  /* ── Qty ── */
-  .qty-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-  .qty-label { font-size: 13px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
-  .qty-input {
-    width: 90px; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 22px; font-weight: 800;
-    padding: 8px 12px; text-align: center; outline: none;
-    -webkit-appearance: none; -moz-appearance: textfield;
-  }
-  .qty-input:focus { border-color: #C8102E; }
-
-  /* ── Buttons ── */
-  .send-btn {
-    width: 100%; padding: 14px; border-radius: 6px; border: none;
-    font-size: 14px; font-weight: 800; cursor: pointer; letter-spacing: 0.08em;
-    text-transform: uppercase; transition: background 0.15s;
-  }
-  .send-btn.primary   { background: #C8102E; color: #fff; margin-bottom: 0; }
-  .send-btn.primary:hover { background: #a00d24; }
-  .send-btn.secondary { background: #1f2937; color: #9ca3af; border: 1.5px solid #374151; }
-  .send-btn.secondary:hover { background: #374151; color: #fff; }
-  .send-btn:active { transform: scale(0.98); }
-
-  .divider {
-    display: flex; align-items: center; gap: 10px; margin: 20px 0;
-  }
-  .divider hr { flex: 1; border: none; border-top: 1px solid #2d3340; }
-  .divider span { font-size: 11px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
-
-  .text-input {
-    width: 100%; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 14px;
-    padding: 12px 14px; outline: none; margin-bottom: 12px;
-  }
-  .text-input:focus { border-color: #C8102E; }
-  .text-input::placeholder { color: #4b5563; }
-
-  /* ── Sent flash ── */
-  .sent-flash {
-    background: #052e16; border: 1px solid #166534;
-    border-radius: 6px; padding: 12px; text-align: center;
-    color: #4ade80; font-size: 14px; font-weight: 800;
-    display: none; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em;
-  }
-
-  /* ── Active requests ── */
-  .req-list { display: flex; flex-direction: column; gap: 8px; }
-  .req-item {
-    background: #12151a; border: 1px solid #2d3340;
-    border-left: 3px solid #C8102E;
-    border-radius: 6px; padding: 12px 14px;
-    display: flex; align-items: flex-start; gap: 10px;
-  }
-  .req-content { flex: 1; }
-  .req-text { font-size: 14px; font-weight: 600; color: #fff; word-break: break-word; }
-  .req-meta { font-size: 11px; color: #4b5563; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .req-cancel {
-    background: none; border: 1px solid #374151; border-radius: 4px;
-    color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700;
-    padding: 4px 10px; flex-shrink: 0; text-transform: uppercase;
-  }
-  .req-cancel:hover { border-color: #C8102E; color: #f87171; }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div class="brand">
-    <div class="brand-icon">L</div>
-    <div class="brand-text">
-      <div class="top">Langmuir Systems</div>
-      <div class="btm">Inventory Request</div>
-    </div>
-  </div>
-  <div class="line-badge" id="line-badge">—</div>
-</div>
-
-<div class="conn-status" id="conn-status">
-  ⚠ Connection lost — reconnecting...
-</div>
-
-<div class="page">
-
-  <div class="section-label">Select from inventory</div>
-  <div class="card">
-    <div id="inv-loading" class="inv-loading">Loading inventory...</div>
-
-    <div id="inv-form" style="display:none">
-      <select id="inv-select">
-        <option value="">— Select a part —</option>
-      </select>
-      <div id="stock-info" style="display:none" class="stock-info"></div>
-      <div class="qty-row">
-        <span class="qty-label">Qty</span>
-        <input class="qty-input" id="qty-input" type="number" inputmode="numeric" min="1" value="1"/>
-      </div>
-      <div class="sent-flash" id="sent-flash">✓ Request Sent!</div>
-      <button class="send-btn primary" id="send-dropdown-btn">📦 Send Request</button>
-    </div>
-
-    <div class="divider"><hr/><span>or</span><hr/></div>
-
-    <input class="text-input" id="text-input" type="text" maxlength="120" placeholder="Type a custom request..."/>
-    <button class="send-btn secondary" id="send-text-btn">Send Custom Request</button>
-  </div>
-
-  <div class="section-label">Active requests</div>
-  <div class="req-list" id="req-list"></div>
-
-</div>
-
-<script>
-const params   = new URLSearchParams(location.search);
-const lineName = decodeURIComponent(params.get('line') || 'Unknown');
-document.getElementById('line-badge').textContent = lineName;
-document.title = lineName + ' — Inventory';
-
-const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
-let myRequests = [];
-let wsAlive = true;
-
-ws.onopen = function() {
-  wsAlive = true;
-  document.getElementById('conn-status').style.display = 'none';
-};
-ws.onclose = function() {
-  wsAlive = false;
-  document.getElementById('conn-status').style.display = 'flex';
-  // Auto reconnect after 3 seconds
-  setTimeout(function() { location.reload(); }, 3000);
-};
-ws.onerror = function() {
-  wsAlive = false;
-  document.getElementById('conn-status').style.display = 'flex';
-};
-
-// Heartbeat — send ping every 25s to keep connection alive
-setInterval(function() {
-  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
-}, 25000);
-
-// If connection drops for 35s, force reload
-let lastPong = Date.now();
-setInterval(function() {
-  if (Date.now() - lastPong > 35000) location.reload();
-}, 5000);
-
-ws.onmessage = function(e) {
-  lastPong = Date.now();
-  const msg = JSON.parse(e.data);
-  if (msg.type === 'requests') {
-    myRequests = msg.requests.filter(function(r){ return r.line === lineName; });
-    renderList();
-  }
-};
-
-setInterval(function() {
-  fetch('/api/requests').then(function(r){return r.json();}).then(function(d){
-    myRequests = d.requests.filter(function(r){ return r.line === lineName; });
-    renderList();
-  }).catch(function(){});
-}, 3000);
-
-// ── Load inventory ────────────────────────────────────────
-async function loadInventory() {
+function doGet(e) {
   try {
-    const r = await fetch('/api/inventory');
-    const d = await r.json();
-    if (d.success && d.inventory) {
-      const items = d.inventory[lineName] || [];
-      if (d.locations) window._locations = d.locations;
-      const sel = document.getElementById('inv-select');
-      if (items.length) {
-        sel.innerHTML = '<option value="">— Select a part —</option>' +
-          items.map(i => '<option value="' + esc(i.partNum + '|' + i.partName) + '">' +
-            esc(i.partNum) + ' — ' + esc(i.partName) + '</option>').join('');
-        document.getElementById('inv-loading').style.display = 'none';
-        document.getElementById('inv-form').style.display    = '';
-      } else {
-        document.getElementById('inv-loading').textContent = 'No parts listed for this line';
-        document.getElementById('inv-form').style.display  = '';
-      }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // ── Read Locations tab ───────────────────────────────────
+    const locSheet = ss.getSheetByName('Locations');
+    if (!locSheet) throw new Error('Locations sheet not found');
+    const locRows = locSheet.getDataRange().getValues();
+    // Real data in columns Q(16), R(17), S(18), T(19)
+    // Headers: Location | Qty | Part Number | Description
+    const locMap = {};
+    const locations = [];
+    for (let i = 1; i < locRows.length; i++) {
+      const location  = String(locRows[i][16] || '').trim(); // Q
+      const quantity  = String(locRows[i][17] || '').trim(); // R
+      const partNum   = String(locRows[i][18] || '').trim(); // S
+      const partName  = String(locRows[i][19] || '').trim(); // T
+      if (!partNum) continue;
+      const entry = { location, partNum, partName, quantity };
+      locations.push(entry);
+      const key = partNum.toLowerCase();
+      if (!locMap[key]) locMap[key] = [];
+      locMap[key].push(entry);
     }
-  } catch(e) {
-    document.getElementById('inv-loading').textContent = 'Could not load inventory';
-    document.getElementById('inv-form').style.display  = '';
+
+    // ── Read BOM tab ─────────────────────────────────────────
+    const bomSheet = ss.getSheetByName('BOM');
+    if (!bomSheet) throw new Error('BOM sheet not found');
+    const bomRows = bomSheet.getDataRange().getValues();
+    // Headers: Parent Part | Station | Part | Description
+    const inventory = {}; // grouped by station (Apollo) or line (others)
+
+    for (let i = 1; i < bomRows.length; i++) {
+      const [parentPart, station, partNum, description] = bomRows[i];
+      if (!partNum || String(partNum).trim() === 'Hardware') continue;
+
+      const line = String(parentPart).trim().toUpperCase();
+      const st   = String(station  || '').trim();
+      const pn   = String(partNum  ).trim();
+      const desc = String(description || '').trim();
+
+      // Only include parts that exist in Locations tab — match by part number only
+      const locEntries = locMap[pn.toLowerCase()];
+      if (!locEntries || locEntries.length === 0) continue;
+
+      const primaryLoc = locEntries[0];
+      const item = {
+        partNum:      pn,
+        partName:     primaryLoc.partName || desc, // use Locations description, fall back to BOM
+        line,
+        station:      st,
+        location:     primaryLoc.location,
+        quantity:     primaryLoc.quantity,
+        allLocations: locEntries.map(l => ({ location: l.location, quantity: l.quantity })),
+      };
+
+      const groupKey = line === 'APOLLO' ? (st || 'APOLLO') : line;
+      if (!inventory[groupKey]) inventory[groupKey] = [];
+      // Only add if part number not already in this group
+      const already = inventory[groupKey].some(i => i.partNum.toLowerCase() === pn.toLowerCase());
+      if (!already) inventory[groupKey].push(item);
+    }
+
+    // Sort each group alphabetically by part number
+    Object.keys(inventory).forEach(key => {
+      inventory[key].sort((a, b) => a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }));
+    });
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true, locations, inventory }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
-loadInventory();
 
-// ── Stock info ────────────────────────────────────────────
-document.getElementById('inv-select').addEventListener('change', showStockInfo);
-document.getElementById('qty-input').addEventListener('input',   showStockInfo);
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
 
-function showStockInfo() {
-  const sel     = document.getElementById('inv-select');
-  const stockEl = document.getElementById('stock-info');
-  if (!sel.value) { stockEl.style.display = 'none'; return; }
-  const [partNum] = sel.value.split('|');
-  const qty   = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
-  const locs  = (window._locations || []).filter(l => l.partNum.toLowerCase() === partNum.toLowerCase());
-  if (locs.length) {
-    const total = locs.reduce((s, l) => s + (parseInt(l.quantity) || 0), 0);
-    const isLow = total < qty;
-    stockEl.style.display = '';
-    stockEl.className     = 'stock-info ' + (isLow ? 'stock-warn' : 'stock-ok');
-    stockEl.innerHTML     = (isLow ? '⚠️ Low Stock: ' : '✓ In Stock: ') + '<strong>' + total + '</strong> available';
-  } else {
-    stockEl.style.display = 'none';
+    if (data.action === 'subtract') {
+      const ss    = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName('Locations');
+      if (!sheet) throw new Error('Locations sheet not found');
+
+      const rows     = sheet.getDataRange().getValues();
+      const partNum  = String(data.partNum  || '').trim().toLowerCase();
+      const partName = String(data.partName || '').trim().toLowerCase();
+      const qty      = parseInt(data.qty) || 1;
+
+      for (let i = 1; i < rows.length; i++) {
+        const rowPn  = String(rows[i][18] || '').trim().toLowerCase(); // col S = Part Number
+        const rowPna = String(rows[i][19] || '').trim().toLowerCase(); // col T = Description
+        if ((partNum && rowPn === partNum) || (!partNum && partName && rowPna === partName)) {
+          const currentQty = parseInt(rows[i][17]) || 0;        // col R = Qty
+          const newQty     = Math.max(0, currentQty - qty);
+          sheet.getRange(i + 1, 18).setValue(newQty);           // col R = column 18
+          return ContentService
+            .createTextOutput(JSON.stringify({ success: true, newQty }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: 'Part not found in Locations' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: 'Unknown action' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
-
-// ── Send dropdown ─────────────────────────────────────────
-document.getElementById('send-dropdown-btn').addEventListener('click', function() {
-  const sel = document.getElementById('inv-select');
-  if (!sel.value) return;
-  const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
-  const [partNum, ...rest] = sel.value.split('|');
-  const partName = rest.join('|');
-  ws.send(JSON.stringify({ type: 'request', line: lineName, partNum, partName, text: partNum + ' — ' + partName, qty }));
-  sel.value = '';
-  document.getElementById('qty-input').value = '1';
-  document.getElementById('stock-info').style.display = 'none';
-  flashSent();
-});
-
-// ── Send custom ───────────────────────────────────────────
-document.getElementById('send-text-btn').addEventListener('click', function() {
-  const input = document.getElementById('text-input');
-  const text  = input.value.trim();
-  if (!text) return;
-  ws.send(JSON.stringify({ type: 'request', line: lineName, text, qty: 1 }));
-  input.value = '';
-  flashSent();
-});
-
-document.getElementById('text-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') document.getElementById('send-text-btn').click();
-});
-
-function flashSent() {
-  const el = document.getElementById('sent-flash');
-  el.style.display = 'block';
-  setTimeout(function(){ el.style.display = 'none'; }, 2000);
-}
-
-function cancelReq(id) {
-  ws.send(JSON.stringify({ type: 'fulfill', reqId: id }));
-}
-
-function renderList() {
-  const el = document.getElementById('req-list');
-  if (!myRequests.length) { el.innerHTML = ''; return; }
-  el.innerHTML = myRequests.map(r =>
-    '<div class="req-item">' +
-    '<div class="req-content">' +
-      '<div class="req-text">' + esc(r.text || (r.partNum + ' — ' + r.partName)) + '</div>' +
-      '<div class="req-meta">Qty: ' + (r.qty||1) + ' &nbsp;·&nbsp; ' + r.time + '</div>' +
-    '</div>' +
-    '<button class="req-cancel" onclick="cancelReq(' + r.id + ')">Cancel</button>' +
-    '</div>'
-  ).join('');
-}
-
-function esc(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-</script>
-</body>
-</html>
