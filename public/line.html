@@ -1,158 +1,62 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
 <title>Inventory Request</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #1a1e24;
-    color: #fff;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
-  }
-
-  /* ── Header ── */
-  .header {
-    background: #12151a;
-    border-bottom: 3px solid #C8102E;
-    padding: 16px 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-icon {
-    width: 36px; height: 36px; background: #C8102E;
-    border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0;
-  }
-  .brand-text .top { font-size: 11px; font-weight: 600; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
-  .brand-text .btm { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
-  .line-badge {
-    background: #C8102E; color: #fff; font-size: 13px; font-weight: 800;
-    padding: 6px 16px; border-radius: 4px; letter-spacing: 0.1em; text-transform: uppercase;
-  }
-
-  /* ── Page ── */
-  .page { padding: 28px; max-width: 480px; margin: 0 auto; }
-
-  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
-    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
-    text-transform: uppercase; color: #6b7280; margin-bottom: 12px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .section-label::after { content: ''; flex: 1; height: 1px; background: #2d3340; }
-
-  /* ── Card ── */
-  .card {
-    background: #12151a; border: 1px solid #2d3340;
-    border-radius: 8px; padding: 20px; margin-bottom: 24px;
-  }
-
-  /* ── Inventory ── */
-  .inv-loading { font-size: 13px; color: #6b7280; padding: 8px 0; text-align: center; }
-
-  select {
-    width: 100%; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600;
-    padding: 12px 14px; outline: none; cursor: pointer; margin-bottom: 14px;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 14px center;
-  }
-  select:focus { border-color: #C8102E; }
-  select option { background: #1f2937; }
-
-  /* ── Stock info ── */
-  .stock-info {
-    font-size: 13px; margin-bottom: 14px; padding: 10px 14px;
-    border-radius: 6px; font-weight: 600;
-  }
-  .stock-ok   { color: #4ade80; background: #052e16; border: 1px solid #166534; }
-  .stock-warn { color: #f87171; background: #2d0a0a; border: 1px solid #7f1d1d; }
-
-  /* ── Qty ── */
-  .qty-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-  .qty-label { font-size: 13px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
-  .qty-input {
-    width: 90px; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 22px; font-weight: 800;
-    padding: 8px 12px; text-align: center; outline: none;
-    -webkit-appearance: none; -moz-appearance: textfield;
-  }
-  .qty-input:focus { border-color: #C8102E; }
-
-  /* ── Buttons ── */
-  .priority-row { display: flex; gap: 8px; margin-bottom: 14px; }
-  .priority-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #374151; background: #1f2937; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
-  .priority-btn.active.low    { background: #1f2937; border-color: #6b7280; color: #d1d5db; }
-  .priority-btn.active.medium { background: #2d1f00; border-color: #EF9F27; color: #EF9F27; }
-  .priority-btn.active.high   { background: #2d0808; border-color: #C8102E; color: #f87171; }
-    width: 100%; padding: 14px; border-radius: 6px; border: none;
-    font-size: 14px; font-weight: 800; cursor: pointer; letter-spacing: 0.08em;
-    text-transform: uppercase; transition: background 0.15s;
-  }
-  .send-btn.primary   { background: #C8102E; color: #fff; margin-bottom: 0; }
-  .send-btn.primary:hover { background: #a00d24; }
-  .send-btn.secondary { background: #1f2937; color: #9ca3af; border: 1.5px solid #374151; }
-  .send-btn.secondary:hover { background: #374151; color: #fff; }
-  .send-btn:active { transform: scale(0.98); }
-
-  .divider {
-    display: flex; align-items: center; gap: 10px; margin: 20px 0;
-  }
-  .divider hr { flex: 1; border: none; border-top: 1px solid #2d3340; }
-  .divider span { font-size: 11px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
-
-  .text-input {
-    width: 100%; background: #1f2937; border: 1.5px solid #374151;
-    border-radius: 6px; color: #fff; font-size: 14px;
-    padding: 12px 14px; outline: none; margin-bottom: 12px;
-  }
-  .text-input:focus { border-color: #C8102E; }
-  .text-input::placeholder { color: #4b5563; }
-
-  /* ── Sent flash ── */
-  .sent-flash {
-    background: #052e16; border: 1px solid #166534;
-    border-radius: 6px; padding: 12px; text-align: center;
-    color: #4ade80; font-size: 14px; font-weight: 800;
-    display: none; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em;
-  }
-
-  /* ── Active requests ── */
-  .req-list { display: flex; flex-direction: column; gap: 8px; }
-  .req-item {
-    background: #12151a; border: 1px solid #2d3340;
-    border-left: 3px solid #C8102E;
-    border-radius: 6px; padding: 12px 14px;
-    display: flex; align-items: flex-start; gap: 10px;
-  }
-  .req-content { flex: 1; }
-  .req-text { font-size: 14px; font-weight: 600; color: #fff; word-break: break-word; }
-  .req-meta { font-size: 11px; color: #4b5563; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .req-cancel {
-    background: none; border: 1px solid #374151; border-radius: 4px;
-    color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700;
-    padding: 4px 10px; flex-shrink: 0; text-transform: uppercase;
-  }
-  .req-cancel:hover { border-color: #C8102E; color: #f87171; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1e24; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+.header { background: #12151a; border-bottom: 3px solid #C8102E; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+.brand-icon { width: 32px; height: 32px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; color: #fff; flex-shrink: 0; }
+.brand-text .top { font-size: 9px; font-weight: 700; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
+.brand-text .btm { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
+.line-select { margin-left: auto; background: #1f2937; border: 1.5px solid #C8102E; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 800; padding: 6px 12px; outline: none; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+.conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 20px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
+.page { padding: 20px; max-width: 440px; margin: 0 auto; }
+.sec { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.sec::after { content: ''; flex: 1; height: 1px; background: #2d3340; }
+.card { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+.inv-loading { font-size: 13px; color: #6b7280; padding: 6px 0; text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
+select, input[type=text], input[type=number] { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; margin-bottom: 12px; }
+select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-color: #1f2937; }
+select:focus, input:focus { border-color: #C8102E; }
+select option { background: #1f2937; }
+input::placeholder { color: #4b5563; }
+.stock-info { font-size: 13px; margin-bottom: 12px; padding: 10px 14px; border-radius: 6px; font-weight: 600; }
+.stock-ok   { color: #4ade80; background: #052e16; border: 1px solid #166534; }
+.stock-warn { color: #f87171; background: #2d0a0a; border: 1px solid #7f1d1d; }
+.qty-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.qty-label { font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
+.qty-input { flex: 1; margin-bottom: 0; -webkit-appearance: none; -moz-appearance: textfield; }
+.pri-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.pri-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #374151; background: #1f2937; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+.pri-btn.sel-low    { background: #1f2937; border-color: #6b7280; color: #d1d5db; }
+.pri-btn.sel-medium { background: #2d1f00; border-color: #EF9F27; color: #EF9F27; }
+.pri-btn.sel-high   { background: #2d0808; border-color: #C8102E; color: #f87171; }
+.btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; margin-bottom: 8px; }
+.btn-red  { background: #C8102E; color: #fff; } .btn-red:hover  { background: #a00d24; }
+.btn-gray { background: #1f2937; color: #9ca3af; border: 1px solid #374151; } .btn-gray:hover { background: #374151; color: #fff; }
+.sent-flash { display: none; background: #052e16; border: 1px solid #166534; border-radius: 6px; padding: 11px; text-align: center; color: #4ade80; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.divider hr { flex: 1; border: none; border-top: 1px solid #2d3340; }
+.divider span { font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
+.req-item { background: #12151a; border: 1px solid #2d3340; border-left: 3px solid #C8102E; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 10px; }
+.req-content { flex: 1; }
+.req-text { font-size: 13px; font-weight: 600; color: #fff; word-break: break-word; }
+.req-meta { font-size: 10px; color: #4b5563; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+.req-cancel { background: none; border: 1px solid #374151; border-radius: 4px; color: #6b7280; cursor: pointer; font-size: 10px; font-weight: 700; padding: 3px 8px; flex-shrink: 0; text-transform: uppercase; }
+.req-cancel:hover { border-color: #C8102E; color: #f87171; }
 </style>
 </head>
 <body>
-
 <div class="header">
-  <div class="brand">
-    <div class="brand-icon">L</div>
-    <div class="brand-text">
-      <div class="top">Langmuir Systems</div>
-      <div class="btm">Inventory Request</div>
-    </div>
+  <div class="brand-icon">L</div>
+  <div class="brand-text">
+    <div class="top">Langmuir Systems</div>
+    <div class="btm">Inventory Request</div>
   </div>
-  <select class="line-select" id="line-switcher" onchange="switchLine(this.value)">
+  <select class="line-select" id="line-switcher">
     <option value="Apollo">Apollo</option>
     <option value="XF/PRO">XF/PRO</option>
     <option value="TITAN">Titan</option>
@@ -161,221 +65,166 @@
     <option value="MR1">MR1</option>
   </select>
 </div>
-
-<div class="conn-status" id="conn-status">
-  ⚠ Connection lost — reconnecting...
-</div>
-
+<div class="conn-status" id="conn-status">Connection lost — reconnecting...</div>
 <div class="page">
-
-  <div class="section-label">Select from inventory</div>
+  <div class="sec">Select from inventory</div>
   <div class="card">
     <div id="inv-loading" class="inv-loading">Loading inventory...</div>
-
     <div id="inv-form" style="display:none">
-      <select id="inv-select">
-        <option value="">— Select a part —</option>
-      </select>
+      <select id="inv-select"><option value="">— Select a part —</option></select>
       <div id="stock-info" style="display:none" class="stock-info"></div>
       <div class="qty-row">
         <span class="qty-label">Qty</span>
         <input class="qty-input" id="qty-input" type="number" inputmode="numeric" min="1" value="1"/>
       </div>
-      <div class="sent-flash" id="sent-flash">✓ Request Sent!</div>
-      <button class="send-btn primary" id="send-dropdown-btn">📦 Send Request</button>
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
+      <div class="pri-row">
+        <button class="pri-btn sel-low"    id="pri-low"    onclick="setPri('low')">Low</button>
+        <button class="pri-btn"            id="pri-medium" onclick="setPri('medium')">Medium</button>
+        <button class="pri-btn"            id="pri-high"   onclick="setPri('high')">High</button>
+      </div>
+      <div class="sent-flash" id="sent-flash">Request Sent!</div>
+      <button class="btn btn-red" id="send-btn">Send Request</button>
     </div>
-
     <div class="divider"><hr/><span>or</span><hr/></div>
-
-    <input class="text-input" id="text-input" type="text" maxlength="120" placeholder="Type a custom request..."/>
-    <button class="send-btn secondary" id="send-text-btn">Send Custom Request</button>
+    <input type="text" id="txt-input" placeholder="Type a custom request..." maxlength="120"/>
+    <button class="btn btn-gray" id="send-txt-btn">Send Custom Request</button>
   </div>
-
-  <div class="section-label">Active requests</div>
-  <div class="req-list" id="req-list"></div>
-
+  <div class="sec">Active requests</div>
+  <div id="req-list"></div>
 </div>
-
 <script>
-const params   = new URLSearchParams(location.search);
-let lineName   = decodeURIComponent(params.get('line') || 'Apollo');
-let priority   = 'low';
+var params   = new URLSearchParams(location.search);
+var lineName = decodeURIComponent(params.get('line') || 'Apollo');
+var priority = 'low';
+var myReqs   = [];
+var lastPong = Date.now();
 
-// Set switcher to current line
-const switcher = document.getElementById('line-switcher');
-if (switcher) {
-  switcher.value = lineName;
-  if (!switcher.value) switcher.value = 'Apollo';
-  lineName = switcher.value;
-}
+// Set switcher
+var sw = document.getElementById('line-switcher');
+sw.value = lineName;
+if (!sw.value) { sw.value = 'Apollo'; lineName = 'Apollo'; }
+else lineName = sw.value;
 document.title = lineName + ' — Inventory';
 
-function switchLine(newLine) {
-  const url = new URL(location.href);
-  url.searchParams.set('line', newLine);
+sw.addEventListener('change', function() {
+  var url = new URL(location.href);
+  url.searchParams.set('line', sw.value);
   location.href = url.toString();
-}
+});
 
-function setPriority(p) {
-  priority = p;
-  ['low','medium','high'].forEach(function(lvl) {
-    const btn = document.getElementById('pri-' + lvl);
-    btn.className = 'priority-btn' + (lvl === p ? ' active ' + lvl : ' ' + lvl);
-  });
-}
-
-const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
-let myRequests = [];
-let wsAlive = true;
-
-ws.onopen = function() {
-  wsAlive = true;
-  document.getElementById('conn-status').style.display = 'none';
-};
-ws.onclose = function() {
-  wsAlive = false;
-  document.getElementById('conn-status').style.display = 'flex';
-  // Auto reconnect after 3 seconds
-  setTimeout(function() { location.reload(); }, 3000);
-};
-ws.onerror = function() {
-  wsAlive = false;
-  document.getElementById('conn-status').style.display = 'flex';
-};
-
-// Heartbeat — send ping every 25s to keep connection alive
-setInterval(function() {
-  if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
-}, 25000);
-
-// If connection drops for 35s, force reload
-let lastPong = Date.now();
-setInterval(function() {
-  if (Date.now() - lastPong > 35000) location.reload();
-}, 5000);
-
+// WebSocket
+var ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
+ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
+ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
+ws.onerror = function() { document.getElementById('conn-status').style.display = 'flex'; };
 ws.onmessage = function(e) {
   lastPong = Date.now();
-  const msg = JSON.parse(e.data);
+  var msg = JSON.parse(e.data);
   if (msg.type === 'requests') {
-    myRequests = msg.requests.filter(function(r){ return r.line === lineName; });
+    myReqs = (msg.requests || []).filter(function(r){ return r.line === lineName; });
     renderList();
   }
 };
-
-setInterval(function() {
+setInterval(function(){ if (ws.readyState===1) ws.send(JSON.stringify({type:'ping'})); }, 25000);
+setInterval(function(){ if (Date.now()-lastPong>35000) location.reload(); }, 5000);
+setInterval(function(){
   fetch('/api/requests').then(function(r){return r.json();}).then(function(d){
-    myRequests = d.requests.filter(function(r){ return r.line === lineName; });
-    renderList();
+    myReqs=(d.requests||[]).filter(function(r){return r.line===lineName;}); renderList();
   }).catch(function(){});
 }, 3000);
 
-// ── Load inventory ────────────────────────────────────────
-async function loadInventory() {
-  try {
-    const r = await fetch('/api/inventory');
-    const d = await r.json();
-    console.log('Inventory response:', d.success, Object.keys(d.inventory || {}));
-    if (d.success && d.inventory) {
-      const items = d.inventory[lineName] || [];
-      console.log('Items for', lineName, ':', items.length);
-      if (d.locations) window._locations = d.locations;
-      window._rawInventory = d.inventory;
-      const sel = document.getElementById('inv-select');
-      if (items.length) {
-        sel.innerHTML = '<option value="">— Select a part —</option>' +
-          items.map(i => '<option value="' + esc(i.partNum + '|' + i.partName) + '">' +
-            esc(i.partNum) + ' — ' + esc(i.partName) + '</option>').join('');
-        document.getElementById('inv-loading').style.display = 'none';
-        document.getElementById('inv-form').style.display    = '';
-      } else {
-        document.getElementById('inv-loading').textContent = 'No parts listed for: ' + lineName;
-        document.getElementById('inv-form').style.display  = '';
-      }
+// Load inventory
+function loadInventory() {
+  fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
+    if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
+    window._locations    = d.locations || [];
+    window._rawInventory = d.inventory || {};
+    var items = (d.inventory || {})[lineName] || [];
+    var sel   = document.getElementById('inv-select');
+    document.getElementById('inv-loading').style.display = 'none';
+    document.getElementById('inv-form').style.display    = '';
+    if (items.length) {
+      sel.innerHTML = '<option value="">— Select a part —</option>' +
+        items.map(function(i){ return '<option value="'+esc(i.partNum+'|'+i.partName)+'">'+esc(i.partNum)+' — '+esc(i.partName)+'</option>'; }).join('');
     } else {
-      document.getElementById('inv-loading').textContent = 'Error: ' + (d.error || 'unknown');
+      sel.innerHTML = '<option value="">No parts listed for '+esc(lineName)+'</option>';
     }
-  } catch(e) {
-    console.error('Inventory fetch error:', e);
-    document.getElementById('inv-loading').textContent = 'Could not load inventory: ' + e.message;
-  }
+  }).catch(function(e){
+    document.getElementById('inv-loading').textContent = 'Failed: '+e.message;
+    document.getElementById('inv-form').style.display = '';
+  });
 }
 loadInventory();
 
-// ── Stock info ────────────────────────────────────────────
-document.getElementById('inv-select').addEventListener('change', showStockInfo);
-document.getElementById('qty-input').addEventListener('input',   showStockInfo);
+// Priority
+function setPri(p) {
+  priority = p;
+  ['low','medium','high'].forEach(function(lvl){
+    document.getElementById('pri-'+lvl).className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
+  });
+}
 
-function showStockInfo() {
-  const sel     = document.getElementById('inv-select');
-  const stockEl = document.getElementById('stock-info');
-  if (!sel.value) { stockEl.style.display = 'none'; return; }
-  const [partNum] = sel.value.split('|');
-  const qty   = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
-  const locs  = (window._locations || []).filter(l => l.partNum.toLowerCase() === partNum.toLowerCase());
+// Stock info
+document.getElementById('inv-select').addEventListener('change', showStock);
+document.getElementById('qty-input').addEventListener('input',   showStock);
+function showStock() {
+  var sel   = document.getElementById('inv-select');
+  var sEl   = document.getElementById('stock-info');
+  if (!sel.value) { sEl.style.display='none'; return; }
+  var pn    = sel.value.split('|')[0];
+  var qty   = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+  var locs  = (window._locations||[]).filter(function(l){ return l.partNum.toLowerCase()===pn.toLowerCase(); });
   if (locs.length) {
-    const total = locs.reduce((s, l) => s + (parseInt(l.quantity) || 0), 0);
-    const isLow = total < qty;
-    stockEl.style.display = '';
-    stockEl.className     = 'stock-info ' + (isLow ? 'stock-warn' : 'stock-ok');
-    stockEl.innerHTML     = (isLow ? '⚠️ Low Stock: ' : '✓ In Stock: ') + '<strong>' + total + '</strong> available';
-  } else {
-    stockEl.style.display = 'none';
-  }
-document.getElementById('send-dropdown-btn').addEventListener('click', function() {
-  const sel = document.getElementById('inv-select');
+    var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+    var isLow = total < qty;
+    sEl.style.display = '';
+    sEl.className     = 'stock-info '+(isLow?'stock-warn':'stock-ok');
+    sEl.innerHTML     = (isLow?'Low Stock: ':'In Stock: ')+'<strong>'+total+'</strong> available';
+  } else { sEl.style.display='none'; }
+}
+
+// Send from dropdown
+document.getElementById('send-btn').addEventListener('click', function() {
+  var sel = document.getElementById('inv-select');
   if (!sel.value) return;
-  const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
-  const [partNum, ...rest] = sel.value.split('|');
-  const partName = rest.join('|');
-  ws.send(JSON.stringify({ type: 'request', line: lineName, partNum, partName, text: partNum + ' — ' + partName, qty, priority }));
-  sel.value = '';
-  document.getElementById('qty-input').value = '1';
-  document.getElementById('stock-info').style.display = 'none';
-  flashSent();
+  var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+  var parts   = sel.value.split('|');
+  var partNum = parts[0];
+  var partName= parts.slice(1).join('|');
+  ws.send(JSON.stringify({type:'request', line:lineName, partNum:partNum, partName:partName, text:partNum+' — '+partName, qty:qty, priority:priority}));
+  sel.value=''; document.getElementById('qty-input').value='1';
+  document.getElementById('stock-info').style.display='none';
+  flash();
 });
 
-// ── Send custom ───────────────────────────────────────────
-document.getElementById('send-text-btn').addEventListener('click', function() {
-  const input = document.getElementById('text-input');
-  const text  = input.value.trim();
-  if (!text) return;
-  ws.send(JSON.stringify({ type: 'request', line: lineName, text, qty: 1, priority }));
-  input.value = '';
-  flashSent();
+// Send custom
+document.getElementById('send-txt-btn').addEventListener('click', function() {
+  var t = document.getElementById('txt-input').value.trim();
+  if (!t) return;
+  ws.send(JSON.stringify({type:'request', line:lineName, text:t, qty:1, priority:priority}));
+  document.getElementById('txt-input').value='';
+  flash();
+});
+document.getElementById('txt-input').addEventListener('keydown', function(e){
+  if (e.key==='Enter') document.getElementById('send-txt-btn').click();
 });
 
-document.getElementById('text-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') document.getElementById('send-text-btn').click();
-});
-
-function flashSent() {
-  const el = document.getElementById('sent-flash');
-  el.style.display = 'block';
-  setTimeout(function(){ el.style.display = 'none'; }, 2000);
+function flash() {
+  var el=document.getElementById('sent-flash'); el.style.display='block';
+  setTimeout(function(){ el.style.display='none'; }, 2000);
 }
-
-function cancelReq(id) {
-  ws.send(JSON.stringify({ type: 'fulfill', reqId: id }));
-}
-
+function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill', reqId:id})); }
 function renderList() {
-  const el = document.getElementById('req-list');
-  if (!myRequests.length) { el.innerHTML = ''; return; }
-  el.innerHTML = myRequests.map(r =>
-    '<div class="req-item">' +
-    '<div class="req-content">' +
-      '<div class="req-text">' + esc(r.text || (r.partNum + ' — ' + r.partName)) + '</div>' +
-      '<div class="req-meta">Qty: ' + (r.qty||1) + ' &nbsp;·&nbsp; ' + r.time + '</div>' +
-    '</div>' +
-    '<button class="req-cancel" onclick="cancelReq(' + r.id + ')">Cancel</button>' +
-    '</div>'
-  ).join('');
+  var el=document.getElementById('req-list');
+  if (!myReqs.length) { el.innerHTML=''; return; }
+  el.innerHTML=myReqs.map(function(r){
+    return '<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text||(r.partNum+' — '+r.partName))+'</div>'+
+      '<div class="req-meta">Qty: '+(r.qty||1)+' · '+(r.priority||'low')+' · '+r.time+'</div></div>'+
+      '<button class="req-cancel" onclick="cancelReq('+r.id+')">Cancel</button></div>';
+  }).join('');
 }
-
-function esc(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>
