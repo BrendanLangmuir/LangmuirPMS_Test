@@ -30,10 +30,21 @@ input::placeholder { color: #4b5563; }
 .qty-label { font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
 .qty-input { flex: 1; margin-bottom: 0; -webkit-appearance: none; -moz-appearance: textfield; }
 .pri-row { display: flex; gap: 8px; margin-bottom: 14px; }
-.pri-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #374151; background: #1f2937; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+.pri-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #374151; background: #1f2937; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
 .pri-btn.sel-low    { background: #1f2937; border-color: #6b7280; color: #d1d5db; }
 .pri-btn.sel-medium { background: #2d1f00; border-color: #EF9F27; color: #EF9F27; }
 .pri-btn.sel-high   { background: #2d0808; border-color: #C8102E; color: #f87171; }
+.search-input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 8px; }
+.search-input:focus { border-color: #C8102E; }
+.search-input::placeholder { color: #4b5563; }
+.parts-list { max-height: 220px; overflow-y: auto; border: 1.5px solid #374151; border-radius: 6px; background: #1f2937; margin-bottom: 12px; }
+.part-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #2d3340; font-size: 13px; color: #d1d5db; }
+.part-item:last-child { border-bottom: none; }
+.part-item:hover { background: #374151; color: #fff; }
+.part-item.selected { background: #3d0808; border-left: 3px solid #C8102E; color: #fff; }
+.part-item .pn { font-weight: 800; color: #C8102E; font-size: 11px; letter-spacing: 0.06em; }
+.part-item .pa { font-size: 12px; color: #9ca3af; margin-top: 1px; }
+.no-results { padding: 14px; text-align: center; font-size: 12px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
 .btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; margin-bottom: 8px; }
 .btn-red  { background: #C8102E; color: #fff; } .btn-red:hover  { background: #a00d24; }
 .btn-gray { background: #1f2937; color: #9ca3af; border: 1px solid #374151; } .btn-gray:hover { background: #374151; color: #fff; }
@@ -71,7 +82,12 @@ input::placeholder { color: #4b5563; }
   <div class="card">
     <div id="inv-loading" class="inv-loading">Loading inventory...</div>
     <div id="inv-form" style="display:none">
-      <select id="inv-select"><option value="">— Select a part —</option></select>
+      <input class="search-input" id="part-search" type="text" placeholder="Search by part # or description..." autocomplete="off"/>
+      <div class="parts-list" id="parts-list"></div>
+      <div id="selected-part" style="display:none;margin-bottom:12px;padding:10px 14px;background:#12151a;border:1.5px solid #C8102E;border-radius:6px;">
+        <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Selected</div>
+        <div id="selected-part-text" style="font-size:13px;font-weight:700;color:#fff;"></div>
+      </div>
       <div id="stock-info" style="display:none" class="stock-info"></div>
       <div class="qty-row">
         <span class="qty-label">Qty</span>
@@ -134,26 +150,18 @@ setInterval(function(){
   }).catch(function(){});
 }, 3000);
 
-// Load inventory
+var allItems     = [];
+var selectedPart = null;
+
 function loadInventory() {
   fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
     if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
     window._locations    = d.locations || [];
     window._rawInventory = d.inventory || {};
-    var items = (d.inventory || {})[lineName] || [];
-    var sel   = document.getElementById('inv-select');
+    allItems = (d.inventory || {})[lineName] || [];
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-form').style.display    = '';
-    if (items.length) {
-      sel.innerHTML = '<option value="">— Select a part —</option>' +
-        items.map(function(i){
-          var pn = String(i.partNum || '');
-          var pa = String(i.partName || '');
-          return '<option value="'+esc(pn+'|'+pa)+'">'+esc(pn)+' — '+esc(pa)+'</option>';
-        }).join('');
-    } else {
-      sel.innerHTML = '<option value="">No parts listed for '+esc(lineName)+'</option>';
-    }
+    renderParts('');
   }).catch(function(e){
     document.getElementById('inv-loading').textContent = 'Failed: '+e.message;
     document.getElementById('inv-form').style.display = '';
@@ -161,24 +169,59 @@ function loadInventory() {
 }
 loadInventory();
 
-// Priority
+function renderParts(q) {
+  var list = document.getElementById('parts-list');
+  var filtered = q
+    ? allItems.filter(function(i){
+        var pn = String(i.partNum||'').toLowerCase();
+        var pa = String(i.partName||'').toLowerCase();
+        return pn.includes(q.toLowerCase()) || pa.includes(q.toLowerCase());
+      })
+    : allItems;
+  if (!filtered.length) {
+    list.innerHTML = '<div class="no-results">No parts found</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(function(i) {
+    var pn = String(i.partNum||''), pa = String(i.partName||'');
+    var isSel = selectedPart && selectedPart.partNum === pn;
+    return '<div class="part-item'+(isSel?' selected':'')+'" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\')">' +
+      '<div class="pn">'+esc(pn)+'</div>' +
+      '<div class="pa">'+esc(pa)+'</div>' +
+      '</div>';
+  }).join('');
+}
+
+function selectPart(pn, pa) {
+  selectedPart = { partNum: pn, partName: pa };
+  document.getElementById('selected-part').style.display = 'block';
+  document.getElementById('selected-part-text').textContent = pn + ' — ' + pa;
+  document.getElementById('part-search').value = '';
+  renderParts('');
+  showStock();
+}
+
+document.getElementById('part-search').addEventListener('input', function() {
+  renderParts(this.value);
+});
+
+// Priority — fixed to use variable correctly
 function setPri(p) {
   priority = p;
   ['low','medium','high'].forEach(function(lvl){
-    document.getElementById('pri-'+lvl).className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
+    var btn = document.getElementById('pri-'+lvl);
+    btn.className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
   });
 }
 
 // Stock info
-document.getElementById('inv-select').addEventListener('change', showStock);
-document.getElementById('qty-input').addEventListener('input',   showStock);
+document.getElementById('qty-input').addEventListener('input', showStock);
 function showStock() {
-  var sel   = document.getElementById('inv-select');
-  var sEl   = document.getElementById('stock-info');
-  if (!sel.value) { sEl.style.display='none'; return; }
-  var pn    = sel.value.split('|')[0];
-  var qty   = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
-  var locs  = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===pn.toLowerCase(); });
+  var sEl = document.getElementById('stock-info');
+  if (!selectedPart) { sEl.style.display='none'; return; }
+  var pn  = selectedPart.partNum;
+  var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+  var locs = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===pn.toLowerCase(); });
   if (locs.length) {
     var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
     var isLow = total < qty;
@@ -188,17 +231,16 @@ function showStock() {
   } else { sEl.style.display='none'; }
 }
 
-// Send from dropdown
+// Send from list
 document.getElementById('send-btn').addEventListener('click', function() {
-  var sel = document.getElementById('inv-select');
-  if (!sel.value) return;
+  if (!selectedPart) { alert('Please select a part first'); return; }
   var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
-  var parts   = sel.value.split('|');
-  var partNum = parts[0];
-  var partName= parts.slice(1).join('|');
-  ws.send(JSON.stringify({type:'request', line:lineName, partNum:partNum, partName:partName, text:partNum+' — '+partName, qty:qty, priority:priority}));
-  sel.value=''; document.getElementById('qty-input').value='1';
-  document.getElementById('stock-info').style.display='none';
+  ws.send(JSON.stringify({type:'request', line:lineName, partNum:selectedPart.partNum, partName:selectedPart.partName, text:selectedPart.partNum+' — '+selectedPart.partName, qty:qty, priority:priority}));
+  selectedPart = null;
+  document.getElementById('selected-part').style.display = 'none';
+  document.getElementById('qty-input').value = '1';
+  document.getElementById('stock-info').style.display = 'none';
+  renderParts('');
   flash();
 });
 
