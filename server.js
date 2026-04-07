@@ -14,7 +14,6 @@ const LOCATIONS_URL = process.env.LOCATIONS_URL || '';
 const PORT          = process.env.PORT          || 8080;
 const TAKT_SECONDS  = 3 * 60 * 60;
 
-// ── Apollo stations ──────────────────────────────────────────
 const STATIONS = [
   { id: 1,  name: 'Framing',               type: 'main' },
   { id: 2,  name: 'Machining',             type: 'main' },
@@ -59,7 +58,7 @@ function getScheduledBreak() {
 }
 function todayStr() { return new Date().toDateString(); }
 
-// ── Global request store (persists across takt restarts) ─────
+// ── Global request store ─────────────────────────────────────
 let allRequests = [];
 let nextReqId   = 1;
 
@@ -196,7 +195,7 @@ async function fetchLocations() {
 fetchLocations();
 setInterval(fetchLocations, 5 * 60 * 1000);
 
-// ── Inventory cache ──────────────────────────────────────────
+// ── Inventory cache (locations + inventory + bomList) ────────
 let inventoryCache = null;
 async function fetchInventory() {
   if (!LOCATIONS_URL) return;
@@ -205,7 +204,7 @@ async function fetchInventory() {
     const d = await r.json();
     if (d.success) {
       inventoryCache = d;
-      console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups');
+      console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups,', (d.bomList || []).length, 'BOM parts');
     }
   } catch(e) { console.error('Inventory cache failed:', e.message); }
 }
@@ -259,13 +258,14 @@ app.get('/api/inventory', (req, res) => {
   if (inventoryCache) return res.json(inventoryCache);
   res.json({ success: false, error: 'Inventory not yet loaded — please wait a moment and refresh' });
 });
-app.get('/api/locations', (req, res) => {
-  res.json({ success: true, locations: locationsCache });
-});
 app.get('/api/bom', (req, res) => {
   if (inventoryCache && inventoryCache.bomList) return res.json({ success: true, bomList: inventoryCache.bomList });
   res.json({ success: false, error: 'BOM not yet loaded' });
 });
+app.get('/api/locations', (req, res) => {
+  res.json({ success: true, locations: locationsCache });
+});
+app.get('/api/lines', (req, res) => {
   res.json({ lines: OTHER_LINES });
 });
 app.get('/api/refresh-locations', async (req, res) => {
@@ -293,7 +293,7 @@ wss.on('connection', (ws, req) => {
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
 
-    // ── Ping keepalive ───────────────────────────────────────
+    // ── Ping ─────────────────────────────────────────────────
     if (msg.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }));
       return;
@@ -424,14 +424,13 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Fulfill (picker picks a request) ────────────────────
+    // ── Fulfill ──────────────────────────────────────────────
     if (msg.type === 'fulfill') {
       const req = allRequests.find(r => r.id === msg.reqId);
       console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
       if (req) {
         req.fulfilled = true;
         const actualQty = (msg.qty !== undefined && msg.qty !== null) ? msg.qty : (req.qty || 1);
-        // Only subtract if qty > 0 (qty=0 means cancelled, no inventory change)
         if (LOCATIONS_URL && req.partNum && actualQty > 0) {
           fetch(LOCATIONS_URL, {
             method: 'POST',
@@ -469,7 +468,7 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Stow inventory ───────────────────────────────────────
+    // ── Stow ─────────────────────────────────────────────────
     if (msg.type === 'stow') {
       if (!LOCATIONS_URL) return;
       fetch(LOCATIONS_URL, {
