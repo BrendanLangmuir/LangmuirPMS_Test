@@ -159,8 +159,8 @@
   <div class="card">
     <div id="result-flash" class="result-flash"></div>
     <div class="field">
-      <label>Shelf Location</label>
-      <select id="location-sel"><option value="">— Loading locations... —</option></select>
+      <label>Shelf Location <span style="font-weight:400;color:#4b5563;text-transform:none;letter-spacing:0;">(e.g. 01-A1-A)</span></label>
+      <input type="text" id="location-sel" placeholder="e.g. 01-A1-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>
     </div>
     <div class="field">
       <label>Part Number</label>
@@ -218,17 +218,7 @@ setInterval(function() {
 // ── Load locations ────────────────────────────────────────
 function loadLocations() {
   fetch('/api/locations').then(function(r){return r.json();}).then(function(d){
-    if (d.success && d.locations) {
-      locationsData = d.locations;
-      renderQueue();
-      // Populate stow dropdown with unique sorted locations
-      var locs = [];
-      d.locations.forEach(function(l) { if (l.location && locs.indexOf(l.location) === -1) locs.push(l.location); });
-      locs.sort();
-      var sel = document.getElementById('location-sel');
-      sel.innerHTML = '<option value="">— Select a location —</option>' +
-        locs.map(function(l) { return '<option value="' + esc(l) + '">' + esc(l) + '</option>'; }).join('');
-    }
+    if (d.success && d.locations) { locationsData = d.locations; renderQueue(); }
   }).catch(function(){});
 }
 loadLocations();
@@ -348,7 +338,7 @@ function changeQty(delta) {
 }
 
 function stowPart() {
-  var location = document.getElementById('location-sel').value.trim();
+  var location = document.getElementById('location-sel').value.trim().toUpperCase();
   var partNum  = document.getElementById('part-num').value.trim().toUpperCase();
   var partName = document.getElementById('part-name').value.trim().toUpperCase();
   var qty      = Math.max(1, parseInt(document.getElementById('qty-stow').value) || 1);
