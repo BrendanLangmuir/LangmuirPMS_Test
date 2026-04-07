@@ -1,18 +1,18 @@
 const express = require('express');
-const http = require('http');
+const http    = require('http');
 const { WebSocketServer } = require('ws');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss    = new WebSocketServer({ server });
 
 app.use(express.json());
 app.use(express.static('public'));
 
-const SHEETS_URL      = process.env.SHEETS_URL || '';
-const LOCATIONS_URL   = process.env.LOCATIONS_URL || '';
-const PORT            = process.env.PORT || 8080;
-const TAKT_SECONDS    = 3 * 60 * 60;
+const SHEETS_URL    = process.env.SHEETS_URL    || '';
+const LOCATIONS_URL = process.env.LOCATIONS_URL || '';
+const PORT          = process.env.PORT          || 8080;
+const TAKT_SECONDS  = 3 * 60 * 60;
 
 // ── Apollo stations ──────────────────────────────────────────
 const STATIONS = [
@@ -59,10 +59,9 @@ function getScheduledBreak() {
 }
 function todayStr() { return new Date().toDateString(); }
 
-// ── Global request store (persists across takt restarts) ─────
-// { id, line, station, partNum, partName, text, qty, location, time, fulfilled }
-let allRequests  = [];
-let nextReqId    = 1;
+// ── Global request store ─────────────────────────────────────
+let allRequests = [];
+let nextReqId   = 1;
 
 // ── Apollo state ─────────────────────────────────────────────
 function resetStations() {
@@ -74,6 +73,7 @@ function resetStations() {
     stationStartTime: now, activeMs: 0,
     andon: null, andonTime: null,
     andonPauseStart: null, totalAndonPause: 0,
+    requests: [],
   }));
 }
 
@@ -84,14 +84,10 @@ let state = {
   stations: resetStations(),
 };
 
-let autoEndTimer = null, breakCheckTimer = null;
+let autoEndTimer    = null;
+let breakCheckTimer = null;
 
-// ── Helpers ──────────────────────────────────────────────────
-function stationActiveMs(st) {
-  let ms = st.activeMs;
-  if (st.stationStatus === 'active' && st.stationStartTime) ms += Date.now() - st.stationStartTime;
-  return ms;
-}
+// ── Station timer helpers ────────────────────────────────────
 function pauseStationTimer(st) {
   if (st.stationStatus === 'active' && st.stationStartTime) {
     st.activeMs += Date.now() - st.stationStartTime;
@@ -108,23 +104,23 @@ function effectiveElapsedMs() {
   return Math.max(0, e);
 }
 
+// ── Broadcast helpers ────────────────────────────────────────
+const apolloClients = new Set();
+const pickerClients = new Set();
+
 function broadcastApollo(msg) {
   const data = JSON.stringify(msg);
   apolloClients.forEach(c => { if (c.readyState === 1) c.send(data); });
 }
-function broadcastPicker(msg) {
-  const data = JSON.stringify(msg);
-  pickerClients.forEach(c => { if (c.readyState === 1) c.send(data); });
-}
-function broadcastAll(msg) { broadcastApollo(msg); broadcastPicker(msg); }
-
 function broadcastState() {
   broadcastApollo({ type: 'state', state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS });
 }
 function broadcastRequests() {
-  const active = allRequests.filter(r => !r.fulfilled);
-  const msg    = JSON.stringify({ type: 'requests', requests: active });
-  // Send to all clients — Apollo workers, line pages, and pickers
+  const priOrder = { high: 0, medium: 1, low: 2 };
+  const active = allRequests
+    .filter(r => !r.fulfilled)
+    .sort((a, b) => (priOrder[a.priority] ?? 2) - (priOrder[b.priority] ?? 2));
+  const msg = JSON.stringify({ type: 'requests', requests: active });
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
@@ -158,6 +154,7 @@ function stopBreakChecker() {
   if (breakCheckTimer) { clearInterval(breakCheckTimer); breakCheckTimer = null; }
 }
 
+// ── End cycle ────────────────────────────────────────────────
 function endCycle() {
   if (!state.running) return;
   if (autoEndTimer) { clearTimeout(autoEndTimer); autoEndTimer = null; }
@@ -181,24 +178,7 @@ function endCycle() {
   });
 }
 
-// ── Inventory cache ──────────────────────────────────────────
-let inventoryCache = null;
-let inventoryCacheTime = 0;
-
-async function fetchInventory() {
-  if (!LOCATIONS_URL) return;
-  try {
-    const r = await fetch(LOCATIONS_URL, { redirect: 'follow' });
-    const d = await r.json();
-    if (d.success) {
-      inventoryCache     = d;
-      inventoryCacheTime = Date.now();
-      console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups');
-    }
-  } catch(e) { console.error('Inventory cache failed:', e.message); }
-}
-fetchInventory();
-setInterval(fetchInventory, 10 * 60 * 1000); // refresh every 10 min
+// ── Location cache ───────────────────────────────────────────
 let locationsCache = [];
 async function fetchLocations() {
   if (!LOCATIONS_URL) return;
@@ -212,8 +192,25 @@ async function fetchLocations() {
   } catch(e) { console.error('Locations fetch failed:', e.message); }
 }
 fetchLocations();
-setInterval(fetchLocations, 5 * 60 * 1000); // refresh every 5 min
+setInterval(fetchLocations, 5 * 60 * 1000);
 
+// ── Inventory cache ──────────────────────────────────────────
+let inventoryCache = null;
+async function fetchInventory() {
+  if (!LOCATIONS_URL) return;
+  try {
+    const r = await fetch(LOCATIONS_URL, { redirect: 'follow' });
+    const d = await r.json();
+    if (d.success) {
+      inventoryCache = d;
+      console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups');
+    }
+  } catch(e) { console.error('Inventory cache failed:', e.message); }
+}
+fetchInventory();
+setInterval(fetchInventory, 10 * 60 * 1000);
+
+// ── Location lookup ──────────────────────────────────────────
 function lookupLocation(partNum, partName) {
   const matches = locationsCache.filter(l =>
     l.partNum.toLowerCase() === String(partNum).toLowerCase()
@@ -250,37 +247,32 @@ app.get('/api/state', (req, res) => {
   res.json({ state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS });
 });
 app.get('/api/requests', (req, res) => {
-  res.json({ requests: allRequests.filter(r => !r.fulfilled) });
+  const priOrder = { high: 0, medium: 1, low: 2 };
+  const active = allRequests
+    .filter(r => !r.fulfilled)
+    .sort((a, b) => (priOrder[a.priority] ?? 2) - (priOrder[b.priority] ?? 2));
+  res.json({ requests: active });
 });
-app.get('/api/inventory', async (req, res) => {
-  // Serve from cache if available (instant) otherwise fetch live
+app.get('/api/inventory', (req, res) => {
   if (inventoryCache) return res.json(inventoryCache);
-  if (!LOCATIONS_URL) return res.json({ success: false, error: 'LOCATIONS_URL not set' });
-  try {
-    const r = await fetch(LOCATIONS_URL, { redirect: 'follow' });
-    const d = await r.json();
-    res.json(d);
-  } catch(e) { res.json({ success: false, error: e.message }); }
+  res.json({ success: false, error: 'Inventory not yet loaded' });
 });
 app.get('/api/locations', (req, res) => {
   res.json({ success: true, locations: locationsCache });
 });
-app.get('/api/refresh-locations', async (req, res) => {
-  await fetchLocations();
-  res.json({ success: true, count: locationsCache.length });
-});
 app.get('/api/lines', (req, res) => {
   res.json({ lines: OTHER_LINES });
 });
+app.get('/api/refresh-locations', async (req, res) => {
+  await fetchLocations();
+  await fetchInventory();
+  res.json({ success: true, locations: locationsCache.length });
+});
 
-// ── WebSocket client sets ────────────────────────────────────
-const apolloClients = new Set();
-const pickerClients = new Set();
-
+// ── WebSocket ────────────────────────────────────────────────
 wss.on('connection', (ws, req) => {
-  const url    = req.url || '';
+  const url      = req.url || '';
   const isPicker = url.includes('picker=1');
-  const isLine   = url.includes('line=');
 
   if (isPicker) {
     pickerClients.add(ws);
@@ -291,13 +283,15 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'requests', requests: allRequests.filter(r => !r.fulfilled) }));
   }
 
+  ws.on('close', () => { apolloClients.delete(ws); pickerClients.delete(ws); });
+
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
 
-    // ── Ping (keepalive) ─────────────────────────────────────
+    // ── Ping ─────────────────────────────────────────────────
     if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
 
-    // ── Apollo: Start takt ───────────────────────────────────
+    // ── Start takt ───────────────────────────────────────────
     if (msg.type === 'start') {
       if (state.running) return;
       const today = todayStr();
@@ -312,14 +306,14 @@ wss.on('connection', (ws, req) => {
       startBreakChecker();
     }
 
-    // ── Apollo: Pause toggle ─────────────────────────────────
+    // ── Pause toggle ─────────────────────────────────────────
     if (msg.type === 'pause') {
       if (!state.running) return;
       if (state.paused && state.pauseLabel === 'Paused') resumeCycle();
       else if (!state.paused) pauseCycle('Paused');
     }
 
-    // ── Apollo: Station start ────────────────────────────────
+    // ── Station start ────────────────────────────────────────
     if (msg.type === 'station-start') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && !st.done && state.running && !state.paused) {
@@ -329,7 +323,7 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Apollo: Station hold ─────────────────────────────────
+    // ── Station hold ─────────────────────────────────────────
     if (msg.type === 'station-hold') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && !st.done) {
@@ -340,7 +334,7 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Apollo: Station done ─────────────────────────────────
+    // ── Station done ─────────────────────────────────────────
     if (msg.type === 'done') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && !st.done && state.running) {
@@ -353,7 +347,52 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Apollo: Andon ────────────────────────────────────────
+    // ── Inventory request ────────────────────────────────────
+    if (msg.type === 'request') {
+      console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority);
+      const stName = msg.station || (msg.stationId ? (state.stations.find(s => s.id === msg.stationId)?.name || null) : null);
+      const loc    = lookupLocation(msg.partNum || '', msg.partName || '');
+      const req = {
+        id:           nextReqId++,
+        line:         msg.line     || 'Apollo',
+        station:      stName,
+        partNum:      msg.partNum  || '',
+        partName:     msg.partName || '',
+        text:         msg.text     || '',
+        qty:          msg.qty      || 1,
+        priority:     String(msg.priority || 'low'),
+        totalQty:     loc.totalQty,
+        allLocations: loc.allLocations,
+        location:     loc.location,
+        stockQty:     loc.quantity,
+        time:         new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        fulfilled:    false,
+      };
+      console.log('Stored request priority:', req.priority);
+
+      // Attach to Apollo station if applicable
+      if (msg.stationId) {
+        const st = state.stations.find(s => s.id === msg.stationId);
+        if (st) {
+          st.requests = st.requests || [];
+          st.requests.push({ id: req.id, text: req.text || (req.partNum + ' — ' + req.partName), time: req.time });
+          broadcastState();
+        }
+      }
+
+      allRequests.push(req);
+      broadcastRequests();
+    }
+
+    // ── Dismiss inventory request ────────────────────────────
+    if (msg.type === 'dismiss') {
+      const st = state.stations.find(s => s.id === msg.stationId);
+      if (st) { st.requests = (st.requests || []).filter(r => r.id !== msg.reqId); broadcastState(); }
+      const req = allRequests.find(r => r.id === msg.reqId);
+      if (req) { req.fulfilled = true; broadcastRequests(); }
+    }
+
+    // ── Andon ────────────────────────────────────────────────
     if (msg.type === 'andon') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && (msg.level === 'line-lead' || msg.level === 'floor-manager')) {
@@ -374,53 +413,12 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Inventory request (Apollo worker or line page) ───────
-    if (msg.type === 'request') {
-      console.log('Request received:', msg.line, msg.partNum||msg.text, 'priority:', msg.priority);
-      const stName   = msg.station || null;
-      const loc      = lookupLocation(msg.partNum || '', msg.partName || '');
-      const req = {
-        id:        nextReqId++,
-        line:      msg.line || 'Apollo',
-        station:   stName,
-        partNum:   msg.partNum  || '',
-        partName:  msg.partName || '',
-        text:      msg.text     || '',
-        qty:       msg.qty      || 1,
-        location:  loc.location,
-        stockQty:  loc.quantity,
-        time:      new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        fulfilled: false,
-      };
-
-      // Also attach to Apollo station if applicable
-      if (msg.stationId) {
-        const st = state.stations.find(s => s.id === msg.stationId);
-        if (st) {
-          st.requests = st.requests || [];
-          st.requests.push({ id: req.id, text: req.text || (req.partNum + ' — ' + req.partName), time: req.time });
-          broadcastState();
-        }
-      }
-
-      allRequests.push(req);
-      broadcastRequests();
-    }
-
-    // ── Dismiss (Apollo station card) ────────────────────────
-    if (msg.type === 'dismiss') {
-      const st = state.stations.find(s => s.id === msg.stationId);
-      if (st) { st.requests = (st.requests || []).filter(r => r.id !== msg.reqId); broadcastState(); }
-      const req = allRequests.find(r => r.id === msg.reqId);
-      if (req) { req.fulfilled = true; broadcastRequests(); }
-    }
-
-    // ── Picker: fulfill request ──────────────────────────────
+    // ── Picker: fulfill ──────────────────────────────────────
     if (msg.type === 'fulfill') {
       const req = allRequests.find(r => r.id === msg.reqId);
-      console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: req?.qty });
-      if (req) {        req.fulfilled = true;
-        // Subtract quantity from sheet
+      console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
+      if (req) {
+        req.fulfilled = true;
         if (LOCATIONS_URL && (req.partNum || req.partName)) {
           const actualQty = msg.qty || req.qty || 1;
           fetch(LOCATIONS_URL, {
@@ -444,18 +442,13 @@ wss.on('connection', (ws, req) => {
                 );
                 if (loc) {
                   loc.quantity = String(d.newQty);
-                  console.log('Cache updated:', loc.location, loc.partNum, '→', d.newQty);
-                  // Broadcast fresh locations to all picker clients immediately
                   const locMsg = JSON.stringify({ type: 'locations', locations: locationsCache });
                   pickerClients.forEach(c => { if (c.readyState === 1) c.send(locMsg); });
-                } else {
-                  console.log('Cache entry not found for:', req.partNum, msg.location);
                 }
               }
             })
             .catch(e => console.error('Subtract failed:', e.message));
         }
-        // Remove from Apollo station if matched
         state.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== msg.reqId);
         });
@@ -464,7 +457,33 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Apollo: Manual end ───────────────────────────────────
+    // ── Stow inventory ───────────────────────────────────────
+    if (msg.type === 'stow') {
+      if (!LOCATIONS_URL) return;
+      fetch(LOCATIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action:   'stow',
+          location: msg.location || '',
+          partNum:  msg.partNum  || '',
+          partName: msg.partName || '',
+          qty:      msg.qty      || 1,
+        }),
+        redirect: 'follow',
+      }).then(r => r.json())
+        .then(d => {
+          console.log('Stow response:', d);
+          if (d.success) { fetchLocations(); fetchInventory(); }
+          ws.send(JSON.stringify({ type: 'stow-result', success: d.success, message: d.message || d.error }));
+        })
+        .catch(e => {
+          console.error('Stow failed:', e.message);
+          ws.send(JSON.stringify({ type: 'stow-result', success: false, message: e.message }));
+        });
+    }
+
+    // ── Manual end ───────────────────────────────────────────
     if (msg.type === 'end') endCycle();
   });
 });
