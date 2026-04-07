@@ -262,7 +262,10 @@ app.get('/api/inventory', (req, res) => {
 app.get('/api/locations', (req, res) => {
   res.json({ success: true, locations: locationsCache });
 });
-app.get('/api/lines', (req, res) => {
+app.get('/api/bom', (req, res) => {
+  if (inventoryCache && inventoryCache.bomList) return res.json({ success: true, bomList: inventoryCache.bomList });
+  res.json({ success: false, error: 'BOM not yet loaded' });
+});
   res.json({ lines: OTHER_LINES });
 });
 app.get('/api/refresh-locations', async (req, res) => {
