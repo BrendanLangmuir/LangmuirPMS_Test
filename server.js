@@ -181,7 +181,24 @@ function endCycle() {
   });
 }
 
-// ── Location lookup ──────────────────────────────────────────
+// ── Inventory cache ──────────────────────────────────────────
+let inventoryCache = null;
+let inventoryCacheTime = 0;
+
+async function fetchInventory() {
+  if (!SHEETS_URL) return;
+  try {
+    const r = await fetch(SHEETS_URL, { redirect: 'follow' });
+    const d = await r.json();
+    if (d.success) {
+      inventoryCache     = d;
+      inventoryCacheTime = Date.now();
+      console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups');
+    }
+  } catch(e) { console.error('Inventory cache failed:', e.message); }
+}
+fetchInventory();
+setInterval(fetchInventory, 10 * 60 * 1000); // refresh every 10 min
 let locationsCache = [];
 async function fetchLocations() {
   if (!LOCATIONS_URL) return;
@@ -236,6 +253,8 @@ app.get('/api/requests', (req, res) => {
   res.json({ requests: allRequests.filter(r => !r.fulfilled) });
 });
 app.get('/api/inventory', async (req, res) => {
+  // Serve from cache if available (instant) otherwise fetch live
+  if (inventoryCache) return res.json(inventoryCache);
   if (!LOCATIONS_URL) return res.json({ success: false, error: 'LOCATIONS_URL not set' });
   try {
     const r = await fetch(LOCATIONS_URL, { redirect: 'follow' });
