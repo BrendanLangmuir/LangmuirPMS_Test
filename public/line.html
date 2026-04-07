@@ -152,6 +152,7 @@ setInterval(function(){
 
 var allItems     = [];
 var selectedPart = null;
+var priority     = 'low';
 
 function loadInventory() {
   fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
@@ -205,12 +206,13 @@ document.getElementById('part-search').addEventListener('input', function() {
   renderParts(this.value);
 });
 
-// Priority — fixed to use variable correctly
+// Priority
 function setPri(p) {
   priority = p;
+  console.log('Priority set to:', priority);
   ['low','medium','high'].forEach(function(lvl){
     var btn = document.getElementById('pri-'+lvl);
-    btn.className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
+    if (btn) btn.className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
   });
 }
 
