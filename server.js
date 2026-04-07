@@ -419,6 +419,7 @@ wss.on('connection', (ws, req) => {
       console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
       if (req) {
         req.fulfilled = true;
+        const actualQty = msg.qty !== undefined ? msg.qty : (req.qty || 1);
         if (LOCATIONS_URL && (req.partNum || req.partName) && actualQty > 0) {
           const actualQty = msg.qty || req.qty || 1;
           fetch(LOCATIONS_URL, {
@@ -430,25 +431,6 @@ wss.on('connection', (ws, req) => {
               partName: req.partName || '',
               location: msg.location || '',
               qty:      actualQty,
-            }),
-            redirect: 'follow',
-          }).then(r => r.json())
-            .then(d => {
-              console.log('Qty subtracted:', d);
-              if (d.success && d.newQty !== undefined) {
-                const loc = locationsCache.find(l =>
-                  l.partNum.toLowerCase() === (req.partNum || '').toLowerCase() &&
-                  l.location.toLowerCase() === (msg.location || '').toLowerCase()
-                );
-                if (loc) {
-                  loc.quantity = String(d.newQty);
-                  const locMsg = JSON.stringify({ type: 'locations', locations: locationsCache });
-                  pickerClients.forEach(c => { if (c.readyState === 1) c.send(locMsg); });
-                }
-              }
-            })
-            .catch(e => console.error('Subtract failed:', e.message));
-        }
         state.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== msg.reqId);
         });
