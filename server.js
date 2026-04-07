@@ -59,7 +59,7 @@ function getScheduledBreak() {
 }
 function todayStr() { return new Date().toDateString(); }
 
-// ── Global request store ─────────────────────────────────────
+// ── Global request store (persists across takt restarts) ─────
 let allRequests = [];
 let nextReqId   = 1;
 
@@ -95,7 +95,9 @@ function pauseStationTimer(st) {
   }
 }
 function resumeStationTimer(st) {
-  if (st.stationStatus === 'active' && !st.stationStartTime) st.stationStartTime = Date.now();
+  if (st.stationStatus === 'active' && !st.stationStartTime) {
+    st.stationStartTime = Date.now();
+  }
 }
 function effectiveElapsedMs() {
   if (!state.running || !state.startTime) return 0;
@@ -104,7 +106,7 @@ function effectiveElapsedMs() {
   return Math.max(0, e);
 }
 
-// ── Broadcast helpers ────────────────────────────────────────
+// ── WebSocket client sets ────────────────────────────────────
 const apolloClients = new Set();
 const pickerClients = new Set();
 
@@ -178,7 +180,7 @@ function endCycle() {
   });
 }
 
-// ── Location cache ───────────────────────────────────────────
+// ── Locations cache ──────────────────────────────────────────
 let locationsCache = [];
 async function fetchLocations() {
   if (!LOCATIONS_URL) return;
@@ -211,7 +213,7 @@ fetchInventory();
 setInterval(fetchInventory, 10 * 60 * 1000);
 
 // ── Location lookup ──────────────────────────────────────────
-function lookupLocation(partNum, partName) {
+function lookupLocation(partNum) {
   const matches = locationsCache.filter(l =>
     l.partNum.toLowerCase() === String(partNum).toLowerCase()
   );
@@ -266,7 +268,7 @@ app.get('/api/lines', (req, res) => {
 app.get('/api/refresh-locations', async (req, res) => {
   await fetchLocations();
   await fetchInventory();
-  res.json({ success: true, locations: locationsCache.length });
+  res.json({ success: true, count: locationsCache.length });
 });
 
 // ── WebSocket ────────────────────────────────────────────────
@@ -288,8 +290,11 @@ wss.on('connection', (ws, req) => {
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
 
-    // ── Ping ─────────────────────────────────────────────────
-    if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
+    // ── Ping keepalive ───────────────────────────────────────
+    if (msg.type === 'ping') {
+      ws.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
 
     // ── Start takt ───────────────────────────────────────────
     if (msg.type === 'start') {
@@ -328,7 +333,8 @@ wss.on('connection', (ws, req) => {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && !st.done) {
         pauseStationTimer(st);
-        st.stationStatus = 'hold'; st.holdReason = msg.reason || 'No operator assigned';
+        st.stationStatus = 'hold';
+        st.holdReason = msg.reason || 'No operator assigned';
         st.stationStartTime = null;
         broadcastState();
       }
@@ -351,7 +357,7 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'request') {
       console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority);
       const stName = msg.station || (msg.stationId ? (state.stations.find(s => s.id === msg.stationId)?.name || null) : null);
-      const loc    = lookupLocation(msg.partNum || '', msg.partName || '');
+      const loc    = lookupLocation(msg.partNum || '');
       const req = {
         id:           nextReqId++,
         line:         msg.line     || 'Apollo',
@@ -369,8 +375,6 @@ wss.on('connection', (ws, req) => {
         fulfilled:    false,
       };
       console.log('Stored request priority:', req.priority);
-
-      // Attach to Apollo station if applicable
       if (msg.stationId) {
         const st = state.stations.find(s => s.id === msg.stationId);
         if (st) {
@@ -379,7 +383,6 @@ wss.on('connection', (ws, req) => {
           broadcastState();
         }
       }
-
       allRequests.push(req);
       broadcastRequests();
     }
@@ -392,7 +395,7 @@ wss.on('connection', (ws, req) => {
       if (req) { req.fulfilled = true; broadcastRequests(); }
     }
 
-    // ── Andon ────────────────────────────────────────────────
+    // ── Andon call ───────────────────────────────────────────
     if (msg.type === 'andon') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st && (msg.level === 'line-lead' || msg.level === 'floor-manager')) {
@@ -403,25 +406,30 @@ wss.on('connection', (ws, req) => {
         broadcastState();
       }
     }
+
+    // ── Andon clear ──────────────────────────────────────────
     if (msg.type === 'andon-clear') {
       const st = state.stations.find(s => s.id === msg.stationId);
       if (st) {
-        if (st.andonPauseStart) { st.totalAndonPause += Date.now() - st.andonPauseStart; st.andonPauseStart = null; }
+        if (st.andonPauseStart) {
+          st.totalAndonPause += Date.now() - st.andonPauseStart;
+          st.andonPauseStart = null;
+        }
         st.andon = null; st.andonTime = null;
         if (st.stationStatus === 'active' && !state.paused) st.stationStartTime = Date.now();
         broadcastState();
       }
     }
 
-    // ── Picker: fulfill ──────────────────────────────────────
+    // ── Fulfill (picker picks a request) ────────────────────
     if (msg.type === 'fulfill') {
       const req = allRequests.find(r => r.id === msg.reqId);
       console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
       if (req) {
         req.fulfilled = true;
-        const actualQty = msg.qty !== undefined ? msg.qty : (req.qty || 1);
-        if (LOCATIONS_URL && (req.partNum || req.partName) && actualQty > 0) {
-          const actualQty = msg.qty || req.qty || 1;
+        const actualQty = (msg.qty !== undefined && msg.qty !== null) ? msg.qty : (req.qty || 1);
+        // Only subtract if qty > 0 (qty=0 means cancelled, no inventory change)
+        if (LOCATIONS_URL && req.partNum && actualQty > 0) {
           fetch(LOCATIONS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -431,6 +439,25 @@ wss.on('connection', (ws, req) => {
               partName: req.partName || '',
               location: msg.location || '',
               qty:      actualQty,
+            }),
+            redirect: 'follow',
+          }).then(r => r.json())
+            .then(d => {
+              console.log('Qty subtracted:', d);
+              if (d.success && d.newQty !== undefined) {
+                const loc = locationsCache.find(l =>
+                  l.partNum.toLowerCase()  === (req.partNum || '').toLowerCase() &&
+                  l.location.toLowerCase() === (msg.location || '').toLowerCase()
+                );
+                if (loc) {
+                  loc.quantity = String(d.newQty);
+                  const locMsg = JSON.stringify({ type: 'locations', locations: locationsCache });
+                  pickerClients.forEach(c => { if (c.readyState === 1) c.send(locMsg); });
+                }
+              }
+            })
+            .catch(e => console.error('Subtract failed:', e.message));
+        }
         state.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== msg.reqId);
         });
@@ -465,7 +492,7 @@ wss.on('connection', (ws, req) => {
         });
     }
 
-    // ── Manual end ───────────────────────────────────────────
+    // ── Manual end takt ──────────────────────────────────────
     if (msg.type === 'end') endCycle();
   });
 });
