@@ -355,20 +355,9 @@ var allBomParts  = [];
 var stowSelected = null;
 
 function loadBom() {
-  fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
-    if (!d.success || !d.inventory) return;
-    var seen = {};
-    allBomParts = [];
-    Object.values(d.inventory).forEach(function(group) {
-      group.forEach(function(item) {
-        var pn = String(item.partNum || '').trim();
-        if (pn && !seen[pn.toLowerCase()]) {
-          seen[pn.toLowerCase()] = true;
-          allBomParts.push({ partNum: pn, partName: String(item.partName || '') });
-        }
-      });
-    });
-    allBomParts.sort(function(a,b){ return a.partNum.localeCompare(b.partNum, undefined, {numeric:true, sensitivity:'base'}); });
+  fetch('/api/bom').then(function(r){ return r.json(); }).then(function(d) {
+    if (!d.success || !d.bomList) return;
+    allBomParts = d.bomList;
   }).catch(function(){});
 }
 loadBom();
