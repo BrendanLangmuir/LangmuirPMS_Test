@@ -450,7 +450,7 @@ function runStowSearch() {
 }
 
 function selectStowPart(pn, pa) {
-  stowSelected = { partNum: pn, partName: pa };
+  window.stowSelected = { partNum: pn, partName: pa };
   document.getElementById('stow-search').value = '';
   document.getElementById('stow-results').style.display = 'none';
   document.getElementById('stow-selected').style.display = 'block';
@@ -458,7 +458,7 @@ function selectStowPart(pn, pa) {
   document.getElementById('stow-sel-pa').textContent = pa;
 }
 function clearStowPart() {
-  stowSelected = null;
+  window.stowSelected = null;
   document.getElementById('stow-selected').style.display = 'none';
   document.getElementById('stow-search').value = '';
 }
