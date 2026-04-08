@@ -44,11 +44,15 @@ input::placeholder { color: #4b5563; }
 .part-item.selected { background: #3d0808; border-left: 3px solid #C8102E; color: #fff; }
 .part-item .pn { font-weight: 800; color: #C8102E; font-size: 11px; letter-spacing: 0.06em; }
 .part-item .pa { font-size: 12px; color: #9ca3af; margin-top: 1px; }
+.part-item .assigned-tag { font-size: 10px; color: #a78bfa; background: #1e1535; border: 1px solid #4c1d95; border-radius: 3px; padding: 1px 6px; display: inline-block; margin-top: 3px; }
 .no-results { padding: 14px; text-align: center; font-size: 12px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
 .btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; margin-bottom: 8px; }
-.btn-red  { background: #C8102E; color: #fff; } .btn-red:hover  { background: #a00d24; }
-.btn-gray { background: #1f2937; color: #9ca3af; border: 1px solid #374151; } .btn-gray:hover { background: #374151; color: #fff; }
+.btn-red    { background: #C8102E; color: #fff; } .btn-red:hover    { background: #a00d24; }
+.btn-purple { background: #4c1d95; color: #a78bfa; border: 1px solid #6d28d9; } .btn-purple:hover { background: #5b21b6; color: #fff; }
+.btn-gray   { background: #1f2937; color: #9ca3af; border: 1px solid #374151; } .btn-gray:hover { background: #374151; color: #fff; }
 .sent-flash { display: none; background: #052e16; border: 1px solid #166534; border-radius: 6px; padding: 11px; text-align: center; color: #4ade80; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.assign-flash { display: none; background: #1e1535; border: 1px solid #6d28d9; border-radius: 6px; padding: 11px; text-align: center; color: #a78bfa; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.error-flash  { display: none; background: #2d0808; border: 1px solid #7f1d1d; border-radius: 6px; padding: 11px; text-align: center; color: #f87171; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
 .divider hr { flex: 1; border: none; border-top: 1px solid #2d3340; }
 .divider span { font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -58,6 +62,21 @@ input::placeholder { color: #4b5563; }
 .req-meta { font-size: 10px; color: #4b5563; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
 .req-cancel { background: none; border: 1px solid #374151; border-radius: 4px; color: #6b7280; cursor: pointer; font-size: 10px; font-weight: 700; padding: 3px 8px; flex-shrink: 0; text-transform: uppercase; }
 .req-cancel:hover { border-color: #C8102E; color: #f87171; }
+
+/* ── Orphan assign panel ── */
+.assign-panel { background: #12151a; border: 1px solid #4c1d95; border-radius: 8px; padding: 14px; margin-top: 10px; display: none; }
+.assign-panel.visible { display: block; }
+.assign-label { font-size: 10px; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+.assign-row { display: flex; gap: 8px; align-items: flex-start; }
+.assign-row select { flex: 1; margin-bottom: 0; font-size: 13px; }
+.assign-btn { background: #4c1d95; border: none; border-radius: 6px; color: #a78bfa; font-size: 12px; font-weight: 800; padding: 11px 14px; cursor: pointer; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+.assign-btn:hover { background: #5b21b6; color: #fff; }
+
+/* ── Orphan summary banner ── */
+.orphan-banner { background: #1e1535; border: 1px solid #4c1d95; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.orphan-count { font-size: 28px; font-weight: 900; color: #a78bfa; line-height: 1; }
+.orphan-banner-text { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
+.orphan-banner-sub  { font-size: 10px; color: #4c1d95; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -65,7 +84,7 @@ input::placeholder { color: #4b5563; }
   <div class="brand-icon">L</div>
   <div class="brand-text">
     <div class="top">Langmuir Systems</div>
-    <div class="btm">Inventory Request</div>
+    <div class="btm" id="page-title">Inventory Request</div>
   </div>
   <select class="line-select" id="line-switcher">
     <option value="Apollo">Apollo</option>
@@ -74,10 +93,13 @@ input::placeholder { color: #4b5563; }
     <option value="VULCAN">Vulcan</option>
     <option value="XR">XR</option>
     <option value="MR1">MR1</option>
+    <option value="Unassigned">⚠ Unassigned</option>
   </select>
 </div>
 <div class="conn-status" id="conn-status">Connection lost — reconnecting...</div>
-<div class="page">
+
+<!-- ── Normal line view ── -->
+<div id="view-line" class="page">
   <div class="sec">Select from inventory</div>
   <div class="card">
     <div id="inv-loading" class="inv-loading">Loading inventory...</div>
@@ -109,19 +131,91 @@ input::placeholder { color: #4b5563; }
   <div class="sec">Active requests</div>
   <div id="req-list"></div>
 </div>
+
+<!-- ── Unassigned / orphan view ── -->
+<div id="view-orphan" class="page" style="display:none">
+  <div id="orphan-banner" class="orphan-banner">
+    <div class="orphan-count" id="orphan-count">—</div>
+    <div>
+      <div class="orphan-banner-text">Parts not on any BOM</div>
+      <div class="orphan-banner-sub">Assign to a line or request as-is</div>
+    </div>
+  </div>
+
+  <div class="sec">Unassigned parts</div>
+  <div class="card">
+    <input class="search-input" id="orphan-search" type="text" placeholder="Search by part # or description..." autocomplete="off"/>
+    <div class="parts-list" id="orphan-list"></div>
+
+    <!-- Selected orphan detail -->
+    <div id="orphan-selected" style="display:none;margin-bottom:12px;padding:10px 14px;background:#12151a;border:1.5px solid #C8102E;border-radius:6px;">
+      <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Selected</div>
+      <div id="orphan-selected-text" style="font-size:13px;font-weight:700;color:#fff;"></div>
+      <div id="orphan-assigned-tag" style="display:none;margin-top:6px;font-size:10px;color:#a78bfa;"></div>
+    </div>
+
+    <div id="orphan-stock-info" style="display:none" class="stock-info"></div>
+
+    <div class="qty-row">
+      <span class="qty-label">Qty</span>
+      <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
+    </div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
+    <div class="pri-row">
+      <button class="pri-btn sel-low"    id="opri-low">Low</button>
+      <button class="pri-btn"            id="opri-medium">Medium</button>
+      <button class="pri-btn"            id="opri-high">High</button>
+    </div>
+
+    <div class="sent-flash"   id="orphan-sent-flash">Request Sent!</div>
+    <div class="assign-flash" id="orphan-assign-flash">Line Assigned!</div>
+    <div class="error-flash"  id="orphan-error-flash"></div>
+
+    <button class="btn btn-red"  id="orphan-send-btn">Send Request</button>
+
+    <!-- Assign to line panel -->
+    <div class="assign-panel" id="assign-panel">
+      <div class="assign-label">Assign this part to a line</div>
+      <div class="assign-row">
+        <select id="assign-line-sel">
+          <option value="">— Select line —</option>
+          <option value="Apollo">Apollo</option>
+          <option value="XF/PRO">XF/PRO</option>
+          <option value="TITAN">Titan</option>
+          <option value="VULCAN">Vulcan</option>
+          <option value="XR">XR</option>
+          <option value="MR1">MR1</option>
+        </select>
+        <button class="assign-btn" id="assign-btn">Assign</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Active requests</div>
+  <div id="orphan-req-list"></div>
+</div>
+
 <script>
 var params   = new URLSearchParams(location.search);
 var lineName = decodeURIComponent(params.get('line') || 'Apollo');
 var priority = 'low';
+var oPriority = 'low';
 var myReqs   = [];
 var lastPong = Date.now();
+var allItems = [];
+var orphanItems = [];
+var selectedPart  = null;
+var selectedOrphan = null;
 
-// Set switcher
+// ── Line switcher ─────────────────────────────────────────
 var sw = document.getElementById('line-switcher');
 sw.value = lineName;
 if (!sw.value) { sw.value = 'Apollo'; lineName = 'Apollo'; }
 else lineName = sw.value;
-document.title = lineName + ' — Inventory';
+
+document.title    = lineName + ' — Inventory';
+document.getElementById('page-title').textContent =
+  lineName === 'Unassigned' ? 'Unassigned Parts' : 'Inventory Request';
 
 sw.addEventListener('change', function() {
   var url = new URL(location.href);
@@ -129,7 +223,14 @@ sw.addEventListener('change', function() {
   location.href = url.toString();
 });
 
-// WebSocket
+// ── View toggle ───────────────────────────────────────────
+function showView(v) {
+  document.getElementById('view-line').style.display   = v === 'line'    ? 'block' : 'none';
+  document.getElementById('view-orphan').style.display = v === 'orphan'  ? 'block' : 'none';
+}
+showView(lineName === 'Unassigned' ? 'orphan' : 'line');
+
+// ── WebSocket ─────────────────────────────────────────────
 var ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line='+encodeURIComponent(lineName));
 ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
 ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
@@ -138,69 +239,78 @@ ws.onmessage = function(e) {
   lastPong = Date.now();
   var msg = JSON.parse(e.data);
   if (msg.type === 'requests') {
-    myReqs = (msg.requests || []).filter(function(r){ return r.line === lineName; });
+    myReqs = (msg.requests || []).filter(function(r){
+      return lineName === 'Unassigned' ? (!r.line || r.line === 'Unassigned') : r.line === lineName;
+    });
     renderList();
   }
+  if (msg.type === 'assign-orphan-result') handleAssignResult(msg);
 };
 setInterval(function(){ if (ws.readyState===1) ws.send(JSON.stringify({type:'ping'})); }, 25000);
 setInterval(function(){ if (Date.now()-lastPong>35000) location.reload(); }, 5000);
 setInterval(function(){
   fetch('/api/requests').then(function(r){return r.json();}).then(function(d){
-    myReqs=(d.requests||[]).filter(function(r){return r.line===lineName;}); renderList();
+    myReqs=(d.requests||[]).filter(function(r){
+      return lineName === 'Unassigned' ? (!r.line || r.line === 'Unassigned') : r.line === lineName;
+    }); renderList();
   }).catch(function(){});
 }, 3000);
 
-var allItems     = [];
-var selectedPart = null;
-var priority     = 'low';
-
+// ── Load inventory ────────────────────────────────────────
 function loadInventory() {
+  if (lineName === 'Unassigned') { loadOrphans(); return; }
   fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
     if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
     window._locations    = d.locations || [];
     window._rawInventory = d.inventory || {};
     var inv = d.inventory || {};
-    // Look up by line name — try exact match first, then uppercase
     var key = inv[lineName] ? lineName : (inv[lineName.toUpperCase()] ? lineName.toUpperCase() : null);
     allItems = key ? inv[key] : [];
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-form').style.display    = '';
-    // Attach priority listeners now that form is visible
-    ['low','medium','high'].forEach(function(lvl) {
-      var btn = document.getElementById('pri-'+lvl);
-      if (btn) {
-        btn.onclick = null;
-        btn.addEventListener('click', function() { setPri(lvl); });
-      }
-    });
+    attachPriListeners();
     renderParts('');
   }).catch(function(e){
     document.getElementById('inv-loading').textContent = 'Failed: '+e.message;
     document.getElementById('inv-form').style.display = '';
   });
 }
+
+function loadOrphans() {
+  fetch('/api/orphans').then(function(r){ return r.json(); }).then(function(d) {
+    if (!d.success) { return; }
+    window._locations = [];
+    fetch('/api/inventory').then(function(r2){ return r2.json(); }).then(function(d2){
+      if (d2.success) window._locations = d2.locations || [];
+    });
+    orphanItems = d.orphanParts || [];
+    document.getElementById('orphan-count').textContent = orphanItems.length;
+    attachOrphanPriListeners();
+    renderOrphans('');
+  }).catch(function(){});
+}
 loadInventory();
+
+// ── Normal line: parts list ───────────────────────────────
+function attachPriListeners() {
+  ['low','medium','high'].forEach(function(lvl) {
+    var btn = document.getElementById('pri-'+lvl);
+    if (btn) { btn.onclick = null; btn.addEventListener('click', function(){ setPri(lvl); }); }
+  });
+}
 
 function renderParts(q) {
   var list = document.getElementById('parts-list');
-  var filtered = q
-    ? allItems.filter(function(i){
-        var pn = String(i.partNum||'').toLowerCase();
-        var pa = String(i.partName||'').toLowerCase();
-        return pn.includes(q.toLowerCase()) || pa.includes(q.toLowerCase());
-      })
-    : allItems;
-  if (!filtered.length) {
-    list.innerHTML = '<div class="no-results">No parts found</div>';
-    return;
-  }
+  var filtered = q ? allItems.filter(function(i){
+    return String(i.partNum||'').toLowerCase().includes(q.toLowerCase()) ||
+           String(i.partName||'').toLowerCase().includes(q.toLowerCase());
+  }) : allItems;
+  if (!filtered.length) { list.innerHTML = '<div class="no-results">No parts found</div>'; return; }
   list.innerHTML = filtered.map(function(i) {
     var pn = String(i.partNum||''), pa = String(i.partName||'');
     var isSel = selectedPart && selectedPart.partNum === pn;
     return '<div class="part-item'+(isSel?' selected':'')+'" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\')">' +
-      '<div class="pn">'+esc(pn)+'</div>' +
-      '<div class="pa">'+esc(pa)+'</div>' +
-      '</div>';
+      '<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div></div>';
   }).join('');
 }
 
@@ -213,11 +323,8 @@ function selectPart(pn, pa) {
   showStock();
 }
 
-document.getElementById('part-search').addEventListener('input', function() {
-  renderParts(this.value);
-});
+document.getElementById('part-search').addEventListener('input', function(){ renderParts(this.value); });
 
-// Priority
 function setPri(p) {
   priority = p;
   ['low','medium','high'].forEach(function(lvl){
@@ -226,24 +333,20 @@ function setPri(p) {
   });
 }
 
-// Stock info
-document.getElementById('qty-input').addEventListener('input', showStock);
 function showStock() {
   var sEl = document.getElementById('stock-info');
   if (!selectedPart) { sEl.style.display='none'; return; }
-  var pn  = selectedPart.partNum;
-  var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
-  var locs = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===pn.toLowerCase(); });
+  var qty  = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+  var locs = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===selectedPart.partNum.toLowerCase(); });
   if (locs.length) {
     var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
     var isLow = total < qty;
-    sEl.style.display = '';
-    sEl.className     = 'stock-info '+(isLow?'stock-warn':'stock-ok');
-    sEl.innerHTML     = (isLow?'Low Stock: ':'In Stock: ')+'<strong>'+total+'</strong> available';
+    sEl.style.display = ''; sEl.className = 'stock-info '+(isLow?'stock-warn':'stock-ok');
+    sEl.innerHTML = (isLow?'Low Stock: ':'In Stock: ')+'<strong>'+total+'</strong> available';
   } else { sEl.style.display='none'; }
 }
+document.getElementById('qty-input').addEventListener('input', showStock);
 
-// Send from list
 document.getElementById('send-btn').addEventListener('click', function() {
   if (!selectedPart) { alert('Please select a part first'); return; }
   var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
@@ -253,28 +356,155 @@ document.getElementById('send-btn').addEventListener('click', function() {
   document.getElementById('qty-input').value = '1';
   document.getElementById('stock-info').style.display = 'none';
   renderParts('');
-  flash();
+  flash('sent-flash');
 });
 
-// Send custom
 document.getElementById('send-txt-btn').addEventListener('click', function() {
-  var t = document.getElementById('txt-input').value.trim();
-  if (!t) return;
+  var t = document.getElementById('txt-input').value.trim(); if (!t) return;
   ws.send(JSON.stringify({type:'request', line:lineName, text:t, qty:1, priority:priority}));
-  document.getElementById('txt-input').value='';
-  flash();
+  document.getElementById('txt-input').value=''; flash('sent-flash');
 });
-document.getElementById('txt-input').addEventListener('keydown', function(e){
-  if (e.key==='Enter') document.getElementById('send-txt-btn').click();
+document.getElementById('txt-input').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('send-txt-btn').click(); });
+
+// ── Orphan view ───────────────────────────────────────────
+function attachOrphanPriListeners() {
+  ['low','medium','high'].forEach(function(lvl) {
+    var btn = document.getElementById('opri-'+lvl);
+    if (btn) { btn.onclick = null; btn.addEventListener('click', function(){ setOPri(lvl); }); }
+  });
+}
+
+function setOPri(p) {
+  oPriority = p;
+  ['low','medium','high'].forEach(function(lvl){
+    var btn = document.getElementById('opri-'+lvl);
+    if (btn) btn.className = 'pri-btn' + (lvl===p ? ' sel-'+lvl : '');
+  });
+}
+
+function renderOrphans(q) {
+  var list = document.getElementById('orphan-list');
+  var filtered = q ? orphanItems.filter(function(i){
+    return String(i.partNum||'').toLowerCase().includes(q.toLowerCase()) ||
+           String(i.partName||'').toLowerCase().includes(q.toLowerCase());
+  }) : orphanItems;
+  if (!filtered.length) { list.innerHTML = '<div class="no-results">No unassigned parts found</div>'; return; }
+  list.innerHTML = filtered.map(function(i) {
+    var pn = String(i.partNum||''), pa = String(i.partName||'');
+    var isSel = selectedOrphan && selectedOrphan.partNum === pn;
+    var assignedTag = i.assignedLine ? '<div class="assigned-tag">→ '+esc(i.assignedLine)+'</div>' : '';
+    return '<div class="part-item'+(isSel?' selected':'')+'" onclick="selectOrphan(\''+esc(pn)+'\',\''+esc(pa)+'\')">' +
+      '<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+assignedTag+'</div>';
+  }).join('');
+}
+
+function selectOrphan(pn, pa) {
+  var item = orphanItems.find(function(i){ return i.partNum === pn; });
+  selectedOrphan = item || { partNum: pn, partName: pa };
+  document.getElementById('orphan-selected').style.display = 'block';
+  document.getElementById('orphan-selected-text').textContent = pn + ' — ' + pa;
+  document.getElementById('orphan-search').value = '';
+
+  // Show current assignment if any
+  var tagEl = document.getElementById('orphan-assigned-tag');
+  if (item && item.assignedLine) {
+    tagEl.style.display = 'block';
+    tagEl.textContent   = 'Currently assigned to: ' + item.assignedLine + (item.assignedStation ? ' / ' + item.assignedStation : '');
+  } else { tagEl.style.display = 'none'; }
+
+  // Show assign panel
+  document.getElementById('assign-panel').classList.add('visible');
+  document.getElementById('assign-line-sel').value = (item && item.assignedLine) ? item.assignedLine : '';
+
+  renderOrphans('');
+  showOrphanStock();
+}
+
+document.getElementById('orphan-search').addEventListener('input', function(){ renderOrphans(this.value); });
+
+function showOrphanStock() {
+  var sEl = document.getElementById('orphan-stock-info');
+  if (!selectedOrphan) { sEl.style.display='none'; return; }
+  var qty  = Math.max(1, parseInt(document.getElementById('orphan-qty').value)||1);
+  var locs = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===selectedOrphan.partNum.toLowerCase(); });
+  if (locs.length) {
+    var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+    var isLow = total < qty;
+    sEl.style.display = ''; sEl.className = 'stock-info '+(isLow?'stock-warn':'stock-ok');
+    sEl.innerHTML = (isLow?'Low Stock: ':'In Stock: ')+'<strong>'+total+'</strong> available';
+  } else { sEl.style.display='none'; }
+}
+document.getElementById('orphan-qty').addEventListener('input', showOrphanStock);
+
+// Send request for orphan part (line = 'Unassigned' unless already assigned)
+document.getElementById('orphan-send-btn').addEventListener('click', function() {
+  if (!selectedOrphan) { flash('orphan-error-flash', 'Please select a part first'); return; }
+  var qty  = Math.max(1, parseInt(document.getElementById('orphan-qty').value)||1);
+  var line = (selectedOrphan.assignedLine) ? selectedOrphan.assignedLine : 'Unassigned';
+  ws.send(JSON.stringify({
+    type:     'request',
+    line:     line,
+    partNum:  selectedOrphan.partNum,
+    partName: selectedOrphan.partName,
+    text:     selectedOrphan.partNum + ' — ' + selectedOrphan.partName,
+    qty:      qty,
+    priority: oPriority,
+  }));
+  selectedOrphan = null;
+  document.getElementById('orphan-selected').style.display = 'none';
+  document.getElementById('orphan-stock-info').style.display = 'none';
+  document.getElementById('assign-panel').classList.remove('visible');
+  document.getElementById('orphan-qty').value = '1';
+  renderOrphans('');
+  flash('orphan-sent-flash');
 });
 
-function flash() {
-  var el=document.getElementById('sent-flash'); el.style.display='block';
-  setTimeout(function(){ el.style.display='none'; }, 2000);
+// Assign to line
+document.getElementById('assign-btn').addEventListener('click', function() {
+  if (!selectedOrphan) { flash('orphan-error-flash', 'Select a part first'); return; }
+  var line = document.getElementById('assign-line-sel').value;
+  if (!line) { flash('orphan-error-flash', 'Select a line to assign'); return; }
+  ws.send(JSON.stringify({
+    type:     'assign-orphan',
+    partNum:  selectedOrphan.partNum,
+    partName: selectedOrphan.partName,
+    line:     line,
+    station:  '',
+  }));
+  document.getElementById('assign-btn').disabled = true;
+  document.getElementById('assign-btn').textContent = 'Saving...';
+});
+
+function handleAssignResult(msg) {
+  document.getElementById('assign-btn').disabled = false;
+  document.getElementById('assign-btn').textContent = 'Assign';
+  if (msg.success) {
+    // Update local orphan item immediately
+    var item = orphanItems.find(function(i){ return i.partNum.toLowerCase() === (msg.partNum||'').toLowerCase(); });
+    if (item) { item.assignedLine = msg.line; item.assignedStation = msg.station || ''; }
+    if (selectedOrphan) { selectedOrphan.assignedLine = msg.line; }
+    var tagEl = document.getElementById('orphan-assigned-tag');
+    tagEl.style.display = 'block';
+    tagEl.textContent   = 'Assigned to: ' + msg.line;
+    document.getElementById('orphan-count').textContent = orphanItems.filter(function(i){ return !i.assignedLine; }).length;
+    renderOrphans(document.getElementById('orphan-search').value);
+    flash('orphan-assign-flash');
+  } else {
+    flash('orphan-error-flash', msg.message || 'Assignment failed');
+  }
+}
+
+// ── Shared helpers ────────────────────────────────────────
+function flash(id, msg) {
+  var el = document.getElementById(id);
+  if (msg) el.textContent = msg;
+  el.style.display='block';
+  setTimeout(function(){ el.style.display='none'; }, 2500);
 }
 function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill', reqId:id})); }
 function renderList() {
-  var el=document.getElementById('req-list');
+  var listId = lineName === 'Unassigned' ? 'orphan-req-list' : 'req-list';
+  var el = document.getElementById(listId); if (!el) return;
   if (!myReqs.length) { el.innerHTML=''; return; }
   el.innerHTML=myReqs.map(function(r){
     return '<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text||(r.partNum+' — '+r.partName))+'</div>'+
