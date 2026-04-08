@@ -78,11 +78,18 @@ input::placeholder { color: #4b5563; }
 .assign-btn { background: #4c1d95; border: none; border-radius: 6px; color: #a78bfa; font-size: 12px; font-weight: 800; padding: 11px 14px; cursor: pointer; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
 .assign-btn:hover { background: #5b21b6; color: #fff; }
 
-/* ── Orphan summary banner ── */
-.orphan-banner { background: #1e1535; border: 1px solid #4c1d95; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
-.orphan-count { font-size: 28px; font-weight: 900; color: #a78bfa; line-height: 1; }
-.orphan-banner-text { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
-.orphan-banner-sub  { font-size: 10px; color: #4c1d95; margin-top: 2px; }
+/* ── Assigned lines tags ── */
+.assigned-lines { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.assigned-line-tag { font-size: 10px; color: #a78bfa; background: #1e1535; border: 1px solid #4c1d95; border-radius: 3px; padding: 2px 8px; display: inline-block; }
+
+/* ── Required line selector ── */
+.req-line-row { margin-bottom: 14px; }
+.req-line-label { font-size: 10px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.req-line-label span { color: #f87171; }
+.req-line-sel { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-color: #1f2937; }
+.req-line-sel:focus { border-color: #C8102E; }
+.req-line-sel option { background: #1f2937; }
+.req-line-sel.required { border-color: #7f1d1d; }
 </style>
 </head>
 <body>
@@ -140,14 +147,6 @@ input::placeholder { color: #4b5563; }
 
 <!-- ── Unassigned / orphan view ── -->
 <div id="view-orphan" class="page" style="display:none">
-  <div id="orphan-banner" class="orphan-banner">
-    <div class="orphan-count" id="orphan-count">—</div>
-    <div>
-      <div class="orphan-banner-text">Parts not on any BOM</div>
-      <div class="orphan-banner-sub">Assign to a line or request as-is</div>
-    </div>
-  </div>
-
   <div class="sec">Unassigned parts</div>
   <div class="card">
     <input class="search-input" id="orphan-search" type="text" placeholder="Search part # or description..." autocomplete="off"/>
@@ -156,30 +155,47 @@ input::placeholder { color: #4b5563; }
     <div class="selected-bar" id="orphan-selected-bar">
       <div class="selected-bar-lbl">Selected <button class="selected-bar-clear" onclick="clearOrphanSelected()">✕ Clear</button></div>
       <div class="selected-bar-text" id="orphan-selected-text"></div>
-      <div id="orphan-assigned-tag" style="display:none;margin-top:6px;font-size:10px;color:#a78bfa;"></div>
+      <div id="orphan-assigned-lines" class="assigned-lines"></div>
     </div>
 
     <div id="orphan-stock-info" style="display:none" class="stock-info"></div>
 
-    <div class="qty-row">
+    <!-- Required line selector — must pick before sending -->
+    <div class="req-line-row" id="orphan-line-row" style="display:none">
+      <div class="req-line-label">Deliver to line <span>*required</span></div>
+      <select class="req-line-sel" id="orphan-deliver-line">
+        <option value="">— Select line —</option>
+        <option value="Apollo">Apollo</option>
+        <option value="XF/PRO">XF/PRO</option>
+        <option value="TITAN">Titan</option>
+        <option value="VULCAN">Vulcan</option>
+        <option value="XR">XR</option>
+        <option value="MR1">MR1</option>
+      </select>
+    </div>
+
+    <div class="qty-row" id="orphan-qty-row" style="display:none">
       <span class="qty-label">Qty</span>
       <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
     </div>
-    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
-    <div class="pri-row">
-      <button class="pri-btn sel-low" id="opri-low">Low</button>
-      <button class="pri-btn"         id="opri-medium">Medium</button>
-      <button class="pri-btn"         id="opri-high">High</button>
+    <div id="orphan-pri-wrap" style="display:none">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
+      <div class="pri-row">
+        <button class="pri-btn sel-low" id="opri-low">Low</button>
+        <button class="pri-btn"         id="opri-medium">Medium</button>
+        <button class="pri-btn"         id="opri-high">High</button>
+      </div>
     </div>
 
     <div class="sent-flash"   id="orphan-sent-flash">Request Sent!</div>
     <div class="assign-flash" id="orphan-assign-flash">Line Assigned!</div>
     <div class="error-flash"  id="orphan-error-flash"></div>
 
-    <button class="btn btn-red" id="orphan-send-btn" disabled>Send Request</button>
+    <button class="btn btn-red" id="orphan-send-btn" style="display:none">Send Request</button>
 
+    <!-- Add to additional line -->
     <div class="assign-panel" id="assign-panel">
-      <div class="assign-label">Assign this part to a line</div>
+      <div class="assign-label">Also assign to another line</div>
       <div class="assign-row">
         <select class="assign-sel" id="assign-line-sel">
           <option value="">— Select line —</option>
@@ -190,7 +206,7 @@ input::placeholder { color: #4b5563; }
           <option value="XR">XR</option>
           <option value="MR1">MR1</option>
         </select>
-        <button class="assign-btn" id="assign-btn">Assign</button>
+        <button class="assign-btn" id="assign-btn">Add Line</button>
       </div>
     </div>
   </div>
@@ -432,9 +448,10 @@ function renderOrphans(q) {
   }
   list.innerHTML = filtered.slice(0, 40).map(function(i) {
     var pn = String(i.partNum||''), pa = String(i.partName||'');
-    var tag = i.assignedLine ? '<div class="assigned-tag">→ '+esc(i.assignedLine)+'</div>' : '';
+    var lines = i.assignedLines ? i.assignedLines : (i.assignedLine ? [i.assignedLine] : []);
+    var tags  = lines.map(function(l){ return '<div class="assigned-tag">→ '+esc(l)+'</div>'; }).join('');
     return '<div class="part-item" onclick="selectOrphan(\''+esc(pn)+'\',\''+esc(pa)+'\')">' +
-      '<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+tag+'</div>';
+      '<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+tags+'</div>';
   }).join('');
 }
 
@@ -445,14 +462,21 @@ function selectOrphan(pn, pa) {
   document.getElementById('orphan-list').innerHTML = '';
   document.getElementById('orphan-selected-bar').style.display = 'block';
   document.getElementById('orphan-selected-text').textContent  = pn + ' — ' + pa;
-  document.getElementById('orphan-send-btn').disabled = false;
-  var tagEl = document.getElementById('orphan-assigned-tag');
-  if (item && item.assignedLine) {
-    tagEl.style.display = 'block';
-    tagEl.textContent   = 'Currently assigned to: ' + item.assignedLine + (item.assignedStation ? ' / '+item.assignedStation : '');
-  } else { tagEl.style.display = 'none'; }
+
+  // Show all currently assigned lines as tags
+  var linesEl = document.getElementById('orphan-assigned-lines');
+  var assignedLines = (item && item.assignedLines) ? item.assignedLines : (item && item.assignedLine ? [item.assignedLine] : []);
+  linesEl.innerHTML = assignedLines.length
+    ? assignedLines.map(function(l){ return '<span class="assigned-line-tag">→ ' + esc(l) + '</span>'; }).join('')
+    : '';
+
+  // Show controls
+  document.getElementById('orphan-line-row').style.display  = 'block';
+  document.getElementById('orphan-qty-row').style.display   = 'flex';
+  document.getElementById('orphan-pri-wrap').style.display  = 'block';
+  document.getElementById('orphan-send-btn').style.display  = 'block';
   document.getElementById('assign-panel').classList.add('visible');
-  document.getElementById('assign-line-sel').value = (item && item.assignedLine) ? item.assignedLine : '';
+  document.getElementById('assign-line-sel').value = '';
   showOrphanStock();
 }
 
@@ -460,10 +484,15 @@ function clearOrphanSelected() {
   selectedOrphan = null;
   document.getElementById('orphan-selected-bar').style.display = 'none';
   document.getElementById('orphan-stock-info').style.display   = 'none';
-  document.getElementById('orphan-send-btn').disabled = true;
+  document.getElementById('orphan-line-row').style.display     = 'none';
+  document.getElementById('orphan-qty-row').style.display      = 'none';
+  document.getElementById('orphan-pri-wrap').style.display     = 'none';
+  document.getElementById('orphan-send-btn').style.display     = 'none';
   document.getElementById('assign-panel').classList.remove('visible');
   document.getElementById('orphan-search').value = '';
   document.getElementById('orphan-list').innerHTML = '';
+  document.getElementById('orphan-deliver-line').value = '';
+  document.getElementById('orphan-deliver-line').classList.remove('required');
 }
 
 document.getElementById('orphan-search').addEventListener('input', function(){ renderOrphans(this.value); });
@@ -512,16 +541,31 @@ document.getElementById('assign-btn').addEventListener('click', function() {
 
 function handleAssignResult(msg) {
   document.getElementById('assign-btn').disabled = false;
-  document.getElementById('assign-btn').textContent = 'Assign';
+  document.getElementById('assign-btn').textContent = 'Add Line';
   if (msg.success) {
+    // Update local orphan item — push new line into assignedLines array
     var item = orphanItems.find(function(i){ return i.partNum.toLowerCase() === (msg.partNum||'').toLowerCase(); });
-    if (item) { item.assignedLine = msg.line; item.assignedStation = msg.station||''; }
-    if (selectedOrphan) selectedOrphan.assignedLine = msg.line;
-    var tagEl = document.getElementById('orphan-assigned-tag');
-    tagEl.style.display = 'block'; tagEl.textContent = 'Assigned to: ' + msg.line;
-    document.getElementById('orphan-count').textContent = orphanItems.filter(function(i){ return !i.assignedLine; }).length;
+    if (item) {
+      if (!item.assignedLines) item.assignedLines = item.assignedLine ? [item.assignedLine] : [];
+      if (msg.line && item.assignedLines.indexOf(msg.line) === -1) item.assignedLines.push(msg.line);
+      item.assignedLine = msg.line; // keep legacy field in sync
+    }
+    if (selectedOrphan) {
+      if (!selectedOrphan.assignedLines) selectedOrphan.assignedLines = [];
+      if (selectedOrphan.assignedLines.indexOf(msg.line) === -1) selectedOrphan.assignedLines.push(msg.line);
+    }
+    // Refresh assigned lines tags on selected bar
+    var linesEl = document.getElementById('orphan-assigned-lines');
+    if (linesEl && selectedOrphan && selectedOrphan.assignedLines) {
+      linesEl.innerHTML = selectedOrphan.assignedLines.map(function(l){
+        return '<span class="assigned-line-tag">→ ' + esc(l) + '</span>';
+      }).join('');
+    }
+    document.getElementById('assign-line-sel').value = '';
     flash('orphan-assign-flash');
-  } else { flash('orphan-error-flash', msg.message || 'Assignment failed'); }
+  } else {
+    flash('orphan-error-flash', msg.message || 'Assignment failed');
+  }
 }
 
 // ── Shared ────────────────────────────────────────────────
