@@ -81,7 +81,9 @@
   .adj-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #374151; background: #12151a; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .adj-btn:hover:not(:disabled) { background: #374151; }
   .adj-btn:disabled { opacity: 0.3; cursor: default; }
-  .adj-val { font-size: 18px; font-weight: 900; min-width: 28px; text-align: center; }
+  .adj-val { font-size: 16px; font-weight: 900; width: 52px; text-align: center; background: #12151a; border: 1px solid #374151; border-radius: 4px; color: #fff; padding: 4px 6px; -moz-appearance: textfield; }
+  .adj-val::-webkit-outer-spin-button, .adj-val::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .adj-val:focus { outline: none; border-color: #C8102E; }
   .pick-btn { border: none; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 800; padding: 8px 14px; cursor: pointer; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
   .pick-btn.active   { background: #C8102E; }
   .pick-btn.active:hover { background: #a00d24; }
@@ -266,12 +268,27 @@ function getLocsForPart(partNum) {
 function adjQty(key, delta) {
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
-  entry.qty = Math.max(0, (entry.qty || 1) + delta);
-  // Cap at available stock for this location
-  entry.qty = Math.min(entry.qty, entry.availableQty);
-  adjustedQtys[entry.reqId + '|' + entry.location] = entry.qty;
-  var valEl = document.getElementById('pick-qty-' + key);
-  if (valEl) valEl.textContent = entry.qty;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  var current = parseInt(el.value) || 0;
+  var next = Math.max(0, Math.min(current + delta, entry.availableQty));
+  el.value = next;
+  entry.qty = next;
+  adjustedQtys[entry.reqId + '|' + entry.location] = next;
+}
+
+function handleQtyInput(key) {
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  var val = parseInt(el.value);
+  if (isNaN(val) || val < 0) val = 0;
+  // Cap at available stock — can't pick more than exists
+  if (val > entry.availableQty) val = entry.availableQty;
+  el.value = val;
+  entry.qty = val;
+  adjustedQtys[entry.reqId + '|' + entry.location] = val;
 }
 
 function handlePick(key) {
@@ -358,7 +375,7 @@ function renderQueue() {
         '<div class="loc-pick-row">' +
           '<span class="pick-label">Picking:</span>' +
           '<button class="adj-btn" onclick="adjQty(' + key + ',-1)">−</button>' +
-          '<span class="adj-val" id="pick-qty-' + key + '">' + initQty + '</span>' +
+          '<input type="number" class="adj-val" id="pick-qty-' + key + '" value="' + initQty + '" min="0" max="' + lq + '" inputmode="numeric" onchange="handleQtyInput(' + key + ')" oninput="handleQtyInput(' + key + ')">' +
           '<button class="adj-btn" onclick="adjQty(' + key + ',1)">+</button>' +
           '<button class="pick-btn active" onclick="handlePick(' + key + ')">✓ Picked</button>' +
         '</div>' +
