@@ -179,7 +179,7 @@
     <div class="field">
       <label>Search Part Number or Description</label>
       <div class="stow-search-wrap">
-        <input type="text" id="stow-search" placeholder="Type part # or description..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+        <input type="text" id="stow-search" placeholder="Type part # or description..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="runStowSearch()"/>
       </div>
       <div class="stow-results" id="stow-results"></div>
       <div class="stow-selected" id="stow-selected">
@@ -420,10 +420,18 @@ function loadBom() {
 }
 loadBom();
 
-document.getElementById('stow-search').addEventListener('input', function() {
-  var q = this.value.trim().toLowerCase();
+// stow search — defined as a global function so oninput inline can call it
+function runStowSearch() {
+  var el = document.getElementById('stow-search');
   var resultsEl = document.getElementById('stow-results');
+  if (!el || !resultsEl) return;
+  var q = el.value.trim().toLowerCase();
   if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+  if (!allStowParts.length) {
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#f87171;text-align:center;">Parts still loading — try again in a moment</div>';
+    return;
+  }
   var filtered = allStowParts.filter(function(i) {
     return i.partNum.toLowerCase().includes(q) || i.partName.toLowerCase().includes(q);
   }).slice(0, 20);
@@ -439,7 +447,7 @@ document.getElementById('stow-search').addEventListener('input', function() {
       '<div class="stow-result-pa">' + esc(i.partName) + '</div>' +
       '</div>';
   }).join('');
-});
+}
 
 function selectStowPart(pn, pa) {
   stowSelected = { partNum: pn, partName: pa };
