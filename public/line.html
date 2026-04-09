@@ -152,48 +152,41 @@ input::placeholder { color: #4b5563; }
     <input class="search-input" id="orphan-search" type="text" placeholder="Search part # or description..." autocomplete="off"/>
     <div class="parts-list" id="orphan-list"></div>
 
-    <div class="selected-bar" id="orphan-selected-bar">
+    <div class="selected-bar" id="orphan-selected-bar" style="display:none">
       <div class="selected-bar-lbl">Selected <button class="selected-bar-clear" onclick="clearOrphanSelected()">✕ Clear</button></div>
       <div class="selected-bar-text" id="orphan-selected-text"></div>
-      <div id="orphan-assigned-lines" class="assigned-lines"></div>
+      <div id="orphan-assigned-lines" class="assigned-lines" style="margin-top:6px;"></div>
     </div>
 
     <div id="orphan-stock-info" style="display:none" class="stock-info"></div>
 
-    <!-- Required line selector — must pick before sending -->
-    <div class="req-line-row" id="orphan-line-row" style="display:none">
-      <div class="req-line-label">Deliver to line <span>*required</span></div>
-      <select class="req-line-sel" id="orphan-deliver-line">
-        <option value="">— Select line —</option>
-        <option value="Apollo">Apollo</option>
-        <option value="XF/PRO">XF/PRO</option>
-        <option value="TITAN">Titan</option>
-        <option value="VULCAN">Vulcan</option>
-        <option value="XR">XR</option>
-        <option value="MR1">MR1</option>
-      </select>
-    </div>
-
-    <div class="qty-row" id="orphan-qty-row" style="display:none">
-      <span class="qty-label">Qty</span>
-      <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
-    </div>
-    <div id="orphan-pri-wrap" style="display:none">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
-      <div class="pri-row">
-        <button class="pri-btn sel-low" id="opri-low">Low</button>
-        <button class="pri-btn"         id="opri-medium">Medium</button>
-        <button class="pri-btn"         id="opri-high">High</button>
+    <div id="orphan-controls" style="display:none">
+      <div class="req-line-row">
+        <div class="req-line-label">Deliver to line <span>*required</span></div>
+        <select class="req-line-sel" id="orphan-deliver-line">
+          <option value="">— Select line —</option>
+          <option value="Apollo">Apollo</option>
+          <option value="XF/PRO">XF/PRO</option>
+          <option value="TITAN">Titan</option>
+          <option value="VULCAN">Vulcan</option>
+          <option value="XR">XR</option>
+          <option value="MR1">MR1</option>
+        </select>
       </div>
+      <div class="qty-row" style="margin-bottom:14px;">
+        <span class="qty-label">Qty</span>
+        <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
+      </div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Priority</div>
+      <div class="pri-row" id="orphan-pri-row">
+        <button class="pri-btn sel-low"  data-level="low">Low</button>
+        <button class="pri-btn"          data-level="medium">Medium</button>
+        <button class="pri-btn"          data-level="high">High</button>
+      </div>
+      <div class="sent-flash"  id="orphan-sent-flash" style="display:none">Request Sent!</div>
+      <div class="error-flash" id="orphan-error-flash" style="display:none"></div>
+      <button class="btn btn-red" id="orphan-send-btn">Send Request</button>
     </div>
-
-    <div class="sent-flash"   id="orphan-sent-flash">Request Sent!</div>
-    <div class="assign-flash" id="orphan-assign-flash">Line Assigned!</div>
-    <div class="error-flash"  id="orphan-error-flash"></div>
-
-    <button class="btn btn-red" id="orphan-send-btn" style="display:none">Send Request</button>
-
-    <!-- No "also assign" panel — assignment happens automatically on send -->
   </div>
 
   <div class="sec">Active requests</div>
