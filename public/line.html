@@ -160,7 +160,7 @@ input::placeholder { color: #4b5563; }
 
     <div id="orphan-stock-info" style="display:none" class="stock-info"></div>
 
-    <div id="orphan-controls" style="display:none">
+    <div id="orphan-controls" style="display:none;margin-top:12px;">
       <div class="req-line-row">
         <div class="req-line-label">Deliver to line <span>*required</span></div>
         <select class="req-line-sel" id="orphan-deliver-line">
@@ -486,7 +486,7 @@ function showOrphanStock() {
     sEl.textContent = 'No warehouse location on file for this part';
   }
 }
-document.getElementById('orphan-qty').addEventListener('input', showOrphanStock);
+// orphan-qty listener attached dynamically in selectOrphan after controls shown
 
 document.getElementById('orphan-send-btn').addEventListener('click', function() {
   if (!selectedOrphan) return;
