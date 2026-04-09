@@ -193,22 +193,7 @@ input::placeholder { color: #4b5563; }
 
     <button class="btn btn-red" id="orphan-send-btn" style="display:none">Send Request</button>
 
-    <!-- Add to additional line -->
-    <div class="assign-panel" id="assign-panel">
-      <div class="assign-label">Also assign to another line</div>
-      <div class="assign-row">
-        <select class="assign-sel" id="assign-line-sel">
-          <option value="">— Select line —</option>
-          <option value="Apollo">Apollo</option>
-          <option value="XF/PRO">XF/PRO</option>
-          <option value="TITAN">Titan</option>
-          <option value="VULCAN">Vulcan</option>
-          <option value="XR">XR</option>
-          <option value="MR1">MR1</option>
-        </select>
-        <button class="assign-btn" id="assign-btn">Add Line</button>
-      </div>
-    </div>
+    <!-- No "also assign" panel — assignment happens automatically on send -->
   </div>
 
   <div class="sec">Active requests</div>
@@ -463,20 +448,16 @@ function selectOrphan(pn, pa) {
   document.getElementById('orphan-selected-bar').style.display = 'block';
   document.getElementById('orphan-selected-text').textContent  = pn + ' — ' + pa;
 
-  // Show all currently assigned lines as tags
   var linesEl = document.getElementById('orphan-assigned-lines');
   var assignedLines = (item && item.assignedLines) ? item.assignedLines : (item && item.assignedLine ? [item.assignedLine] : []);
   linesEl.innerHTML = assignedLines.length
     ? assignedLines.map(function(l){ return '<span class="assigned-line-tag">→ ' + esc(l) + '</span>'; }).join('')
     : '';
 
-  // Show controls
   document.getElementById('orphan-line-row').style.display  = 'block';
   document.getElementById('orphan-qty-row').style.display   = 'flex';
   document.getElementById('orphan-pri-wrap').style.display  = 'block';
   document.getElementById('orphan-send-btn').style.display  = 'block';
-  document.getElementById('assign-panel').classList.add('visible');
-  document.getElementById('assign-line-sel').value = '';
   showOrphanStock();
 }
 
@@ -488,7 +469,6 @@ function clearOrphanSelected() {
   document.getElementById('orphan-qty-row').style.display      = 'none';
   document.getElementById('orphan-pri-wrap').style.display     = 'none';
   document.getElementById('orphan-send-btn').style.display     = 'none';
-  document.getElementById('assign-panel').classList.remove('visible');
   document.getElementById('orphan-search').value = '';
   document.getElementById('orphan-list').innerHTML = '';
   document.getElementById('orphan-deliver-line').value = '';
