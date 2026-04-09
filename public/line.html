@@ -132,7 +132,6 @@ input::placeholder { color: #4b5563; }
     <input class="search-input" id="orphan-search" type="text" placeholder="Search part # or description..." autocomplete="off"/>
     <div class="parts-list" id="orphan-list"></div>
 
-    <!-- Selected part bar — always in DOM, toggled by display -->
     <div class="selected-bar" id="orphan-sel-bar" style="display:none">
       <div class="selected-bar-lbl">Selected <button class="selected-bar-clear" onclick="oClear()">✕ Clear</button></div>
       <div class="selected-bar-text" id="orphan-sel-text"></div>
@@ -141,42 +140,33 @@ input::placeholder { color: #4b5563; }
 
     <div id="orphan-stock" style="display:none" class="stock-info"></div>
 
-    <!-- Deliver-to-line selector -->
-    <div id="orphan-deliver-wrap" style="display:none">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Deliver to line:</div>
-      <select class="deliver-sel" id="orphan-line-sel">
-        <option value="">— Select line —</option>
-        <option value="Apollo">Apollo</option>
-        <option value="XF/PRO">XF/PRO</option>
-        <option value="TITAN">Titan</option>
-        <option value="VULCAN">Vulcan</option>
-        <option value="XR">XR</option>
-        <option value="MR1">MR1</option>
-      </select>
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Deliver to line:</div>
+    <select class="deliver-sel" id="orphan-line-sel">
+      <option value="">— Select line —</option>
+      <option value="Apollo">Apollo</option>
+      <option value="XF/PRO">XF/PRO</option>
+      <option value="TITAN">Titan</option>
+      <option value="VULCAN">Vulcan</option>
+      <option value="XR">XR</option>
+      <option value="MR1">MR1</option>
+    </select>
+
+    <div class="qty-row">
+      <span class="qty-label">Qty</span>
+      <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
     </div>
 
-    <!-- Qty -->
-    <div id="orphan-qty-wrap" style="display:none">
-      <div class="qty-row">
-        <span class="qty-label">Qty</span>
-        <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
-      </div>
-    </div>
-
-    <!-- Priority -->
-    <div id="orphan-pri-wrap" style="display:none">
-      <div class="pri-label">Priority</div>
-      <div class="pri-row" id="orphan-pri-row">
-        <button class="pri-btn sel-low" data-level="low">Low</button>
-        <button class="pri-btn" data-level="medium">Medium</button>
-        <button class="pri-btn" data-level="high">High</button>
-      </div>
+    <div class="pri-label">Priority</div>
+    <div class="pri-row" id="orphan-pri-row">
+      <button class="pri-btn sel-low" data-level="low">Low</button>
+      <button class="pri-btn" data-level="medium">Medium</button>
+      <button class="pri-btn" data-level="high">High</button>
     </div>
 
     <div class="flash flash-green" id="orphan-sent-flash">Request Sent!</div>
     <div class="flash flash-red"   id="orphan-err-flash"></div>
 
-    <button class="btn btn-red" id="orphan-send-btn" style="display:none">Send Request</button>
+    <button class="btn btn-red" id="orphan-send-btn" disabled>Send Request</button>
   </div>
 
   <div class="sec">Active requests</div>
@@ -398,11 +388,9 @@ function oSelect(pn, pa) {
   var item = orphanItems.find(function(i){ return i.partNum===pn; });
   selectedOrphan = { partNum:pn, partName:pa, assignedLines: item ? (Array.isArray(item.assignedLines) ? item.assignedLines : (item.assignedLine ? [item.assignedLine] : [])) : [] };
 
-  // Clear search
   document.getElementById('orphan-search').value = '';
   document.getElementById('orphan-list').innerHTML = '';
 
-  // Show selected bar
   document.getElementById('orphan-sel-bar').style.display = 'block';
   document.getElementById('orphan-sel-text').textContent  = pn + ' — ' + pa;
   var linesHtml = selectedOrphan.assignedLines.length
@@ -410,33 +398,30 @@ function oSelect(pn, pa) {
     : '<span style="font-size:10px;color:#4b5563;">Not yet assigned to any line</span>';
   document.getElementById('orphan-sel-lines').innerHTML = linesHtml;
 
-  // Show stock
-  oShowStock();
-
-  // Reset controls
+  // Reset controls to defaults
   document.getElementById('orphan-line-sel').value = '';
   document.getElementById('orphan-line-sel').classList.remove('err');
+  document.getElementById('orphan-qty').value = '1';
   oPriority = 'low';
   document.querySelectorAll('#orphan-pri-row .pri-btn').forEach(function(b){
     b.className = 'pri-btn' + (b.getAttribute('data-level')==='low' ? ' sel-low' : '');
   });
-  document.getElementById('orphan-qty').value = '1';
-
-  // Show all controls
-  document.getElementById('orphan-deliver-wrap').style.display = 'block';
-  document.getElementById('orphan-qty-wrap').style.display     = 'block';
-  document.getElementById('orphan-pri-wrap').style.display     = 'block';
-  document.getElementById('orphan-send-btn').style.display     = 'block';
+  document.getElementById('orphan-send-btn').disabled = false;
+  oShowStock();
 }
 
 function oClear() {
   selectedOrphan = null;
-  document.getElementById('orphan-sel-bar').style.display      = 'none';
-  document.getElementById('orphan-stock').style.display        = 'none';
-  document.getElementById('orphan-deliver-wrap').style.display = 'none';
-  document.getElementById('orphan-qty-wrap').style.display     = 'none';
-  document.getElementById('orphan-pri-wrap').style.display     = 'none';
-  document.getElementById('orphan-send-btn').style.display     = 'none';
+  document.getElementById('orphan-sel-bar').style.display = 'none';
+  document.getElementById('orphan-stock').style.display   = 'none';
+  document.getElementById('orphan-line-sel').value = '';
+  document.getElementById('orphan-line-sel').classList.remove('err');
+  document.getElementById('orphan-qty').value = '1';
+  document.getElementById('orphan-send-btn').disabled = true;
+  oPriority = 'low';
+  document.querySelectorAll('#orphan-pri-row .pri-btn').forEach(function(b){
+    b.className = 'pri-btn' + (b.getAttribute('data-level')==='low' ? ' sel-low' : '');
+  });
   document.getElementById('orphan-search').value = '';
   document.getElementById('orphan-list').innerHTML = '';
 }
