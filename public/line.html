@@ -470,14 +470,7 @@ function showFlash(id, msg) {
   setTimeout(function(){ el.style.display='none'; }, 2500);
 }
 function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill',reqId:id})); }
-var lastReqJSON = '';
-
 function renderReqList() {
-  // Skip if nothing changed — prevents keyboard dismissal on touch devices
-  var current = JSON.stringify(myReqs);
-  if (current === lastReqJSON) return;
-  lastReqJSON = current;
-
   var listId = lineName==='Unassigned' ? 'orphan-req-list' : 'req-list';
   var el = document.getElementById(listId); if (!el) return;
   if (!myReqs.length) { el.innerHTML=''; return; }
