@@ -10,7 +10,7 @@
 
   .header { background: #12151a; border-bottom: 3px solid #C8102E; padding: 0 24px; display: flex; align-items: stretch; justify-content: space-between; min-height: 60px; }
   .header-left { display: flex; align-items: center; gap: 12px; }
-  .brand-icon  { width: 36px; height: 36px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0; }
+  .brand-icon { width: 36px; height: 36px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0; }
   .brand-text .top { font-size: 9px; font-weight: 700; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
   .brand-text .btm { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
   .clock { font-size: 15px; font-weight: 700; color: #9ca3af; }
@@ -18,7 +18,7 @@
   .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
 
   .tab-bar { display: flex; background: #12151a; border-bottom: 1px solid #2d3340; }
-  .tab { flex: 1; padding: 14px 8px; font-size: 13px; font-weight: 800; cursor: pointer; color: #6b7280; border: none; background: none; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; text-align: center; }
+  .tab { flex: 1; padding: 14px 8px; font-size: 12px; font-weight: 800; cursor: pointer; color: #6b7280; border: none; background: none; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; text-align: center; }
   .tab.active { color: #fff; border-bottom-color: #C8102E; }
   .tab:hover:not(.active) { color: #9ca3af; }
 
@@ -87,9 +87,15 @@
   .pick-btn.exhausted-btn { background: #374151; color: #6b7280; cursor: default; }
   .picked-from-note { font-size: 10px; color: #4ade80; margin-top: 6px; }
 
-  /* ── Stow ── */
-  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  /* ── Recently completed ── */
+  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
   .section-label::after { content: ''; flex: 1; height: 1px; background: #2d3340; }
+  .recent-pick-card { background: #12151a; border: 1px solid #2d3340; border-left: 3px solid #4ade80; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+  .recent-pick-part { font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+  .recent-pick-meta { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; display: flex; gap: 10px; flex-wrap: wrap; }
+  .recent-pick-loc  { font-family: 'Courier New', monospace; color: #4ade80; font-weight: 700; font-size: 11px; }
+
+  /* ── Stow form ── */
   .card { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; padding: 18px; margin-bottom: 20px; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
@@ -115,12 +121,48 @@
   .stow-selected-pa  { font-size: 13px; color: #fff; margin-top: 2px; }
   .stow-clear { float: right; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; }
   .stow-clear:hover { color: #f87171; }
+
+  /* ── Existing locations for stow ── */
+  .existing-locs { margin-bottom: 14px; }
+  .existing-locs-title { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .existing-loc-row { display: flex; align-items: center; justify-content: space-between; background: #1f2937; border: 1px solid #374151; border-radius: 4px; padding: 8px 12px; margin-bottom: 4px; }
+  .existing-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.06em; }
+  .existing-loc-qty  { font-size: 12px; font-weight: 700; color: #4ade80; }
+
   .result-flash { display: none; border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; }
   .result-flash.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
   .result-flash.error   { background: #2d0808; border: 1px solid #7f1d1d; color: #f87171; }
   .recent-item { background: #12151a; border: 1px solid #2d3340; border-left: 3px solid #EF9F27; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; }
   .recent-part { font-size: 13px; font-weight: 700; color: #fff; }
   .recent-meta { font-size: 10px; color: #4b5563; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ── Search tab ── */
+  .search-wrap { margin-bottom: 16px; }
+  .search-wrap input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; padding: 12px 14px; outline: none; }
+  .search-wrap input:focus { border-color: #C8102E; }
+  .search-wrap input::placeholder { color: #4b5563; }
+  .search-result-card { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .search-result-header { padding: 12px 14px; border-bottom: 1px solid #2d3340; }
+  .search-result-pn   { font-size: 13px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
+  .search-result-pa   { font-size: 14px; font-weight: 700; color: #fff; margin-top: 2px; }
+  .search-result-body { padding: 12px 14px; }
+  .search-lines { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .search-line-tag { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .search-line-tag.apollo { background: #1e3a5f; color: #60a5fa; }
+  .search-line-tag.xf     { background: #2d1b4e; color: #a78bfa; }
+  .search-line-tag.titan  { background: #3d1f00; color: #fb923c; }
+  .search-line-tag.vulcan { background: #3d0a0a; color: #f87171; }
+  .search-line-tag.xr     { background: #1a3d1a; color: #4ade80; }
+  .search-line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
+  .search-line-tag.unassigned { background: #1e1535; color: #a78bfa; }
+  .search-loc-row { display: flex; align-items: center; justify-content: space-between; background: #1f2937; border: 1px solid #374151; border-radius: 4px; padding: 9px 12px; margin-bottom: 5px; }
+  .search-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #fff; }
+  .search-loc-qty  { font-size: 13px; font-weight: 800; }
+  .search-loc-qty.ok  { color: #4ade80; }
+  .search-loc-qty.low { color: #f87171; }
+  .search-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
+  .search-empty { text-align: center; color: #374151; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
+  .search-no-loc { font-size: 12px; color: #4b5563; font-style: italic; padding: 6px 0; }
 </style>
 </head>
 <body>
@@ -139,8 +181,9 @@
 <div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
 
 <div class="tab-bar">
-  <button class="tab active" onclick="showTab('pick')" id="tab-pick">📦 Pick Queue</button>
-  <button class="tab"        onclick="showTab('stow')" id="tab-stow">📥 Stow Inventory</button>
+  <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
+  <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
+  <button class="tab"        onclick="showTab('search')" id="tab-search">🔍 Search</button>
 </div>
 
 <!-- PICK TAB -->
@@ -160,11 +203,17 @@
     <button class="filter-btn" onclick="setFilter('Unassigned')" id="filter-Unassigned">Unassigned</button>
   </div>
   <div class="queue" id="queue"><div class="empty">— No Pending Requests —</div></div>
+
+  <!-- Recently completed -->
+  <div id="recent-picks-section" style="display:none">
+    <div class="section-label">Recently completed</div>
+    <div id="recent-picks-list"></div>
+  </div>
 </div>
 
 <!-- STOW TAB -->
 <div id="view-stow" class="page" style="display:none">
-  <div class="section-label">Stow a part</div>
+  <div class="section-label" style="margin-top:0;">Stow a part</div>
   <div class="card">
     <div id="result-flash" class="result-flash"></div>
     <div class="field">
@@ -178,6 +227,13 @@
         <div class="stow-selected-pa" id="stow-sel-pa"></div>
       </div>
     </div>
+
+    <!-- Existing locations for this part -->
+    <div class="existing-locs" id="existing-locs" style="display:none">
+      <div class="existing-locs-title">Currently stowed at</div>
+      <div id="existing-locs-list"></div>
+    </div>
+
     <div class="field">
       <label>Shelf Location <span style="font-weight:400;color:#4b5563;text-transform:none;letter-spacing:0;">(e.g. 01-A1-A)</span></label>
       <input type="text" id="location-sel" placeholder="e.g. 01-A1-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>
@@ -196,19 +252,28 @@
   <div id="recent-list"></div>
 </div>
 
+<!-- SEARCH TAB -->
+<div id="view-search" class="page" style="display:none">
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search part # or description..." autocomplete="off" spellcheck="false"/>
+  </div>
+  <div id="search-results"><div class="search-empty">— Type to search inventory —</div></div>
+</div>
+
 <script>
-// ── Globals ───────────────────────────────────────────────────
 var requests      = [];
 var locationsData = [];
 var activeFilter  = 'all';
 var pickMap       = {};
 var pickKey       = 0;
 var recentStows   = [];
+var recentPicks   = [];
 var lastPong      = Date.now();
 var adjustedQtys  = {};
 var stowSelected  = null;
-var bomList       = [];      // populated after /api/inventory loads
-var stowReady     = false;   // true once both bom + locations are in
+var allStowParts  = [];
+var inventoryData = {};
+var orphanData    = {};
 
 // ── WebSocket ─────────────────────────────────────────────────
 var ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?picker=1');
@@ -218,105 +283,42 @@ ws.onerror = function() { document.getElementById('conn-status').style.display =
 ws.onmessage = function(e) {
   lastPong = Date.now();
   var msg = JSON.parse(e.data);
-  if (msg.type === 'requests')    { requests = msg.requests; renderQueue(); }
-  if (msg.type === 'locations')   { locationsData = msg.locations; stowReady = true; renderQueue(); }
-  if (msg.type === 'stow-result') { handleStowResult(msg); }
+  if (msg.type === 'requests')     { requests = msg.requests; renderQueue(); }
+  if (msg.type === 'locations')    { locationsData = msg.locations; renderQueue(); }
+  if (msg.type === 'stow-result')  { handleStowResult(msg); }
+  if (msg.type === 'recent-picks') { recentPicks = msg.recentPicks || []; renderRecentPicks(); }
 };
 setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
 setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
 setInterval(function() {
   fetch('/api/requests').then(function(r){return r.json();}).then(function(d){ requests = d.requests; renderQueue(); }).catch(function(){});
 }, 8000);
+setInterval(function() {
+  fetch('/api/recent-picks').then(function(r){return r.json();}).then(function(d){ if (d.success) { recentPicks = d.recentPicks || []; renderRecentPicks(); }}).catch(function(){});
+}, 30000);
 
-// ── Load locations + BOM ──────────────────────────────────────
 function loadLocations() {
   fetch('/api/locations').then(function(r){return r.json();}).then(function(d){
-    if (d.success && d.locations) { locationsData = d.locations; stowReady = true; renderQueue(); }
+    if (d.success && d.locations) { locationsData = d.locations; renderQueue(); }
   }).catch(function(){});
 }
 loadLocations();
 setInterval(loadLocations, 30000);
 
-// Load BOM list separately for stow search supplement
+// Load full inventory for search tab
 fetch('/api/inventory').then(function(r){return r.json();}).then(function(d){
-  if (d.success && d.bomList) { bomList = d.bomList; }
+  if (d.success) { inventoryData = d.inventory || {}; }
 }).catch(function(){});
-
-// ── Stow search ───────────────────────────────────────────────
-// Searches locationsData (already loaded) + bomList, deduped by partNum
-function getStowSearchResults(q) {
-  if (!q) return [];
-  var ql   = q.toLowerCase();
-  var seen = {};
-  var out  = [];
-
-  // First pass: locations (already in memory, always fresh)
-  locationsData.forEach(function(p) {
-    var pn  = String(p.partNum  || '').trim();
-    var pa  = String(p.partName || '').trim();
-    var key = pn.toLowerCase();
-    if (!key || seen[key]) return;
-    if (!key.includes(ql) && !pa.toLowerCase().includes(ql)) return;
-    seen[key] = true;
-    out.push({ partNum: pn, partName: pa });
-  });
-
-  // Second pass: BOM parts not already in locations
-  bomList.forEach(function(p) {
-    var pn  = String(p.partNum  || '').trim();
-    var pa  = String(p.partName || '').trim();
-    var key = pn.toLowerCase();
-    if (!key || seen[key]) return;
-    if (!key.includes(ql) && !pa.toLowerCase().includes(ql)) return;
-    seen[key] = true;
-    out.push({ partNum: pn, partName: pa });
-  });
-
-  out.sort(function(a, b) {
-    return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' });
-  });
-  return out.slice(0, 20);
-}
-
-document.getElementById('stow-search').addEventListener('input', function() {
-  var q         = this.value.trim();
-  var resultsEl = document.getElementById('stow-results');
-  if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
-  var results = getStowSearchResults(q);
-  if (!results.length) {
-    resultsEl.style.display = 'block';
-    resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#4b5563;text-align:center;">No parts found</div>';
-    return;
-  }
-  resultsEl.style.display = 'block';
-  resultsEl.innerHTML = results.map(function(i) {
-    return '<div class="stow-result-item" onclick="selectStowPart(\'' + esc(i.partNum) + '\',\'' + esc(i.partName) + '\')">' +
-      '<div class="stow-result-pn">' + esc(i.partNum) + '</div>' +
-      '<div class="stow-result-pa">' + esc(i.partName) + '</div>' +
-      '</div>';
-  }).join('');
-});
-
-function selectStowPart(pn, pa) {
-  stowSelected = { partNum: pn, partName: pa };
-  document.getElementById('stow-search').value = '';
-  document.getElementById('stow-results').style.display = 'none';
-  document.getElementById('stow-selected').style.display = 'block';
-  document.getElementById('stow-sel-pn').textContent = pn;
-  document.getElementById('stow-sel-pa').textContent = pa;
-}
-function clearStowPart() {
-  stowSelected = null;
-  document.getElementById('stow-selected').style.display = 'none';
-  document.getElementById('stow-search').value = '';
-}
+fetch('/api/orphans').then(function(r){return r.json();}).then(function(d){
+  if (d.success) { orphanData = d; }
+}).catch(function(){});
 
 // ── Tabs ──────────────────────────────────────────────────────
 function showTab(tab) {
-  document.getElementById('view-pick').style.display = tab === 'pick' ? 'block' : 'none';
-  document.getElementById('view-stow').style.display = tab === 'stow' ? 'block' : 'none';
-  document.getElementById('tab-pick').className = 'tab' + (tab === 'pick' ? ' active' : '');
-  document.getElementById('tab-stow').className = 'tab' + (tab === 'stow' ? ' active' : '');
+  ['pick','stow','search'].forEach(function(t) {
+    document.getElementById('view-'+t).style.display = t === tab ? 'block' : 'none';
+    document.getElementById('tab-'+t).className = 'tab' + (t === tab ? ' active' : '');
+  });
 }
 
 // ── Filter ────────────────────────────────────────────────────
@@ -333,37 +335,31 @@ function getLocsForPart(partNum) {
   if (!partNum) return [];
   return locationsData.filter(function(l) { return l.partNum.toLowerCase() === partNum.toLowerCase(); });
 }
-
 function adjQty(key, delta) {
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
   var el = document.getElementById('pick-qty-' + key);
   if (!el) return;
   var next = Math.max(0, Math.min((parseInt(el.value) || 0) + delta, entry.availableQty));
-  el.value = next;
-  entry.qty = next;
+  el.value = next; entry.qty = next;
   adjustedQtys[entry.reqId + '|' + entry.location] = next;
 }
-
 function handleQtyInput(key) {
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
-  var el  = document.getElementById('pick-qty-' + key);
+  var el = document.getElementById('pick-qty-' + key);
   if (!el) return;
   var val = parseInt(el.value);
   if (isNaN(val) || val < 0) val = 0;
   if (val > entry.availableQty) val = entry.availableQty;
-  el.value  = val;
-  entry.qty = val;
+  el.value = val; entry.qty = val;
   adjustedQtys[entry.reqId + '|' + entry.location] = val;
 }
-
 function handlePick(key) {
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
   ws.send(JSON.stringify({ type: 'fulfill', reqId: entry.reqId, location: entry.location, qty: entry.qty }));
 }
-
 function lineClass(line) {
   var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','TITAN':'titan','VULCAN':'vulcan','XR':'xr','MR1':'mr1' };
   return map[line] || 'apollo';
@@ -371,15 +367,12 @@ function lineClass(line) {
 
 // ── Render queue ──────────────────────────────────────────────
 function renderQueue() {
-  // Don't rebuild DOM while user is typing in a pick qty field
   if (document.activeElement && document.activeElement.classList.contains('adj-val')) return;
   var filtered = activeFilter === 'all' ? requests : requests.filter(function(r){ return r.line === activeFilter; });
   document.getElementById('total-count').textContent = requests.length;
   var queue = document.getElementById('queue');
   if (!filtered.length) { queue.innerHTML = '<div class="empty">— No Pending Requests —</div>'; return; }
-
   pickMap = {}; pickKey = 0;
-
   var html = filtered.map(function(r) {
     var qtyNeeded    = r.qty || 1;
     var qtyFulfilled = r.qtyFulfilled || 0;
@@ -388,69 +381,153 @@ function renderQueue() {
     var totalQty     = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
     var pri          = r.priority || 'low';
     var pickedLocs   = r.pickedLocations || {};
-
     var remainingHtml = '';
-    if (qtyFulfilled > 0 && qtyRemaining > 0)  remainingHtml = '<span class="remaining-badge partial">' + qtyRemaining + ' remaining</span>';
+    if (qtyFulfilled > 0 && qtyRemaining > 0)  remainingHtml = '<span class="remaining-badge partial">'+qtyRemaining+' remaining</span>';
     else if (qtyFulfilled > 0 && qtyRemaining === 0) remainingHtml = '<span class="remaining-badge done">✓ Fulfilled</span>';
-
     var locHtml = locs.length ? locs.map(function(l) {
-      var lq           = parseInt(l.quantity) || 0;
+      var lq = parseInt(l.quantity) || 0;
       var alreadyPicked = pickedLocs[l.location] || 0;
-      var isExhausted  = lq === 0 && alreadyPicked > 0;
-      var key          = pickKey++;
-      var adjKey       = r.id + '|' + l.location;
-      var defaultQty   = Math.min(qtyRemaining, lq);
+      var isExhausted   = lq === 0 && alreadyPicked > 0;
+      var key    = pickKey++;
+      var adjKey = r.id + '|' + l.location;
+      var defaultQty = Math.min(qtyRemaining, lq);
       if (defaultQty < 1 && !isExhausted) defaultQty = qtyRemaining;
       if (isExhausted) defaultQty = 0;
-      var initQty      = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
+      var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
       if (isExhausted) initQty = 0;
       pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: lq, exhausted: isExhausted };
-      var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ ' + alreadyPicked + ' already picked from this location</div>' : '';
-
+      var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' already picked from this location</div>' : '';
       if (isExhausted) {
-        return '<div class="loc-row exhausted">' +
-          '<div class="loc-top"><span class="loc-code">' + esc(l.location) + '</span><span class="loc-qty-txt low">0 in stock</span></div>' +
-          '<div class="loc-pick-row"><span class="pick-label">Exhausted</span>' +
-          '<button class="adj-btn" disabled>−</button>' +
-          '<input type="number" class="adj-val" id="pick-qty-' + key + '" value="0" disabled>' +
-          '<button class="adj-btn" disabled>+</button>' +
-          '<button class="pick-btn exhausted-btn">Picked</button></div>' +
-          pickedNote + '</div>';
+        return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 in stock</span></div>'+
+          '<div class="loc-pick-row"><span class="pick-label">Exhausted</span><button class="adj-btn" disabled>−</button>'+
+          '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="0" disabled>'+
+          '<button class="adj-btn" disabled>+</button><button class="pick-btn exhausted-btn">Picked</button></div>'+pickedNote+'</div>';
       }
-      return '<div class="loc-row">' +
-        '<div class="loc-top"><span class="loc-code">' + esc(l.location) + '</span>' +
-        '<span class="loc-qty-txt ' + (lq < qtyRemaining ? 'low' : 'ok') + '">' + (lq < qtyRemaining ? '⚠ ' : '') + lq + ' in stock</span></div>' +
-        '<div class="loc-pick-row"><span class="pick-label">Picking:</span>' +
-        '<button class="adj-btn" onclick="adjQty(' + key + ',-1)">−</button>' +
-        '<input type="number" class="adj-val" id="pick-qty-' + key + '" value="' + initQty + '" min="0" max="' + lq + '" inputmode="numeric" onchange="handleQtyInput(' + key + ')" oninput="handleQtyInput(' + key + ')">' +
-        '<button class="adj-btn" onclick="adjQty(' + key + ',1)">+</button>' +
-        '<button class="pick-btn active" onclick="handlePick(' + key + ')">✓ Picked</button></div>' +
-        pickedNote + '</div>';
+      return '<div class="loc-row"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
+        '<span class="loc-qty-txt '+(lq < qtyRemaining?'low':'ok')+'">'+(lq < qtyRemaining?'⚠ ':'')+lq+' in stock</span></div>'+
+        '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
+        '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
+        '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" onchange="handleQtyInput('+key+')" oninput="handleQtyInput('+key+')">'+
+        '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
+        '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
     }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
-
-    return '<div class="req-card">' +
-      '<div class="req-card-header">' +
-        '<span class="line-tag ' + lineClass(r.line) + '">' + esc(r.line) + '</span>' +
-        (r.station ? '<span class="req-station">' + esc(r.station) + '</span>' : '') +
-        '<span class="pri-badge ' + pri + '">' + pri + '</span>' +
-        '<span class="req-time">' + r.time + '</span>' +
-      '</div>' +
-      '<div class="req-body">' +
-        '<div class="req-part">' + esc(r.partName || r.text || '') + '</div>' +
-        (r.partNum ? '<div class="req-partnum">' + esc(r.partNum) + '</div>' : '') +
-        '<div class="req-meta">' +
-          '<span class="qty-badge">Qty needed: ' + qtyNeeded + '</span>' +
-          remainingHtml +
-          (locs.length ? '<span class="stock-info">Warehouse total: <span>' + totalQty + '</span></span>' : '') +
-        '</div>' +
-        '<div class="loc-section">' + locHtml + '</div>' +
+    return '<div class="req-card">'+
+      '<div class="req-card-header">'+
+        '<span class="line-tag '+lineClass(r.line)+'">'+esc(r.line)+'</span>'+
+        (r.station ? '<span class="req-station">'+esc(r.station)+'</span>' : '')+
+        '<span class="pri-badge '+pri+'">'+pri+'</span>'+
+        '<span class="req-time">'+r.time+'</span>'+
+      '</div>'+
+      '<div class="req-body">'+
+        '<div class="req-part">'+esc(r.partName || r.text || '')+'</div>'+
+        (r.partNum ? '<div class="req-partnum">'+esc(r.partNum)+'</div>' : '')+
+        '<div class="req-meta">'+
+          '<span class="qty-badge">Qty needed: '+qtyNeeded+'</span>'+
+          remainingHtml+
+          (locs.length ? '<span class="stock-info">Warehouse total: <span>'+totalQty+'</span></span>' : '')+
+        '</div>'+
+        '<div class="loc-section">'+locHtml+'</div>'+
       '</div></div>';
   }).join('');
-
   queue.innerHTML = html;
 }
 
-// ── Stow actions ──────────────────────────────────────────────
+// ── Recently completed picks ──────────────────────────────────
+function renderRecentPicks() {
+  var sec = document.getElementById('recent-picks-section');
+  var list = document.getElementById('recent-picks-list');
+  if (!recentPicks.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = recentPicks.map(function(p) {
+    return '<div class="recent-pick-card">'+
+      '<div class="recent-pick-part">'+esc(p.partNum)+' — '+esc(p.partName)+'</div>'+
+      '<div class="recent-pick-meta">'+
+        '<span>Qty: '+p.qty+'</span>'+
+        '<span class="recent-pick-loc">'+esc(p.location)+'</span>'+
+        '<span>'+esc(p.line)+'</span>'+
+        '<span>'+p.time+'</span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── Stow search ───────────────────────────────────────────────
+window.allStowParts = [];
+Promise.all([
+  fetch('/api/bom').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/locations').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/orphans').then(function(r){ return r.json(); }).catch(function(){ return {}; })
+]).then(function(results) {
+  var seen = {}, combined = [];
+  function addParts(arr) {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function(p) {
+      var pn = String(p.partNum || '').trim(), pa = String(p.partName || p.partDescription || '').trim();
+      var key = pn.toLowerCase();
+      if (!key || seen[key]) return;
+      seen[key] = true; combined.push({ partNum: pn, partName: pa });
+    });
+  }
+  addParts(results[0].bomList);
+  addParts(results[1].locations);
+  addParts(results[2].orphanParts);
+  combined.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
+  window.allStowParts = combined;
+  console.log('Stow parts ready:', window.allStowParts.length);
+});
+
+document.getElementById('stow-search').addEventListener('input', function() {
+  var q = this.value.trim();
+  var resultsEl = document.getElementById('stow-results');
+  if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+  var results = (window.allStowParts || []).filter(function(i) {
+    return i.partNum.toLowerCase().includes(q.toLowerCase()) || i.partName.toLowerCase().includes(q.toLowerCase());
+  }).slice(0, 20);
+  if (!results.length) {
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#4b5563;text-align:center;">No parts found</div>';
+    return;
+  }
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = results.map(function(i) {
+    return '<div class="stow-result-item" onclick="selectStowPart(\''+esc(i.partNum)+'\',\''+esc(i.partName)+'\')">' +
+      '<div class="stow-result-pn">'+esc(i.partNum)+'</div><div class="stow-result-pa">'+esc(i.partName)+'</div></div>';
+  }).join('');
+});
+
+function selectStowPart(pn, pa) {
+  stowSelected = { partNum: pn, partName: pa };
+  document.getElementById('stow-search').value = '';
+  document.getElementById('stow-results').style.display = 'none';
+  document.getElementById('stow-selected').style.display = 'block';
+  document.getElementById('stow-sel-pn').textContent = pn;
+  document.getElementById('stow-sel-pa').textContent = pa;
+
+  // Show existing locations for this part
+  var locs = locationsData.filter(function(l) { return l.partNum.toLowerCase() === pn.toLowerCase(); });
+  var existEl = document.getElementById('existing-locs');
+  var listEl  = document.getElementById('existing-locs-list');
+  if (locs.length) {
+    existEl.style.display = 'block';
+    listEl.innerHTML = locs.map(function(l) {
+      return '<div class="existing-loc-row">'+
+        '<span class="existing-loc-code">'+esc(l.location)+'</span>'+
+        '<span class="existing-loc-qty">'+l.quantity+' in stock</span>'+
+      '</div>';
+    }).join('');
+  } else {
+    existEl.style.display = 'block';
+    listEl.innerHTML = '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:4px 0;">No existing locations on file</div>';
+  }
+}
+
+function clearStowPart() {
+  stowSelected = null;
+  document.getElementById('stow-selected').style.display = 'none';
+  document.getElementById('existing-locs').style.display = 'none';
+  document.getElementById('stow-search').value = '';
+}
+
 function changeQty(delta) {
   var el = document.getElementById('qty-stow');
   el.value = Math.max(1, (parseInt(el.value) || 1) + delta);
@@ -500,15 +577,102 @@ function renderRecent() {
   var el = document.getElementById('recent-list');
   if (!recentStows.length) { el.innerHTML = ''; return; }
   el.innerHTML = recentStows.map(function(s) {
-    return '<div class="recent-item"><div class="recent-part">' + esc(s.partNum) + ' — ' + esc(s.partName) + '</div>' +
-      '<div class="recent-meta">' + esc(s.location) + ' · Qty: ' + s.qty + ' · ' + s.time + '</div></div>';
+    return '<div class="recent-item"><div class="recent-part">'+esc(s.partNum)+' — '+esc(s.partName)+'</div>'+
+      '<div class="recent-meta">'+esc(s.location)+' · Qty: '+s.qty+' · '+s.time+'</div></div>';
   }).join('');
 }
 
+// ── Search tab ────────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', function() {
+  var q = this.value.trim().toLowerCase();
+  var container = document.getElementById('search-results');
+  if (!q) { container.innerHTML = '<div class="search-empty">— Type to search inventory —</div>'; return; }
+
+  // Find matching parts from locationsData (deduplicated by partNum)
+  var seen = {}, matches = [];
+  locationsData.forEach(function(l) {
+    var pn = String(l.partNum || '').trim();
+    var pa = String(l.partName || '').trim();
+    var key = pn.toLowerCase();
+    if (!key) return;
+    if (!key.includes(q) && !pa.toLowerCase().includes(q)) return;
+    if (seen[key]) return;
+    seen[key] = true;
+    matches.push({ partNum: pn, partName: pa });
+  });
+
+  // Also search BOM parts that may not be in locations
+  (window.allStowParts || []).forEach(function(p) {
+    var key = p.partNum.toLowerCase();
+    if (seen[key]) return;
+    if (!key.includes(q) && !p.partName.toLowerCase().includes(q)) return;
+    seen[key] = true;
+    matches.push({ partNum: p.partNum, partName: p.partName });
+  });
+
+  matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
+
+  if (!matches.length) {
+    container.innerHTML = '<div class="search-empty">— No parts found —</div>';
+    return;
+  }
+
+  container.innerHTML = matches.slice(0, 30).map(function(m) {
+    var locs = locationsData.filter(function(l) { return l.partNum.toLowerCase() === m.partNum.toLowerCase(); });
+    var total = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
+
+    // Find which lines this part is on
+    var lineSet = {};
+    Object.keys(inventoryData).forEach(function(grp) {
+      (inventoryData[grp] || []).forEach(function(item) {
+        if (item.partNum.toLowerCase() === m.partNum.toLowerCase()) {
+          var lineName = item.line || grp;
+          lineSet[lineName.toUpperCase()] = lineName;
+        }
+      });
+    });
+    // Also check orphan assignments
+    if (orphanData && orphanData.orphanParts) {
+      orphanData.orphanParts.forEach(function(o) {
+        if (o.partNum.toLowerCase() === m.partNum.toLowerCase()) {
+          var lines = Array.isArray(o.assignedLines) ? o.assignedLines : (o.assignedLine ? [o.assignedLine] : []);
+          lines.forEach(function(l) { if (l) lineSet[l.toUpperCase()] = l; });
+        }
+      });
+    }
+    var lineKeys = Object.keys(lineSet);
+
+    var lineTags = lineKeys.length
+      ? lineKeys.map(function(k) { return '<span class="search-line-tag '+lineClass(k)+'">'+esc(lineSet[k])+'</span>'; }).join('')
+      : '<span class="search-line-tag unassigned">Unassigned</span>';
+
+    var locRows = locs.length
+      ? locs.map(function(l) {
+          var qty = parseInt(l.quantity) || 0;
+          return '<div class="search-loc-row">'+
+            '<span class="search-loc-code">'+esc(l.location)+'</span>'+
+            '<span class="search-loc-qty '+(qty > 0 ? 'ok' : 'low')+'">'+qty+'</span>'+
+          '</div>';
+        }).join('')
+      : '<div class="search-no-loc">No warehouse locations on file</div>';
+
+    return '<div class="search-result-card">'+
+      '<div class="search-result-header">'+
+        '<div class="search-result-pn">'+esc(m.partNum)+'</div>'+
+        '<div class="search-result-pa">'+esc(m.partName)+'</div>'+
+      '</div>'+
+      '<div class="search-result-body">'+
+        '<div class="search-lines">'+lineTags+'</div>'+
+        locRows+
+        (locs.length > 1 ? '<div class="search-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('');
+});
+
 // ── Clock ─────────────────────────────────────────────────────
 function updateClock() {
-  document.getElementById('clock').textContent =
-    new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 updateClock(); setInterval(updateClock, 1000);
 
