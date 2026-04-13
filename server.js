@@ -586,7 +586,52 @@ wss.on('connection', (ws, req) => {
         .catch(e => ws.send(JSON.stringify({ type: 'stow-result', success: false, message: e.message })));
     }
 
-    // ── Assign orphan ─────────────────────────────────────────
+    // ── Transfer ──────────────────────────────────────────────
+    if (msg.type === 'transfer') {
+      if (!LOCATIONS_URL) return;
+      const { partNum, partName, fromLocation, toLocation, qty } = msg;
+      console.log('Transfer:', partNum, fromLocation, '→', toLocation, 'qty:', qty);
+
+      // Step 1 — subtract from source
+      const subtractRes = await fetchWithRetry(LOCATIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'subtract', partNum, partName, location: fromLocation, qty, line: '', station: '' }),
+        redirect: 'follow',
+      });
+
+      if (!subtractRes || !subtractRes.success) {
+        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: subtractRes?.error || 'Failed to subtract from source location' }));
+        return;
+      }
+
+      // Step 2 — add to destination
+      const stowRes = await fetchWithRetry(LOCATIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stow', partNum, partName, location: toLocation, qty, line: '', station: '' }),
+        redirect: 'follow',
+      });
+
+      if (!stowRes || !stowRes.success) {
+        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Subtracted from source but failed to add to destination — check sheet manually' }));
+        return;
+      }
+
+      // Update local cache
+      const srcLoc = locationsCache.find(l => l.partNum.toLowerCase() === partNum.toLowerCase() && l.location.toLowerCase() === fromLocation.toLowerCase());
+      if (srcLoc) srcLoc.quantity = String(subtractRes.newQty);
+
+      await fetchLocations();
+
+      // Broadcast updated locations to picker clients
+      pickerClients.forEach(c => {
+        if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
+      });
+
+      ws.send(JSON.stringify({ type: 'transfer-result', success: true, message: 'Transferred ' + qty + ' of ' + partNum + ' from ' + fromLocation + ' to ' + toLocation }));
+      return;
+    }
     if (msg.type === 'assign-orphan') {
       const { partNum, partName, line, station } = msg;
       console.log('assign-orphan received:', { partNum, line });
