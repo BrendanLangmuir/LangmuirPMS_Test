@@ -136,33 +136,58 @@
   .recent-part { font-size: 13px; font-weight: 700; color: #fff; }
   .recent-meta { font-size: 10px; color: #4b5563; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
 
-  /* ── Search tab ── */
+  /* ── Transfer tab ── */
   .search-wrap { margin-bottom: 16px; }
   .search-wrap input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; padding: 12px 14px; outline: none; }
   .search-wrap input:focus { border-color: #C8102E; }
   .search-wrap input::placeholder { color: #4b5563; }
-  .search-result-card { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-  .search-result-header { padding: 12px 14px; border-bottom: 1px solid #2d3340; }
-  .search-result-pn   { font-size: 13px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
-  .search-result-pa   { font-size: 14px; font-weight: 700; color: #fff; margin-top: 2px; }
-  .search-result-body { padding: 12px 14px; }
-  .search-lines { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-  .search-line-tag { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .search-line-tag.apollo { background: #1e3a5f; color: #60a5fa; }
-  .search-line-tag.xf     { background: #2d1b4e; color: #a78bfa; }
-  .search-line-tag.titan  { background: #3d1f00; color: #fb923c; }
-  .search-line-tag.vulcan { background: #3d0a0a; color: #f87171; }
-  .search-line-tag.xr     { background: #1a3d1a; color: #4ade80; }
-  .search-line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
-  .search-line-tag.unassigned { background: #1e1535; color: #a78bfa; }
-  .search-loc-row { display: flex; align-items: center; justify-content: space-between; background: #1f2937; border: 1px solid #374151; border-radius: 4px; padding: 9px 12px; margin-bottom: 5px; }
-  .search-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #fff; }
-  .search-loc-qty  { font-size: 13px; font-weight: 800; }
-  .search-loc-qty.ok  { color: #4ade80; }
-  .search-loc-qty.low { color: #f87171; }
-  .search-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
+  .transfer-result-card { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .transfer-result-header { padding: 12px 14px; border-bottom: 1px solid #2d3340; }
+  .transfer-result-pn { font-size: 13px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
+  .transfer-result-pa { font-size: 14px; font-weight: 700; color: #fff; margin-top: 2px; }
+  .transfer-result-body { padding: 12px 14px; }
+  .transfer-lines { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .transfer-line-tag { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .transfer-line-tag.apollo { background: #1e3a5f; color: #60a5fa; }
+  .transfer-line-tag.xf     { background: #2d1b4e; color: #a78bfa; }
+  .transfer-line-tag.titan  { background: #3d1f00; color: #fb923c; }
+  .transfer-line-tag.vulcan { background: #3d0a0a; color: #f87171; }
+  .transfer-line-tag.xr     { background: #1a3d1a; color: #4ade80; }
+  .transfer-line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
+  .transfer-line-tag.unassigned { background: #1e1535; color: #a78bfa; }
+  .transfer-loc-row { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
+  .transfer-loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+  .transfer-loc-code { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: #fff; flex: 1; }
+  .transfer-loc-qty  { font-size: 12px; font-weight: 700; }
+  .transfer-loc-qty.ok  { color: #4ade80; }
+  .transfer-loc-qty.low { color: #f87171; }
+  .transfer-from-btn { background: #1f2937; border: 1.5px solid #374151; border-radius: 4px; color: #9ca3af; font-size: 11px; font-weight: 800; padding: 6px 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .transfer-from-btn:hover { border-color: #C8102E; color: #fff; }
+  .transfer-from-btn.selected { background: #2d0808; border-color: #C8102E; color: #f87171; }
+  .transfer-form { background: #12151a; border: 1.5px solid #C8102E; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .transfer-form-title { font-size: 10px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; }
+  .transfer-from-info { background: #1f2937; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .transfer-from-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+  .transfer-from-loc { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 800; color: #fff; }
+  .transfer-from-avail { font-size: 11px; color: #4ade80; font-weight: 700; }
+  .transfer-qty-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .transfer-qty-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .transfer-qty-input { flex: 1; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; -moz-appearance: textfield; }
+  .transfer-qty-input::-webkit-outer-spin-button, .transfer-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .transfer-qty-input:focus { border-color: #C8102E; }
+  .transfer-dest-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .transfer-dest-input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; margin-bottom: 14px; }
+  .transfer-dest-input:focus { border-color: #C8102E; }
+  .transfer-dest-input::placeholder { color: #4b5563; }
+  .transfer-confirm-btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; background: #C8102E; color: #fff; }
+  .transfer-confirm-btn:hover { background: #a00d24; }
+  .transfer-confirm-btn:disabled { opacity: 0.4; cursor: default; }
+  .transfer-flash { border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; display: none; }
+  .transfer-flash.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+  .transfer-flash.error   { background: #2d0808; border: 1px solid #7f1d1d; color: #f87171; }
+  .transfer-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
   .search-empty { text-align: center; color: #374151; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
-  .search-no-loc { font-size: 12px; color: #4b5563; font-style: italic; padding: 6px 0; }
+  .transfer-no-loc { font-size: 12px; color: #4b5563; font-style: italic; padding: 6px 0; }
 </style>
 </head>
 <body>
@@ -183,7 +208,7 @@
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
   <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
-  <button class="tab"        onclick="showTab('search')" id="tab-search">🔍 Search</button>
+  <button class="tab"        onclick="showTab('transfer')" id="tab-transfer">↔ Transfer</button>
 </div>
 
 <!-- PICK TAB -->
@@ -252,12 +277,13 @@
   <div id="recent-list"></div>
 </div>
 
-<!-- SEARCH TAB -->
-<div id="view-search" class="page" style="display:none">
+<!-- TRANSFER TAB -->
+<div id="view-transfer" class="page" style="display:none">
   <div class="search-wrap">
-    <input type="text" id="search-input" placeholder="Search part # or description..." autocomplete="off" spellcheck="false"/>
+    <input type="text" id="transfer-search-input" placeholder="Search part # or description to transfer..." autocomplete="off" spellcheck="false"/>
   </div>
-  <div id="search-results"><div class="search-empty">— Type to search inventory —</div></div>
+  <div class="transfer-flash" id="transfer-flash"></div>
+  <div id="transfer-results"><div class="search-empty">— Search a part to see locations and transfer —</div></div>
 </div>
 
 <script>
@@ -285,7 +311,8 @@ ws.onmessage = function(e) {
   var msg = JSON.parse(e.data);
   if (msg.type === 'requests')     { requests = msg.requests; renderQueue(); }
   if (msg.type === 'locations')    { locationsData = msg.locations; renderQueue(); }
-  if (msg.type === 'stow-result')  { handleStowResult(msg); }
+  if (msg.type === 'stow-result')     { handleStowResult(msg); }
+  if (msg.type === 'transfer-result') { handleTransferResult(msg); }
   if (msg.type === 'recent-picks') { recentPicks = msg.recentPicks || []; renderRecentPicks(); }
 };
 setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
@@ -315,7 +342,7 @@ fetch('/api/orphans').then(function(r){return r.json();}).then(function(d){
 
 // ── Tabs ──────────────────────────────────────────────────────
 function showTab(tab) {
-  ['pick','stow','search'].forEach(function(t) {
+  ['pick','stow','transfer'].forEach(function(t) {
     document.getElementById('view-'+t).style.display = t === tab ? 'block' : 'none';
     document.getElementById('tab-'+t).className = 'tab' + (t === tab ? ' active' : '');
   });
@@ -582,92 +609,180 @@ function renderRecent() {
   }).join('');
 }
 
-// ── Search tab ────────────────────────────────────────────────
-document.getElementById('search-input').addEventListener('input', function() {
-  var q = this.value.trim().toLowerCase();
-  var container = document.getElementById('search-results');
-  if (!q) { container.innerHTML = '<div class="search-empty">— Type to search inventory —</div>'; return; }
+// ── Transfer tab ──────────────────────────────────────────────
+var transferPart      = null;  // { partNum, partName }
+var transferFromLoc   = null;  // { location, quantity }
 
-  // Find matching parts from locationsData (deduplicated by partNum)
+function lineClassT(line) { return lineClass(line); }
+
+function renderTransferResults(q) {
+  var container = document.getElementById('transfer-results');
+  if (!q) { container.innerHTML = '<div class="search-empty">— Search a part to see locations and transfer —</div>'; return; }
+
   var seen = {}, matches = [];
   locationsData.forEach(function(l) {
-    var pn = String(l.partNum || '').trim();
-    var pa = String(l.partName || '').trim();
-    var key = pn.toLowerCase();
-    if (!key) return;
+    var pn = String(l.partNum || '').trim(), pa = String(l.partName || '').trim(), key = pn.toLowerCase();
+    if (!key || seen[key]) return;
     if (!key.includes(q) && !pa.toLowerCase().includes(q)) return;
-    if (seen[key]) return;
-    seen[key] = true;
-    matches.push({ partNum: pn, partName: pa });
+    seen[key] = true; matches.push({ partNum: pn, partName: pa });
   });
-
-  // Also search BOM parts that may not be in locations
   (window.allStowParts || []).forEach(function(p) {
     var key = p.partNum.toLowerCase();
     if (seen[key]) return;
     if (!key.includes(q) && !p.partName.toLowerCase().includes(q)) return;
-    seen[key] = true;
-    matches.push({ partNum: p.partNum, partName: p.partName });
+    seen[key] = true; matches.push({ partNum: p.partNum, partName: p.partName });
   });
-
   matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
 
-  if (!matches.length) {
-    container.innerHTML = '<div class="search-empty">— No parts found —</div>';
-    return;
-  }
+  if (!matches.length) { container.innerHTML = '<div class="search-empty">— No parts found —</div>'; return; }
 
-  container.innerHTML = matches.slice(0, 30).map(function(m) {
-    var locs = locationsData.filter(function(l) { return l.partNum.toLowerCase() === m.partNum.toLowerCase(); });
-    var total = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
-
-    // Find which lines this part is on
+  container.innerHTML = matches.slice(0, 20).map(function(m) {
+    var locs  = locationsData.filter(function(l) { return l.partNum.toLowerCase() === m.partNum.toLowerCase(); });
+    var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
     var lineSet = {};
     Object.keys(inventoryData).forEach(function(grp) {
-      (inventoryData[grp] || []).forEach(function(item) {
-        if (item.partNum.toLowerCase() === m.partNum.toLowerCase()) {
-          var lineName = item.line || grp;
-          lineSet[lineName.toUpperCase()] = lineName;
-        }
+      (inventoryData[grp]||[]).forEach(function(item) {
+        if (item.partNum.toLowerCase() === m.partNum.toLowerCase()) lineSet[(item.line||grp).toUpperCase()] = item.line||grp;
       });
     });
-    // Also check orphan assignments
     if (orphanData && orphanData.orphanParts) {
       orphanData.orphanParts.forEach(function(o) {
-        if (o.partNum.toLowerCase() === m.partNum.toLowerCase()) {
-          var lines = Array.isArray(o.assignedLines) ? o.assignedLines : (o.assignedLine ? [o.assignedLine] : []);
-          lines.forEach(function(l) { if (l) lineSet[l.toUpperCase()] = l; });
-        }
+        if (o.partNum.toLowerCase() !== m.partNum.toLowerCase()) return;
+        var lines = Array.isArray(o.assignedLines) ? o.assignedLines : (o.assignedLine ? [o.assignedLine] : []);
+        lines.forEach(function(l){ if (l) lineSet[l.toUpperCase()] = l; });
       });
     }
     var lineKeys = Object.keys(lineSet);
-
     var lineTags = lineKeys.length
-      ? lineKeys.map(function(k) { return '<span class="search-line-tag '+lineClass(k)+'">'+esc(lineSet[k])+'</span>'; }).join('')
-      : '<span class="search-line-tag unassigned">Unassigned</span>';
+      ? lineKeys.map(function(k){ return '<span class="transfer-line-tag '+lineClassT(k)+'">'+esc(lineSet[k])+'</span>'; }).join('')
+      : '<span class="transfer-line-tag unassigned">Unassigned</span>';
 
-    var locRows = locs.length
-      ? locs.map(function(l) {
-          var qty = parseInt(l.quantity) || 0;
-          return '<div class="search-loc-row">'+
-            '<span class="search-loc-code">'+esc(l.location)+'</span>'+
-            '<span class="search-loc-qty '+(qty > 0 ? 'ok' : 'low')+'">'+qty+'</span>'+
-          '</div>';
-        }).join('')
-      : '<div class="search-no-loc">No warehouse locations on file</div>';
+    var locRows = locs.length ? locs.map(function(l) {
+      var qty = parseInt(l.quantity) || 0;
+      var isSelected = transferFromLoc && transferFromLoc.location === l.location && transferPart && transferPart.partNum === m.partNum;
+      return '<div class="transfer-loc-row">'+
+        '<div class="transfer-loc-top">'+
+          '<span class="transfer-loc-code">'+esc(l.location)+'</span>'+
+          '<span class="transfer-loc-qty '+(qty>0?'ok':'low')+'">'+qty+' in stock</span>'+
+          '<button class="transfer-from-btn'+(isSelected?' selected':'')+'" onclick="selectTransferFrom(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(l.location)+'\','+qty+')">'+
+            (isSelected ? '✓ Selected' : 'Transfer From')+
+          '</button>'+
+        '</div>'+
+      '</div>';
+    }).join('') : '<div class="transfer-no-loc">No warehouse locations on file</div>';
 
-    return '<div class="search-result-card">'+
-      '<div class="search-result-header">'+
-        '<div class="search-result-pn">'+esc(m.partNum)+'</div>'+
-        '<div class="search-result-pa">'+esc(m.partName)+'</div>'+
+    return '<div class="transfer-result-card">'+
+      '<div class="transfer-result-header">'+
+        '<div class="transfer-result-pn">'+esc(m.partNum)+'</div>'+
+        '<div class="transfer-result-pa">'+esc(m.partName)+'</div>'+
       '</div>'+
-      '<div class="search-result-body">'+
-        '<div class="search-lines">'+lineTags+'</div>'+
+      '<div class="transfer-result-body">'+
+        '<div class="transfer-lines">'+lineTags+'</div>'+
         locRows+
-        (locs.length > 1 ? '<div class="search-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
+        (locs.length > 1 ? '<div class="transfer-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
       '</div>'+
     '</div>';
-  }).join('');
+  }).join('') + '<div id="transfer-form-anchor"></div>';
+
+  // Re-render transfer form if one is active
+  if (transferPart && transferFromLoc) renderTransferForm();
+}
+
+function selectTransferFrom(pn, pa, location, qty) {
+  transferPart    = { partNum: pn, partName: pa };
+  transferFromLoc = { location: location, quantity: qty };
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function renderTransferForm() {
+  var anchor = document.getElementById('transfer-form-anchor');
+  if (!anchor) return;
+  var maxQty = transferFromLoc.quantity;
+  anchor.innerHTML =
+    '<div class="transfer-form">'+
+      '<div class="transfer-form-title">↔ Transfer — '+esc(transferPart.partNum)+'</div>'+
+      '<div class="transfer-from-info">'+
+        '<div>'+
+          '<div class="transfer-from-label">From location</div>'+
+          '<div class="transfer-from-loc">'+esc(transferFromLoc.location)+'</div>'+
+        '</div>'+
+        '<div class="transfer-from-avail">'+maxQty+' available</div>'+
+      '</div>'+
+      '<div class="transfer-qty-row">'+
+        '<span class="transfer-qty-label">Qty to move</span>'+
+        '<input class="transfer-qty-input" type="number" id="transfer-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="'+Math.min(maxQty,1)+'" oninput="clampTransferQty('+maxQty+')"/>'+
+      '</div>'+
+      '<div class="transfer-dest-label">Destination location</div>'+
+      '<input class="transfer-dest-input" type="text" id="transfer-dest" placeholder="e.g. 02-B3-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>'+
+      '<button class="transfer-confirm-btn" id="transfer-confirm-btn" onclick="confirmTransfer()">↔ Confirm Transfer</button>'+
+      '<button style="width:100%;margin-top:8px;padding:10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#6b7280;font-size:12px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;" onclick="cancelTransfer()">Cancel</button>'+
+    '</div>';
+}
+
+function clampTransferQty(max) {
+  var el = document.getElementById('transfer-qty');
+  if (!el) return;
+  var v = parseInt(el.value);
+  if (isNaN(v) || v < 1) el.value = 1;
+  if (v > max) el.value = max;
+}
+
+function cancelTransfer() {
+  transferPart = null; transferFromLoc = null;
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function confirmTransfer() {
+  var qty  = parseInt(document.getElementById('transfer-qty').value) || 1;
+  var dest = document.getElementById('transfer-dest').value.trim().toUpperCase();
+  if (!dest) { document.getElementById('transfer-dest').focus(); return; }
+  if (dest.toLowerCase() === transferFromLoc.location.toLowerCase()) {
+    showTransferFlash(false, 'Destination must be different from source location'); return;
+  }
+  if (qty < 1 || qty > transferFromLoc.quantity) {
+    showTransferFlash(false, 'Quantity must be between 1 and '+transferFromLoc.quantity); return;
+  }
+  var btn = document.getElementById('transfer-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Transferring...';
+  ws.send(JSON.stringify({
+    type:        'transfer',
+    partNum:     transferPart.partNum,
+    partName:    transferPart.partName,
+    fromLocation: transferFromLoc.location,
+    toLocation:  dest,
+    qty:         qty,
+  }));
+  setTimeout(function() {
+    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '↔ Confirm Transfer'; showTransferFlash(false, 'No response — check connection'); }
+  }, 10000);
+}
+
+function handleTransferResult(msg) {
+  var btn = document.getElementById('transfer-confirm-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '↔ Confirm Transfer'; }
+  if (msg.success) {
+    showTransferFlash(true, msg.message || 'Transfer complete');
+    transferPart = null; transferFromLoc = null;
+    loadLocations();
+    setTimeout(function() {
+      renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+    }, 1500);
+  } else {
+    showTransferFlash(false, msg.message || 'Transfer failed');
+  }
+}
+
+function showTransferFlash(success, message) {
+  var el = document.getElementById('transfer-flash');
+  el.className = 'transfer-flash ' + (success ? 'success' : 'error');
+  el.textContent = (success ? '✓ ' : '✗ ') + message;
+  el.style.display = 'block';
+  setTimeout(function(){ el.style.display = 'none'; }, 4000);
+}
+
+document.getElementById('transfer-search-input').addEventListener('input', function() {
+  transferPart = null; transferFromLoc = null;
+  renderTransferResults(this.value.trim().toLowerCase());
 });
 
 // ── Clock ─────────────────────────────────────────────────────
