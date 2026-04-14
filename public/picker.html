@@ -623,23 +623,35 @@ function lineClassT(line) { return lineClass(line); }
 
 function renderTransferResults(q) {
   var container = document.getElementById('transfer-results');
-  if (!q) { container.innerHTML = '<div class="search-empty">— Search a part to see locations and transfer —</div>'; return; }
-
+  if (!q) { container.innerHTML = '<div class="search-empty">— Search a part or bin location to transfer —</div>'; return; }
+  var ql = q.toLowerCase();
   var seen = {}, matches = [];
+
+  // Location code search — check all location entries for matching bin codes
+  locationsData.forEach(function(l) {
+    var loc = String(l.location || '').toLowerCase();
+    if (!loc.includes(ql)) return;
+    var key = String(l.partNum || '').toLowerCase();
+    if (!key || seen[key]) return;
+    seen[key] = true;
+    matches.push({ partNum: l.partNum, partName: l.partName });
+  });
+
+  // Part # and description search
   locationsData.forEach(function(l) {
     var pn = String(l.partNum || '').trim(), pa = String(l.partName || '').trim(), key = pn.toLowerCase();
     if (!key || seen[key]) return;
-    if (!key.includes(q) && !pa.toLowerCase().includes(q)) return;
+    if (!key.includes(ql) && !pa.toLowerCase().includes(ql)) return;
     seen[key] = true; matches.push({ partNum: pn, partName: pa });
   });
   (window.allStowParts || []).forEach(function(p) {
     var key = p.partNum.toLowerCase();
     if (seen[key]) return;
-    if (!key.includes(q) && !p.partName.toLowerCase().includes(q)) return;
+    if (!key.includes(ql) && !p.partName.toLowerCase().includes(ql)) return;
     seen[key] = true; matches.push({ partNum: p.partNum, partName: p.partName });
   });
-  matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
 
+  matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
   if (!matches.length) { container.innerHTML = '<div class="search-empty">— No parts found —</div>'; return; }
 
   container.innerHTML = matches.slice(0, 20).map(function(m) {
@@ -670,12 +682,11 @@ function renderTransferResults(q) {
         '<div class="transfer-loc-top">'+
           '<span class="transfer-loc-code">'+esc(l.location)+'</span>'+
           '<span class="transfer-loc-qty '+(qty>0?'ok':'low')+'">'+qty+' in stock</span>'+
-          '<button class="transfer-from-btn'+(isSelected?' selected':'')+'" onclick="selectTransferFrom(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(l.location)+'\','+qty+')">'+
-            (isSelected ? '✓ Selected' : 'Transfer From')+
-          '</button>'+
+          (qty > 0 ? '<button class="transfer-from-btn'+(isSelected?' selected':'')+'" onclick="selectTransferFrom(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(l.location)+'\','+qty+')">'+
+            (isSelected ? '✓ Selected' : 'Transfer From')+'</button>' : '')+
         '</div>'+
       '</div>';
-    }).join('') : '<div class="transfer-no-loc">No warehouse locations on file</div>';
+    }).join('') : '<div class="transfer-loc-out">No warehouse locations on file</div>';
 
     return '<div class="transfer-result-card">'+
       '<div class="transfer-result-header">'+
@@ -690,7 +701,6 @@ function renderTransferResults(q) {
     '</div>';
   }).join('') + '<div id="transfer-form-anchor"></div>';
 
-  // Re-render transfer form if one is active
   if (transferPart && transferFromLoc) renderTransferForm();
 }
 
