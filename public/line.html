@@ -359,60 +359,45 @@ function showStock() {
   var sEl = document.getElementById('stock-info');
   if (!selectedPart) { sEl.style.display='none'; return; }
   var qty  = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
-  var locs = (window._locations||[]).filter(function(l){ return String(l.partNum||'').toLowerCase()===selectedPart.partNum.toLowerCase(); });
-  if (locs.length) {
-    var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); },0);
-    sEl.style.display=''; sEl.className='stock-info '+(total<qty?'stock-warn':'stock-ok');
-    sEl.innerHTML=(total<qty?'Low Stock: ':'In Stock: ')+'<strong>'+total+'</strong> available';
-  } else { sEl.style.display=''; sEl.className='stock-info stock-none'; sEl.textContent='No warehouse location on file for this part'; }
+  var locs = (window._locations||[]).filter(function(l){
+    return String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase();
+  });
+  var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+
+  if (!locs.length || total === 0) {
+    sEl.style.display = ''; sEl.className = 'stock-info stock-out';
+    sEl.innerHTML = '⚠ Out of Stock — <strong>0</strong> available. Sending will escalate to warehouse.';
+  } else if (total < qty) {
+    sEl.style.display = ''; sEl.className = 'stock-info stock-warn';
+    sEl.innerHTML = 'Low Stock: <strong>'+total+'</strong> available';
+  } else {
+    sEl.style.display = ''; sEl.className = 'stock-info stock-ok';
+    sEl.innerHTML = 'In Stock: <strong>'+total+'</strong> available';
+  }
 }
 document.getElementById('qty-input').addEventListener('input', showStock);
 
 document.getElementById('send-btn').addEventListener('click', function() {
   if (!selectedPart) return;
-  var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
-  ws.send(JSON.stringify({ type:'request', line:lineName, partNum:selectedPart.partNum, partName:selectedPart.partName, text:selectedPart.partNum+' — '+selectedPart.partName, qty:qty, priority:priority }));
+  var locs  = (window._locations||[]).filter(function(l){
+    return String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase();
+  });
+  var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+  var isOut = !locs.length || total === 0;
+  var qty   = isOut ? 0 : Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+
+  ws.send(JSON.stringify({
+    type:     'request',
+    line:     lineName,
+    partNum:  selectedPart.partNum,
+    partName: selectedPart.partName,
+    text:     selectedPart.partNum + ' — ' + selectedPart.partName,
+    qty:      qty,
+    priority: isOut ? 'high' : priority,
+  }));
   clearSelected();
-  document.getElementById('qty-input').value='1';
-  showFlash('sent-flash');
-});
-
-// ─────────────────────────────────────────────────────────────
-// Orphan view — priority buttons
-// ─────────────────────────────────────────────────────────────
-document.querySelectorAll('#orphan-pri-row .pri-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    oPriority = this.getAttribute('data-level');
-    document.querySelectorAll('#orphan-pri-row .pri-btn').forEach(function(b) {
-      b.className = 'pri-btn' + (b.getAttribute('data-level') === oPriority ? ' sel-' + oPriority : '');
-    });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────
-// Orphan view — parts list
-// ─────────────────────────────────────────────────────────────
-document.getElementById('orphan-search').addEventListener('input', function() {
-  var q = this.value;
-  var list = document.getElementById('orphan-list');
-  if (selectedOrphan || !q) { list.innerHTML=''; return; }
-  var filtered = orphanItems.filter(function(i){
-    return String(i.partNum||'').toLowerCase().includes(q.toLowerCase()) ||
-           String(i.partName||'').toLowerCase().includes(q.toLowerCase());
-  });
-  if (!filtered.length) {
-    list.innerHTML='<div class="not-found"><div class="not-found-icon">🔍</div><div class="not-found-msg">Part not found</div><div class="not-found-sub">No unassigned parts match your search</div></div>';
-    return;
-  }
-  list.innerHTML = filtered.slice(0,40).map(function(i){
-    var pn=String(i.partNum||''), pa=String(i.partName||'');
-    var lines = Array.isArray(i.assignedLines) ? i.assignedLines : (i.assignedLine ? [i.assignedLine] : []);
-    var tags  = lines.map(function(l){ return '<span class="ltag">→ '+esc(l)+'</span>'; }).join('');
-    return '<div class="part-item" onclick="oSelect(\''+esc(pn)+'\',\''+esc(pa)+'\')">'
-      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'
-      +(tags ? '<div class="line-tags">'+tags+'</div>' : '')
-      +'</div>';
-  }).join('');
+  document.getElementById('qty-input').value = '1';
+  showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
 });
 
 function oSelect(pn, pa) {
