@@ -251,36 +251,36 @@ function loadInventory() {
   fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
     if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
     window._locations = d.locations || [];
+    window._bomList   = d.bomList   || [];
     var inv = d.inventory || {};
     var key = inv[lineName] ? lineName : (inv[lineName.toUpperCase()] ? lineName.toUpperCase() : null);
-    allItems = key ? inv[key] : [];
+    allItems = key ? inv[key].slice() : [];
 
-    // Also add BOM parts for this line that have no locations (out of stock)
-    var seen = {};
-    allItems.forEach(function(i){ seen[i.partNum.toLowerCase()] = true; });
-    var bomAll = d.bomList || [];
-    bomAll.forEach(function(p) {
-      var key2 = String(p.partNum||'').toLowerCase();
-      if (seen[key2]) return;
-      // Check if this part is on the current line's BOM
-      var onLine = false;
-      Object.keys(inv).forEach(function(grp) {
-        // grp matches lineName for non-Apollo lines
-        if (grp.toUpperCase() === lineName.toUpperCase()) {
-          (inv[grp]||[]).forEach(function(item){
-            if (item.partNum.toLowerCase() === key2) onLine = true;
-          });
-        }
+    // Build set of part numbers already in allItems (have locations)
+    var inStock = {};
+    allItems.forEach(function(i){ inStock[String(i.partNum).toLowerCase()] = true; });
+
+    // Find BOM parts for this line that have no locations — mark as out of stock
+    // The inventory object keys match line names; for Apollo each key is a station name
+    var lineUpper = lineName.toUpperCase();
+    var lineGroups = Object.keys(inv).filter(function(grp) {
+      if (lineUpper === 'APOLLO') return true; // Apollo splits by station
+      return grp.toUpperCase() === lineUpper;
+    });
+    // Collect all part numbers that appear on this line's BOM (in inventory groups)
+    // We use the full bomList cross-referenced against what groups belong to this line
+    var bomForLine = {};
+    lineGroups.forEach(function(grp) {
+      (inv[grp] || []).forEach(function(item) {
+        bomForLine[item.partNum.toLowerCase()] = { partNum: item.partNum, partName: item.partName };
       });
-      // For Apollo, check all station groups
-      if (!onLine && (lineName === 'Apollo' || lineName === 'APOLLO')) {
-        Object.keys(inv).forEach(function(grp) {
-          (inv[grp]||[]).forEach(function(item){
-            if (item.line === 'APOLLO' && item.partNum.toLowerCase() === key2) onLine = true;
-          });
-        });
-      }
-      if (onLine) { seen[key2] = true; allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true }); }
+    });
+    // Also pull from bomList filtered by checking if the part appears in any of our line groups
+    // For parts not yet in inventory at all, we get them from the BOM cross-reference above
+    Object.keys(bomForLine).forEach(function(pnKey) {
+      if (inStock[pnKey]) return; // already showing with locations
+      var p = bomForLine[pnKey];
+      allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true });
     });
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-form').style.display    = '';
