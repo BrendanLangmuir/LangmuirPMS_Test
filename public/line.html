@@ -25,6 +25,8 @@ input::placeholder { color: #4b5563; }
 .stock-ok   { color: #4ade80; background: #052e16; border: 1px solid #166534; }
 .stock-warn { color: #f87171; background: #2d0a0a; border: 1px solid #7f1d1d; }
 .stock-none { color: #9ca3af; background: #1f2937; border: 1px solid #374151; }
+.stock-out  { color: #f87171; background: #2d0808; border: 1px solid #7f1d1d; }
+.btn-escalate { background: #1f2937; color: #f87171; border: 1px solid #7f1d1d; } .btn-escalate:hover { background: #2d0808; }
 .qty-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .qty-label { font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
 .qty-input { flex: 1; margin-bottom: 0; }
@@ -252,6 +254,34 @@ function loadInventory() {
     var inv = d.inventory || {};
     var key = inv[lineName] ? lineName : (inv[lineName.toUpperCase()] ? lineName.toUpperCase() : null);
     allItems = key ? inv[key] : [];
+
+    // Also add BOM parts for this line that have no locations (out of stock)
+    var seen = {};
+    allItems.forEach(function(i){ seen[i.partNum.toLowerCase()] = true; });
+    var bomAll = d.bomList || [];
+    bomAll.forEach(function(p) {
+      var key2 = String(p.partNum||'').toLowerCase();
+      if (seen[key2]) return;
+      // Check if this part is on the current line's BOM
+      var onLine = false;
+      Object.keys(inv).forEach(function(grp) {
+        // grp matches lineName for non-Apollo lines
+        if (grp.toUpperCase() === lineName.toUpperCase()) {
+          (inv[grp]||[]).forEach(function(item){
+            if (item.partNum.toLowerCase() === key2) onLine = true;
+          });
+        }
+      });
+      // For Apollo, check all station groups
+      if (!onLine && (lineName === 'Apollo' || lineName === 'APOLLO')) {
+        Object.keys(inv).forEach(function(grp) {
+          (inv[grp]||[]).forEach(function(item){
+            if (item.line === 'APOLLO' && item.partNum.toLowerCase() === key2) onLine = true;
+          });
+        });
+      }
+      if (onLine) { seen[key2] = true; allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true }); }
+    });
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-form').style.display    = '';
     renderParts('');
@@ -300,9 +330,10 @@ function renderParts(q) {
     return;
   }
   list.innerHTML = filtered.slice(0,40).map(function(i){
-    var pn=String(i.partNum||''),pa=String(i.partName||'');
+    var pn=String(i.partNum||''), pa=String(i.partName||'');
+    var outTag = i.outOfStock ? '<div style="font-size:10px;color:#f87171;margin-top:3px;font-weight:700;letter-spacing:0.06em;">OUT OF STOCK</div>' : '';
     return '<div class="part-item" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\')">'
-      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div></div>';
+      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+outTag+'</div>';
   }).join('');
 }
 document.getElementById('part-search').addEventListener('input', function(){ renderParts(this.value); });
