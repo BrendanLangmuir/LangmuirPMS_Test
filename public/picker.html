@@ -187,7 +187,8 @@
   .transfer-flash.error   { background: #2d0808; border: 1px solid #7f1d1d; color: #f87171; }
   .transfer-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
   .search-empty { text-align: center; color: #374151; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
-  .transfer-no-loc { font-size: 12px; color: #4b5563; font-style: italic; padding: 6px 0; }
+  .transfer-loc-out { background: #2d0808; border: 1px solid #7f1d1d; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; font-size: 12px; color: #f87171; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .escalation-badge { background: #2d0808; border: 1px solid #7f1d1d; color: #f87171; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; animation: flash-red 1s ease-in-out infinite; }
 </style>
 </head>
 <body>
@@ -280,10 +281,10 @@
 <!-- TRANSFER TAB -->
 <div id="view-transfer" class="page" style="display:none">
   <div class="search-wrap">
-    <input type="text" id="transfer-search-input" placeholder="Search part # or description to transfer..." autocomplete="off" spellcheck="false"/>
+    <input type="text" id="transfer-search-input" placeholder="Search part #, description, or bin location (e.g. 01-A1-A)..." autocomplete="off" spellcheck="false"/>
   </div>
   <div class="transfer-flash" id="transfer-flash"></div>
-  <div id="transfer-results"><div class="search-empty">— Search a part to see locations and transfer —</div></div>
+  <div id="transfer-results"><div class="search-empty">— Search a part or bin location to transfer —</div></div>
 </div>
 
 <script>
@@ -411,7 +412,10 @@ function renderQueue() {
     var remainingHtml = '';
     if (qtyFulfilled > 0 && qtyRemaining > 0)  remainingHtml = '<span class="remaining-badge partial">'+qtyRemaining+' remaining</span>';
     else if (qtyFulfilled > 0 && qtyRemaining === 0) remainingHtml = '<span class="remaining-badge done">✓ Fulfilled</span>';
-    var locHtml = locs.length ? locs.map(function(l) {
+    var isEscalation = (r.qty || 1) === 0;
+    var locHtml = isEscalation
+      ? '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
+      : locs.length ? locs.map(function(l) {
       var lq = parseInt(l.quantity) || 0;
       var alreadyPicked = pickedLocs[l.location] || 0;
       var isExhausted   = lq === 0 && alreadyPicked > 0;
@@ -438,11 +442,13 @@ function renderQueue() {
         '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
         '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
     }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
+    var escalationBadge = isEscalation ? '<span class="escalation-badge">Out of Stock</span>' : '';
     return '<div class="req-card">'+
       '<div class="req-card-header">'+
         '<span class="line-tag '+lineClass(r.line)+'">'+esc(r.line)+'</span>'+
         (r.station ? '<span class="req-station">'+esc(r.station)+'</span>' : '')+
         '<span class="pri-badge '+pri+'">'+pri+'</span>'+
+        escalationBadge+
         '<span class="req-time">'+r.time+'</span>'+
       '</div>'+
       '<div class="req-body">'+
