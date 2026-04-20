@@ -517,7 +517,7 @@ function showFlash(id, msg) {
   el.style.display = 'block';
   setTimeout(function(){ el.style.display='none'; }, 2500);
 }
-function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill',reqId:id})); }
+function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill',reqId:id,qty:0})); }
 
 function fmtElapsed(submittedAt) {
   if (!submittedAt) return '';
