@@ -47,6 +47,8 @@
   .line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
   .req-station { font-size: 11px; color: #6b7280; }
   .req-time    { font-size: 10px; color: #374151; margin-left: auto; }
+  .req-queue-pos { font-size: 11px; font-weight: 800; color: #EF9F27; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #EF9F27; border-radius: 3px; }
+  .req-elapsed { font-size: 10px; font-weight: 700; color: #9ca3af; }
 
   .pri-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
   .pri-badge.low    { background: #1f2937; color: #6b7280; }
@@ -206,6 +208,10 @@
 
 <div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
 
+<div id="sound-unlock-banner" onclick="enableSound()" style="cursor:pointer; background:#1e3a5f; border-bottom:2px solid #60a5fa; padding:12px 20px; display:flex; align-items:center; justify-content:center; gap:10px; font-size:13px; font-weight:700; color:#bfdbfe; text-transform:uppercase; letter-spacing:0.08em;">
+  🔔 Tap to enable notification sounds
+</div>
+
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
   <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
@@ -302,6 +308,88 @@ var allStowParts  = [];
 var inventoryData = {};
 var orphanData    = {};
 
+// ── Notification sound ────────────────────────────────────────
+// Browsers block audio until the user interacts with the page, so we gate
+// the sound behind a one-time "click to enable" banner. `knownReqIds` tracks
+// which request ids we've already seen, so a WS reconnect or polling tick
+// doesn't falsely fire the sound for requests that were already on screen.
+var knownReqIds   = new Set();
+var soundEnabled  = false;
+var firstReqSync  = true;
+var audioCtx      = null;
+function playNotification() {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.5);
+    // Quick double-beep for attention
+    setTimeout(function() {
+      if (!audioCtx) return;
+      var o2 = audioCtx.createOscillator();
+      var g2 = audioCtx.createGain();
+      o2.type = 'sine'; o2.frequency.value = 1100;
+      g2.gain.setValueAtTime(0.001, audioCtx.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+      o2.connect(g2); g2.connect(audioCtx.destination);
+      o2.start(); o2.stop(audioCtx.currentTime + 0.5);
+    }, 150);
+  } catch (e) { console.warn('Sound failed:', e.message); }
+}
+function enableSound() {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    soundEnabled = true;
+    var banner = document.getElementById('sound-unlock-banner');
+    if (banner) banner.style.display = 'none';
+    // Play a soft confirmation beep
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 600;
+    g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.3);
+  } catch (e) { console.warn('Could not enable sound:', e.message); }
+}
+function handleRequestsUpdate(list) {
+  var incoming = list || [];
+  var newIds = [];
+  incoming.forEach(function(r) {
+    if (!knownReqIds.has(r.id)) newIds.push(r.id);
+  });
+  if (!firstReqSync && newIds.length > 0) playNotification();
+  // Rebuild known set from current active list so ids drop out when fulfilled
+  knownReqIds = new Set(incoming.map(function(r) { return r.id; }));
+  firstReqSync = false;
+  requests = incoming;
+  renderQueue();
+}
+
+// ── Elapsed time helpers ──────────────────────────────────────
+function fmtElapsed(submittedAt) {
+  if (!submittedAt) return '';
+  var sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  var m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  var h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+setInterval(function() {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(function(el) {
+    var t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = fmtElapsed(t);
+  });
+}, 1000);
+
 // ── WebSocket ─────────────────────────────────────────────────
 var ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?picker=1');
 ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
@@ -310,7 +398,7 @@ ws.onerror = function() { document.getElementById('conn-status').style.display =
 ws.onmessage = function(e) {
   lastPong = Date.now();
   var msg = JSON.parse(e.data);
-  if (msg.type === 'requests')     { requests = msg.requests; renderQueue(); }
+  if (msg.type === 'requests')     { handleRequestsUpdate(msg.requests); }
   if (msg.type === 'locations')    { locationsData = msg.locations; renderQueue(); }
   if (msg.type === 'stow-result')     { handleStowResult(msg); }
   if (msg.type === 'transfer-result') { handleTransferResult(msg); }
@@ -319,7 +407,7 @@ ws.onmessage = function(e) {
 setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
 setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
 setInterval(function() {
-  fetch('/api/requests').then(function(r){return r.json();}).then(function(d){ requests = d.requests; renderQueue(); }).catch(function(){});
+  fetch('/api/requests').then(function(r){return r.json();}).then(function(d){ handleRequestsUpdate(d.requests); }).catch(function(){});
 }, 8000);
 setInterval(function() {
   fetch('/api/recent-picks').then(function(r){return r.json();}).then(function(d){ if (d.success) { recentPicks = d.recentPicks || []; renderRecentPicks(); }}).catch(function(){});
@@ -457,19 +545,24 @@ function renderQueue() {
         '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
     }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
     var escalationBadge = isEscalation ? '<span class="escalation-badge">Out of Stock</span>' : '';
+    var unitLabel = r.unit && r.unit !== 'Part' ? ' ' + r.unit + (qtyNeeded > 1 ? 's' : '') : '';
+    var elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'">'+fmtElapsed(r.submittedAt)+'</span>' : '';
+    var posHtml = r.queuePosition ? '<span class="req-queue-pos">#'+r.queuePosition+'</span>' : '';
     return '<div class="req-card">'+
       '<div class="req-card-header">'+
+        posHtml+
         '<span class="line-tag '+lineClass(r.line)+'">'+esc(r.line)+'</span>'+
         (r.station ? '<span class="req-station">'+esc(r.station)+'</span>' : '')+
         '<span class="pri-badge '+pri+'">'+pri+'</span>'+
         escalationBadge+
         '<span class="req-time">'+r.time+'</span>'+
+        elapsedHtml+
       '</div>'+
       '<div class="req-body">'+
         '<div class="req-part">'+esc(r.partName || r.text || '')+'</div>'+
         (r.partNum ? '<div class="req-partnum">'+esc(r.partNum)+'</div>' : '')+
         '<div class="req-meta">'+
-          '<span class="qty-badge">Qty needed: '+qtyNeeded+'</span>'+
+          '<span class="qty-badge">Qty needed: '+qtyNeeded+unitLabel+'</span>'+
           remainingHtml+
           (locs.length ? '<span class="stock-info">Warehouse total: <span>'+totalQty+'</span></span>' : '')+
         '</div>'+
