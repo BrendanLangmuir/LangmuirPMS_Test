@@ -429,23 +429,6 @@ wss.on('connection', (ws, req) => {
       }
       allRequests.push(req);
       broadcastRequests();
-
-      // Send escalation email if this is an out-of-stock request (qty 0)
-      if (req.escalation && LOCATIONS_URL) {
-        fetch(LOCATIONS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action:   'escalation',
-            partNum:  req.partNum,
-            partName: req.partName,
-            line:     req.line,
-          }),
-          redirect: 'follow',
-        }).then(function(r){ return r.json(); })
-          .then(function(d){ console.log('Escalation email:', d.message || d.error); })
-          .catch(function(e){ console.error('Escalation email failed:', e.message); });
-      }
     }
 
     // ── Dismiss ──────────────────────────────────────────────
