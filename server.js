@@ -528,8 +528,16 @@ wss.on('connection', (ws, req) => {
       console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
       if (!req) return;
 
-      const pickedQty = (msg.qty !== undefined && msg.qty !== null) ? Number(msg.qty) : (req.qty || 1);
       const location  = msg.location || '';
+      // If no location is supplied, treat as cancel regardless of qty — the only
+      // caller that sends fulfill is the picker (who always supplies a location)
+      // or a requester's Cancel button (which sends no location).
+      let pickedQty;
+      if (!location) {
+        pickedQty = 0;
+      } else {
+        pickedQty = (msg.qty !== undefined && msg.qty !== null) ? Number(msg.qty) : (req.qty || 1);
+      }
 
       // qty 0 + no location = cancel button, close immediately without subtracting
       if (pickedQty === 0 && !location) {
