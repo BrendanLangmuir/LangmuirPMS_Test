@@ -35,6 +35,10 @@ input::placeholder { color: #4b5563; }
 .pri-btn.sel-low    { background: #1f2937; border-color: #6b7280; color: #d1d5db; }
 .pri-btn.sel-medium { background: #2d1f00; border-color: #EF9F27; color: #EF9F27; }
 .pri-btn.sel-high   { background: #2d0808; border-color: #C8102E; color: #f87171; }
+.unit-select { background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 10px; outline: none; margin-left: 8px; cursor: pointer; }
+.unit-select:focus { border-color: #C8102E; }
+.req-queue-pos { font-size: 10px; font-weight: 800; color: #EF9F27; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+.req-elapsed   { font-size: 11px; font-weight: 700; color: #9ca3af; margin-left: 6px; }
 .search-input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 8px; }
 .search-input:focus { border-color: #C8102E; }
 .search-input::placeholder { color: #4b5563; }
@@ -111,6 +115,11 @@ input::placeholder { color: #4b5563; }
       <div class="qty-row">
         <span class="qty-label">Qty</span>
         <input class="qty-input" id="qty-input" type="number" inputmode="numeric" min="1" value="1"/>
+        <select class="unit-select" id="unit-select">
+          <option value="Part" selected>Part</option>
+          <option value="Box">Box</option>
+          <option value="Pallet">Pallet</option>
+        </select>
       </div>
       <div class="pri-label">Priority</div>
       <div class="pri-row" id="pri-row">
@@ -151,6 +160,11 @@ input::placeholder { color: #4b5563; }
     <div class="qty-row">
       <span class="qty-label">Qty</span>
       <input class="qty-input" id="orphan-qty" type="number" inputmode="numeric" min="1" value="1"/>
+      <select class="unit-select" id="orphan-unit-select">
+        <option value="Part" selected>Part</option>
+        <option value="Box">Box</option>
+        <option value="Pallet">Pallet</option>
+      </select>
     </div>
     <div class="pri-label">Priority</div>
     <div class="pri-row" id="orphan-pri-row">
@@ -379,6 +393,7 @@ document.getElementById('send-btn').addEventListener('click', function() {
   var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
   var isOut = !locs.length || total === 0;
   var qty   = isOut ? 0 : Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+  var unit  = document.getElementById('unit-select').value || 'Part';
   ws.send(JSON.stringify({
     type:     'request',
     line:     lineName,
@@ -386,10 +401,12 @@ document.getElementById('send-btn').addEventListener('click', function() {
     partName: selectedPart.partName,
     text:     selectedPart.partNum + ' — ' + selectedPart.partName,
     qty:      qty,
+    unit:     unit,
     priority: isOut ? 'high' : priority,
   }));
   clearSelected();
   document.getElementById('qty-input').value = '1';
+  document.getElementById('unit-select').value = 'Part';
   showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
 });
 
@@ -485,9 +502,10 @@ document.getElementById('orphan-send-btn').addEventListener('click', function() 
     return;
   }
   document.getElementById('orphan-line-sel').classList.remove('err');
-  var qty = Math.max(1, parseInt(document.getElementById('orphan-qty').value)||1);
+  var qty  = Math.max(1, parseInt(document.getElementById('orphan-qty').value)||1);
+  var unit = document.getElementById('orphan-unit-select').value || 'Part';
   ws.send(JSON.stringify({ type:'assign-orphan', partNum:selectedOrphan.partNum, partName:selectedOrphan.partName, line:line, station:'' }));
-  ws.send(JSON.stringify({ type:'request', line:line, partNum:selectedOrphan.partNum, partName:selectedOrphan.partName, text:selectedOrphan.partNum+' — '+selectedOrphan.partName, qty:qty, priority:oPriority }));
+  ws.send(JSON.stringify({ type:'request', line:line, partNum:selectedOrphan.partNum, partName:selectedOrphan.partName, text:selectedOrphan.partNum+' — '+selectedOrphan.partName, qty:qty, unit:unit, priority:oPriority }));
   oClear();
   showFlash('orphan-sent-flash');
 });
@@ -500,16 +518,36 @@ function showFlash(id, msg) {
   setTimeout(function(){ el.style.display='none'; }, 2500);
 }
 function cancelReq(id) { ws.send(JSON.stringify({type:'fulfill',reqId:id})); }
+
+function fmtElapsed(submittedAt) {
+  if (!submittedAt) return '';
+  var sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  var m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  var h = Math.floor(m / 60); m = m % 60;
+  return h + 'h ' + m + 'm';
+}
 function renderReqList() {
   var listId = lineName==='Unassigned' ? 'orphan-req-list' : 'req-list';
   var el = document.getElementById(listId); if (!el) return;
   if (!myReqs.length) { el.innerHTML=''; return; }
   el.innerHTML = myReqs.map(function(r){
-    return '<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text||(r.partNum+' — '+r.partName))+'</div>'
-      +'<div class="req-meta">Qty: '+(r.qty||1)+' · '+(r.priority||'low')+' · '+r.time+'</div></div>'
+    var unit = r.unit && r.unit !== 'Part' ? ' ' + r.unit + (r.qty > 1 ? 's' : '') : '';
+    var qtyStr = (r.qty||1) + unit;
+    var posHtml = r.queuePosition ? '<span class="req-queue-pos">#'+r.queuePosition+' in queue</span>' : '';
+    var elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'">'+fmtElapsed(r.submittedAt)+'</span>' : '';
+    return '<div class="req-item"><div class="req-content"><div class="req-text">'+posHtml+esc(r.text||(r.partNum+' — '+r.partName))+'</div>'
+      +'<div class="req-meta">Qty: '+qtyStr+' · '+(r.priority||'low')+' · '+r.time+elapsedHtml+'</div></div>'
       +'<button class="req-cancel" onclick="cancelReq('+r.id+')">Cancel</button></div>';
   }).join('');
 }
+// Tick elapsed times every second without a full re-render
+setInterval(function() {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(function(el) {
+    var t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = ' · ' + fmtElapsed(t);
+  });
+}, 1000);
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
