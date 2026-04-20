@@ -565,17 +565,29 @@ wss.on('connection', (ws, req) => {
 
       // Subtract from sheet
       if (LOCATIONS_URL && req.partNum && pickedQty > 0) {
+        // If this pick closes out the request, compute total time so the
+        // Transaction Log row captures it. Partial picks leave it blank.
+        let totalTime = '';
+        if (qtyRemaining <= 0 && req.submittedAt) {
+          const totalSec = Math.max(0, Math.round((Date.now() - req.submittedAt) / 1000));
+          const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+          const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+          const ss = String(totalSec % 60).padStart(2, '0');
+          totalTime = hh + ':' + mm + ':' + ss;
+        }
         fetch(LOCATIONS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action:   'subtract',
-            partNum:  req.partNum  || '',
-            partName: req.partName || '',
-            location: location,
-            qty:      pickedQty,
-            line:     req.line    || '',
-            station:  req.station || '',
+            action:      'subtract',
+            partNum:     req.partNum  || '',
+            partName:    req.partName || '',
+            location:    location,
+            qty:         pickedQty,
+            line:        req.line     || '',
+            priority:    req.priority || '',
+            submittedAt: req.submittedAt ? new Date(req.submittedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : '',
+            totalTime:   totalTime,
           }),
           redirect: 'follow',
         }).then(r => r.json())
@@ -604,7 +616,8 @@ wss.on('connection', (ws, req) => {
       // Only close when fully fulfilled
       if (qtyRemaining <= 0) {
         req.fulfilled = true;
-        logRequestCompletion(req, 'fulfilled');
+        // Note: completion is already logged to the Transaction Log by the
+        // subtract/Pick row above (with priority/submittedAt/totalTime attached).
 
         // Store in recently fulfilled (max 2, newest first)
         recentlyFulfilled.unshift({
