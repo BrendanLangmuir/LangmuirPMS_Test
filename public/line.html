@@ -94,6 +94,7 @@ input::placeholder { color: #4b5563; }
     <option value="VULCAN">Vulcan</option>
     <option value="XR">XR</option>
     <option value="MR1">MR1</option>
+    <option value="Shipping">Shipping</option>
     <option value="Unassigned">⚠ Unassigned</option>
   </select>
 </div>
@@ -156,6 +157,7 @@ input::placeholder { color: #4b5563; }
       <option value="VULCAN">Vulcan</option>
       <option value="XR">XR</option>
       <option value="MR1">MR1</option>
+      <option value="Shipping">Shipping</option>
     </select>
     <div class="qty-row">
       <span class="qty-label">Qty</span>
@@ -249,7 +251,32 @@ function loadInventory() {
     window._locations = d.locations || [];
     var inv       = d.inventory || {};
     var lineUpper = lineName.toUpperCase();
-    var isApollo  = lineUpper === 'APOLLO';
+    var isApollo   = lineUpper === 'APOLLO';
+    var isShipping = lineUpper === 'SHIPPING';
+
+    // Shipping: show every part that has a warehouse location, regardless of
+    // BOM. The shipping area handles individual SKUs and warranty parts across
+    // the whole warehouse, so it's not filtered by any line's BOM.
+    if (isShipping) {
+      var seen = {};
+      allItems = [];
+      (d.locations || []).forEach(function(l) {
+        var pn = String(l.partNum || '').trim();
+        if (!pn) return;
+        var key = pn.toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        allItems.push({ partNum: pn, partName: String(l.partName || '') });
+      });
+      // Sort by part number for a stable list
+      allItems.sort(function(a, b) {
+        return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' });
+      });
+      document.getElementById('inv-loading').style.display = 'none';
+      document.getElementById('inv-form').style.display    = '';
+      renderParts('');
+      return;
+    }
 
     // Find the correct inventory groups for this line
     var lineGroups;
