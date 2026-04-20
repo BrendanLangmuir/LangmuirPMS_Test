@@ -16,6 +16,52 @@
   .brand-text .btm { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
   .station-badge { background: #1f2937; border: 1px solid #374151; border-radius: 4px; padding: 4px 12px; font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
   .station-type-txt { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 1px; text-align: right; }
+  .station-select { background: #1f2937; border: 1.5px solid #C8102E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; cursor: pointer; outline: none; font-family: inherit; }
+  .station-select:focus { border-color: #EF9F27; }
+  .station-select optgroup { font-style: normal; color: #EF9F27; background: #12151a; }
+  .station-select option { background: #1f2937; color: #fff; font-weight: 700; }
+
+  /* ── Request form (ported from line.html) ── */
+  .search-input { width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 8px; }
+  .search-input:focus { border-color: #C8102E; }
+  .search-input::placeholder { color: #4b5563; }
+  .parts-list { max-height: 240px; overflow-y: auto; border: 1.5px solid #374151; border-radius: 6px; background: #1f2937; margin-bottom: 12px; }
+  .part-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #2d3340; font-size: 13px; color: #d1d5db; }
+  .part-item:last-child { border-bottom: none; }
+  .part-item:hover { background: #374151; color: #fff; }
+  .part-item .pn { font-weight: 800; color: #C8102E; font-size: 11px; letter-spacing: 0.06em; }
+  .part-item .pa { font-size: 12px; color: #9ca3af; margin-top: 1px; }
+  .part-item .out-tag { font-size: 10px; color: #f87171; font-weight: 700; letter-spacing: 0.06em; margin-top: 3px; }
+  .not-found { padding: 14px; text-align: center; }
+  .not-found-icon { font-size: 22px; margin-bottom: 6px; }
+  .not-found-msg  { font-size: 13px; font-weight: 700; color: #9ca3af; }
+  .not-found-sub  { font-size: 11px; color: #4b5563; margin-top: 4px; }
+  .selected-bar { margin-bottom: 12px; padding: 10px 14px; background: #12151a; border: 1.5px solid #C8102E; border-radius: 6px; }
+  .selected-bar-lbl  { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .selected-bar-text { font-size: 13px; font-weight: 700; color: #fff; }
+  .selected-bar-clear { float: right; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+  .selected-bar-clear:hover { color: #f87171; }
+  .stock-info { font-size: 13px; margin-bottom: 12px; padding: 10px 14px; border-radius: 6px; font-weight: 600; }
+  .qty-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .qty-label { font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
+  .qty-input { flex: 1; width: 100%; background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; }
+  .qty-input:focus { border-color: #C8102E; }
+  .unit-select { background: #1f2937; border: 1.5px solid #374151; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 10px; outline: none; margin-left: 8px; cursor: pointer; }
+  .unit-select:focus { border-color: #C8102E; }
+  .pri-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; }
+  .pri-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .pri-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #374151; background: #1f2937; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
+  .pri-btn.sel-low    { background: #1f2937; border-color: #6b7280; color: #d1d5db; }
+  .pri-btn.sel-medium { background: #2d1f00; border-color: #EF9F27; color: #EF9F27; }
+  .pri-btn.sel-high   { background: #2d0808; border-color: #C8102E; color: #f87171; }
+  .req-send-btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; margin-bottom: 8px; background: #C8102E; color: #fff; }
+  .req-send-btn:hover { background: #a00d24; }
+  .req-send-btn:disabled { opacity: 0.35; cursor: default; }
+  .flash { border-radius: 6px; padding: 11px; text-align: center; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; display: none; }
+  .flash-green { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+  .flash-red   { background: #2d0808; border: 1px solid #7f1d1d; color: #f87171; }
+  .req-queue-pos { font-size: 10px; font-weight: 800; color: #EF9F27; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+  .req-elapsed   { font-size: 11px; font-weight: 700; color: #9ca3af; margin-left: 6px; }
 
   .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
   .break-banner { display: none; width: 100%; background: #0c1929; border-bottom: 2px solid #60a5fa; padding: 12px 24px; }
@@ -102,7 +148,9 @@
     </div>
   </div>
   <div>
-    <div class="station-badge"  id="st-name">Loading...</div>
+    <select class="station-select" id="station-select" onchange="switchStation(this.value)">
+      <option value="">Loading...</option>
+    </select>
     <div class="station-type-txt" id="st-type"></div>
   </div>
 </div>
@@ -139,18 +187,36 @@
     </div>
   </div>
 
-  <!-- Inventory -->
+  <!-- Inventory Request (full parity with line.html) -->
   <div class="section">
     <div class="section-label">Inventory Request</div>
     <div id="inv-loading" class="inv-loading">Loading inventory...</div>
     <div id="inv-form" style="display:none">
-      <div class="inv-form-row">
-        <select class="inv-select" id="inv-select"><option value="">— Select a part —</option></select>
-        <button class="inv-send-btn" onclick="sendRequest()">Request</button>
+      <input class="search-input" id="part-search" type="text" placeholder="Search part # or description..." autocomplete="off"/>
+      <div class="parts-list" id="parts-list"></div>
+      <div class="selected-bar" id="selected-bar" style="display:none">
+        <div class="selected-bar-lbl">Selected <button class="selected-bar-clear" onclick="clearSelected()">✕ Clear</button></div>
+        <div class="selected-bar-text" id="selected-bar-text"></div>
       </div>
+      <div id="stock-info" style="display:none" class="stock-info"></div>
+      <div class="qty-row">
+        <span class="qty-label">Qty</span>
+        <input class="qty-input" id="qty-input" type="number" inputmode="numeric" min="1" value="1"/>
+        <select class="unit-select" id="unit-select">
+          <option value="Part" selected>Part</option>
+          <option value="Box">Box</option>
+          <option value="Pallet">Pallet</option>
+        </select>
+      </div>
+      <div class="pri-label">Priority</div>
+      <div class="pri-row" id="pri-row">
+        <button class="pri-btn sel-low" data-level="low">Low</button>
+        <button class="pri-btn" data-level="medium">Medium</button>
+        <button class="pri-btn" data-level="high">High</button>
+      </div>
+      <div class="flash flash-green" id="sent-flash">Request Sent!</div>
+      <button class="req-send-btn" id="send-btn" disabled onclick="sendRequest()">Send Request</button>
     </div>
-    <input class="text-input" id="inv-input" type="text" maxlength="120" placeholder="Or type a custom request..." onkeydown="if(event.key==='Enter')sendTextRequest()"/>
-    <button class="send-custom-btn" onclick="sendTextRequest()">Send Custom Request</button>
     <div id="inv-list" style="margin-top:10px"></div>
   </div>
 </div>
@@ -159,8 +225,14 @@
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
 let state = null, taktSec = 10800, timerInt = null;
 let holdReasons = ['No operator assigned','No frame/material at station','Secured (end of day)','Waiting for previous station'];
-let allInventory = [];
 let lastPong = Date.now();
+
+// Full-line inventory (deduped across station groups), plus the full BOM so
+// we can include out-of-stock parts. Mirrors line.html's assembly logic.
+let allItems      = [];
+let locationsList = [];
+let selectedPart  = null;
+let priority      = 'low';
 
 ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
 ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
@@ -171,53 +243,235 @@ setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }
 
 const BREAK_ENDS = { 'Morning Break':[10,45], 'Lunch':[13,30], 'Afternoon Break':[15,15] };
 
+const params = new URLSearchParams(location.search);
+let stationId = parseInt(params.get('id') || '1');
+
+// ── Inventory load (full Apollo line, mirrors line.html) ─────
 async function loadInventory() {
   try {
     const r = await fetch('/api/inventory');
     const d = await r.json();
-    if (d.success && d.inventory) {
-      window._rawInventory = d.inventory;
-      applyInventoryToStation();
-      setTimeout(applyInventoryToStation, 2000);
-    } else { document.getElementById('inv-loading').textContent = 'Inventory unavailable'; }
-  } catch(e) { document.getElementById('inv-loading').textContent = 'Could not load inventory'; }
-}
+    if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
+    locationsList = d.locations || [];
+    const inv = d.inventory || {};
 
-function applyInventoryToStation() {
-  if (!window._rawInventory || !state) return;
-  const st = state.stations.find(s => s.id === stationId);
-  if (!st) return;
-  allInventory = window._rawInventory[st.name] || [];
-  if (!allInventory.length) { document.getElementById('inv-loading').style.display = 'none'; document.getElementById('inv-form').style.display = ''; return; }
-  document.getElementById('inv-loading').style.display = 'none';
-  document.getElementById('inv-form').style.display    = '';
-  const sel = document.getElementById('inv-select');
-  sel.innerHTML = '<option value="">— Select a part —</option>' +
-    allInventory.map(i => '<option value="' + esc(i.partNum+'|'+i.partName) + '">' + esc(i.partNum) + ' — ' + esc(i.partName) + '</option>').join('');
+    // Find all inventory groups that belong to Apollo (Apollo splits by station)
+    const lineGroups = Object.keys(inv).filter(grp => {
+      const items = inv[grp] || [];
+      return items.length > 0 && String(items[0].line || '').toUpperCase() === 'APOLLO';
+    });
+
+    // Dedupe in-stock parts across all station groups
+    const inStock = {};
+    const inStockItems = [];
+    lineGroups.forEach(grp => {
+      (inv[grp] || []).forEach(item => {
+        const key = item.partNum.toLowerCase();
+        if (inStock[key]) return;
+        inStock[key] = true;
+        inStockItems.push(item);
+      });
+    });
+
+    // Collect every BOM part for the line, including parts with no locations
+    const bomForLine = {};
+    lineGroups.forEach(grp => {
+      (inv[grp] || []).forEach(item => {
+        const key = item.partNum.toLowerCase();
+        if (!bomForLine[key]) bomForLine[key] = { partNum: item.partNum, partName: item.partName };
+      });
+    });
+
+    // In-stock first, then out-of-stock BOM parts
+    allItems = inStockItems.slice();
+    Object.keys(bomForLine).forEach(pnKey => {
+      if (inStock[pnKey]) return;
+      const p = bomForLine[pnKey];
+      allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true });
+    });
+
+    document.getElementById('inv-loading').style.display = 'none';
+    document.getElementById('inv-form').style.display    = '';
+  } catch(e) {
+    document.getElementById('inv-loading').textContent = 'Could not load inventory';
+  }
 }
 loadInventory();
+setInterval(loadInventory, 60000);
 
-const params    = new URLSearchParams(location.search);
-const stationId = parseInt(params.get('id') || '1');
+// ── Part search + selection (mirrors line.html) ──────────────
+function renderParts(q) {
+  const list = document.getElementById('parts-list');
+  if (selectedPart || !q) { list.innerHTML = ''; return; }
+  const filtered = allItems.filter(i =>
+    String(i.partNum||'').toLowerCase().includes(q.toLowerCase()) ||
+    String(i.partName||'').toLowerCase().includes(q.toLowerCase())
+  );
+  if (!filtered.length) {
+    list.innerHTML = '<div class="not-found"><div class="not-found-icon">🔍</div><div class="not-found-msg">Part not found</div><div class="not-found-sub">This part is not in the inventory tracker for Apollo</div></div>';
+    return;
+  }
+  list.innerHTML = filtered.slice(0,40).map(i => {
+    const pn = String(i.partNum||''), pa = String(i.partName||'');
+    const outTag = i.outOfStock ? '<div class="out-tag">OUT OF STOCK</div>' : '';
+    return '<div class="part-item" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')">'
+      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+outTag+'</div>';
+  }).join('');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const searchEl = document.getElementById('part-search');
+  if (searchEl) searchEl.addEventListener('input', function(){ renderParts(this.value); });
+});
+// Also wire it up directly in case DOMContentLoaded already fired
+setTimeout(() => {
+  const searchEl = document.getElementById('part-search');
+  if (searchEl && !searchEl._wired) {
+    searchEl._wired = true;
+    searchEl.addEventListener('input', function(){ renderParts(this.value); });
+  }
+}, 0);
+
+function selectPart(pn, pa, isOut) {
+  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut };
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+  document.getElementById('selected-bar').style.display = 'block';
+  document.getElementById('selected-bar-text').textContent = pn + ' — ' + pa;
+  document.getElementById('send-btn').disabled = false;
+  showStock();
+}
+function clearSelected() {
+  selectedPart = null;
+  document.getElementById('selected-bar').style.display = 'none';
+  document.getElementById('stock-info').style.display   = 'none';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+}
+function showStock() {
+  const sEl = document.getElementById('stock-info');
+  if (!selectedPart) { sEl.style.display='none'; return; }
+  const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
+  const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
+  if (!locs.length || total === 0) {
+    sEl.style.display='block';
+    sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+    sEl.textContent='⚠ Out of stock — will send escalation';
+  } else {
+    sEl.style.display='block';
+    sEl.style.background='#052e16'; sEl.style.border='1px solid #166534'; sEl.style.color='#4ade80';
+    sEl.textContent='✓ In stock — total: '+total;
+  }
+}
+
+// Priority buttons — wired after DOM ready
+function wirePriorityButtons() {
+  document.querySelectorAll('#pri-row .pri-btn').forEach(btn => {
+    btn.onclick = function() {
+      priority = this.getAttribute('data-level');
+      document.querySelectorAll('#pri-row .pri-btn').forEach(b => {
+        b.className = 'pri-btn' + (b.getAttribute('data-level') === priority ? ' sel-' + priority : '');
+      });
+    };
+  });
+}
+setTimeout(wirePriorityButtons, 0);
+
+// Flash helper
+function showFlash(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (text) el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+// ── Station dropdown ─────────────────────────────────────────
+function populateStationSelect() {
+  if (!state || !state.stations) return;
+  const sel = document.getElementById('station-select');
+  if (!sel) return;
+  const main = state.stations.filter(s => s.type === 'main');
+  const sub  = state.stations.filter(s => s.type === 'sub');
+  let html = '';
+  if (main.length) {
+    html += '<optgroup label="Main Line">';
+    main.forEach(s => {
+      html += '<option value="'+s.id+'"'+(s.id===stationId?' selected':'')+'>'+esc(s.name)+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  if (sub.length) {
+    html += '<optgroup label="Subassembly">';
+    sub.forEach(s => {
+      html += '<option value="'+s.id+'"'+(s.id===stationId?' selected':'')+'>'+esc(s.name)+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+}
+function switchStation(newId) {
+  const n = parseInt(newId);
+  if (!n || n === stationId) return;
+  stationId = n;
+  // Update URL without reload so refresh preserves the station
+  const url = new URL(window.location);
+  url.searchParams.set('id', String(stationId));
+  window.history.replaceState({}, '', url);
+  // Clear any in-flight selection since it might not apply on the new station
+  clearSelected();
+  render();
+}
 
 ws.onmessage = e => {
   lastPong = Date.now();
   const msg = JSON.parse(e.data);
-  if (msg.type === 'start') { if (!state) return; state.running=true; state.startTime=msg.startTime; state.paused=false; state.pauseLabel=null; state.pauseStart=null; state.totalPausedMs=0; taktSec=msg.taktSeconds; if (msg.holdReasons) holdReasons=msg.holdReasons; state.stations=msg.stations; applyInventoryToStation(); }
-  if (msg.type === 'state') { state=msg.state; taktSec=msg.taktSeconds; if (msg.holdReasons) holdReasons=msg.holdReasons; applyInventoryToStation(); }
+  if (msg.type === 'start') {
+    if (!state) return;
+    state.running=true; state.startTime=msg.startTime; state.paused=false;
+    state.pauseLabel=null; state.pauseStart=null; state.totalPausedMs=0;
+    taktSec=msg.taktSeconds;
+    if (msg.holdReasons) holdReasons=msg.holdReasons;
+    state.stations=msg.stations;
+    populateStationSelect();
+  }
+  if (msg.type === 'state') {
+    state=msg.state; taktSec=msg.taktSeconds;
+    if (msg.holdReasons) holdReasons=msg.holdReasons;
+    populateStationSelect();
+  }
   render();
 };
 
 function handleMainBtn() { const st=state?.stations?.find(s=>s.id===stationId); if (!state?.running||st?.done||state.paused||st?.stationStatus!=='active') return; ws.send(JSON.stringify({type:'done',stationId})); }
 function startStation()  { ws.send(JSON.stringify({type:'station-start',stationId})); }
 function holdStation()   { const sel=document.getElementById('hold-reason-sel'); ws.send(JSON.stringify({type:'station-hold',stationId,reason:sel.value})); }
+
 function sendRequest() {
-  const sel=document.getElementById('inv-select'); if (!sel.value) return;
-  const [partNum,...rest]=sel.value.split('|'); const partName=rest.join('|');
-  ws.send(JSON.stringify({type:'request',stationId,partNum,partName,text:partNum+' — '+partName,qty:1,line:'Apollo',station:state?.stations?.find(s=>s.id===stationId)?.name||''}));
-  sel.value='';
+  if (!selectedPart) return;
+  const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
+  const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
+  const isOut = !locs.length || total === 0;
+  const qty   = isOut ? 0 : Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
+  const unit  = document.getElementById('unit-select').value || 'Part';
+  const stName = state?.stations?.find(s => s.id === stationId)?.name || '';
+  ws.send(JSON.stringify({
+    type:     'request',
+    stationId,
+    partNum:  selectedPart.partNum,
+    partName: selectedPart.partName,
+    text:     selectedPart.partNum + ' — ' + selectedPart.partName,
+    qty:      qty,
+    unit:     unit,
+    priority: isOut ? 'high' : priority,
+    line:     'Apollo',
+    station:  stName,
+  }));
+  clearSelected();
+  document.getElementById('qty-input').value = '1';
+  document.getElementById('unit-select').value = 'Part';
+  showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
 }
-function sendTextRequest() { const i=document.getElementById('inv-input'),t=i.value.trim(); if(!t)return; ws.send(JSON.stringify({type:'request',stationId,text:t,qty:1,line:'Apollo',station:state?.stations?.find(s=>s.id===stationId)?.name||''})); i.value=''; }
 function cancelRequest(reqId) { ws.send(JSON.stringify({type:'dismiss',stationId,reqId})); }
 
 function liveActiveMs(st) { let ms=st.activeMs||0; if(st.stationStatus==='active'&&st.stationStartTime) ms+=Date.now()-st.stationStartTime; return ms; }
@@ -226,7 +480,10 @@ function render() {
   if (!state) return;
   clearInterval(timerInt);
   const st=state.stations.find(s=>s.id===stationId); if (!st) return;
-  document.getElementById('st-name').textContent = st.name;
+  // Station name now lives in the #station-select dropdown; keep it in sync
+  // in case a state update arrived without a repopulate (e.g. same stations list).
+  const stSel = document.getElementById('station-select');
+  if (stSel && stSel.value !== String(stationId)) stSel.value = String(stationId);
   document.getElementById('st-type').textContent = st.type==='sub'?'Subassembly':'Main Line';
   document.title = st.name;
   const btn=document.getElementById('btn'),statusEl=document.getElementById('status'),timerEl=document.getElementById('timer'),activeEl=document.getElementById('active-time');
