@@ -208,10 +208,6 @@
 
 <div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
 
-<div id="sound-unlock-banner" onclick="enableSound()" style="cursor:pointer; background:#1e3a5f; border-bottom:2px solid #60a5fa; padding:12px 20px; display:flex; align-items:center; justify-content:center; gap:10px; font-size:13px; font-weight:700; color:#bfdbfe; text-transform:uppercase; letter-spacing:0.08em;">
-  🔔 Tap to enable notification sounds
-</div>
-
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
   <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
@@ -308,69 +304,11 @@ var allStowParts  = [];
 var inventoryData = {};
 var orphanData    = {};
 
-// ── Notification sound ────────────────────────────────────────
-// Browsers block audio until the user interacts with the page, so we gate
-// the sound behind a one-time "click to enable" banner. `knownReqIds` tracks
-// which request ids we've already seen, so a WS reconnect or polling tick
-// doesn't falsely fire the sound for requests that were already on screen.
-var knownReqIds   = new Set();
-var soundEnabled  = false;
-var firstReqSync  = true;
-var audioCtx      = null;
-function playNotification() {
-  if (!soundEnabled || !audioCtx) return;
-  try {
-    var o = audioCtx.createOscillator();
-    var g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = 880;
-    g.gain.setValueAtTime(0.001, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + 0.5);
-    // Quick double-beep for attention
-    setTimeout(function() {
-      if (!audioCtx) return;
-      var o2 = audioCtx.createOscillator();
-      var g2 = audioCtx.createGain();
-      o2.type = 'sine'; o2.frequency.value = 1100;
-      g2.gain.setValueAtTime(0.001, audioCtx.currentTime);
-      g2.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
-      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-      o2.connect(g2); g2.connect(audioCtx.destination);
-      o2.start(); o2.stop(audioCtx.currentTime + 0.5);
-    }, 150);
-  } catch (e) { console.warn('Sound failed:', e.message); }
-}
-function enableSound() {
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    soundEnabled = true;
-    var banner = document.getElementById('sound-unlock-banner');
-    if (banner) banner.style.display = 'none';
-    // Play a soft confirmation beep
-    var o = audioCtx.createOscillator();
-    var g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = 600;
-    g.gain.setValueAtTime(0.001, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + 0.3);
-  } catch (e) { console.warn('Could not enable sound:', e.message); }
-}
+// ── Request update handler ────────────────────────────────────
+// Structure preserved so we can add notification sound later (e.g. in a
+// native app wrapper where audio autoplay is permitted).
 function handleRequestsUpdate(list) {
-  var incoming = list || [];
-  var newIds = [];
-  incoming.forEach(function(r) {
-    if (!knownReqIds.has(r.id)) newIds.push(r.id);
-  });
-  if (!firstReqSync && newIds.length > 0) playNotification();
-  // Rebuild known set from current active list so ids drop out when fulfilled
-  knownReqIds = new Set(incoming.map(function(r) { return r.id; }));
-  firstReqSync = false;
-  requests = incoming;
+  requests = list || [];
   renderQueue();
 }
 
