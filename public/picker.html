@@ -45,6 +45,7 @@
   .line-tag.vulcan { background: #3d0a0a; color: #f87171; }
   .line-tag.xr     { background: #1a3d1a; color: #4ade80; }
   .line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
+  .line-tag.shipping { background: #0f3d3d; color: #5eead4; }
   .req-station { font-size: 11px; color: #6b7280; }
   .req-time    { font-size: 10px; color: #374151; margin-left: auto; }
   .req-queue-pos { font-size: 11px; font-weight: 800; color: #EF9F27; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #EF9F27; border-radius: 3px; }
@@ -156,6 +157,7 @@
   .transfer-line-tag.vulcan { background: #3d0a0a; color: #f87171; }
   .transfer-line-tag.xr     { background: #1a3d1a; color: #4ade80; }
   .transfer-line-tag.mr1    { background: #3d2a00; color: #fbbf24; }
+  .transfer-line-tag.shipping { background: #0f3d3d; color: #5eead4; }
   .transfer-line-tag.unassigned { background: #1e1535; color: #a78bfa; }
   .transfer-loc-row { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
   .transfer-loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
@@ -228,6 +230,7 @@
     <button class="filter-btn" onclick="setFilter('VULCAN')"    id="filter-VULCAN">Vulcan</button>
     <button class="filter-btn" onclick="setFilter('XR')"        id="filter-XR">XR</button>
     <button class="filter-btn" onclick="setFilter('MR1')"       id="filter-MR1">MR1</button>
+    <button class="filter-btn" onclick="setFilter('Shipping')"  id="filter-Shipping">Shipping</button>
     <button class="filter-btn" onclick="setFilter('Unassigned')" id="filter-Unassigned">Unassigned</button>
   </div>
   <div class="queue" id="queue"><div class="empty">— No Pending Requests —</div></div>
@@ -429,7 +432,7 @@ function handlePick(key) {
   ws.send(JSON.stringify({ type: 'fulfill', reqId: entry.reqId, location: entry.location, qty: entry.qty }));
 }
 function lineClass(line) {
-  var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','TITAN':'titan','VULCAN':'vulcan','XR':'xr','MR1':'mr1' };
+  var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','TITAN':'titan','VULCAN':'vulcan','XR':'xr','MR1':'mr1','Shipping':'shipping','SHIPPING':'shipping' };
   return map[line] || 'apollo';
 }
 
