@@ -35,8 +35,8 @@ const HOLD_REASONS = [
   'Waiting for previous station',
 ];
 
-const ALL_LINES   = ['Apollo', 'XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1'];
-const OTHER_LINES = ['XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1'];
+const ALL_LINES   = ['Apollo', 'XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1', 'Shipping'];
+const OTHER_LINES = ['XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1', 'Shipping'];
 
 const SCHEDULED_BREAKS = [
   { id: 'break1', label: 'Morning Break',   start: [10, 30], end: [10, 45] },
