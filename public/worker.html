@@ -252,8 +252,28 @@ function render() {
   sel.innerHTML=holdReasons.map(r=>'<option value="'+esc(r)+'"'+(st.holdReason===r?' selected':'')+'>'+esc(r)+'</option>').join('');
 
   const reqs=st.requests||[];
-  document.getElementById('inv-list').innerHTML=reqs.map(r=>'<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text)+'</div><div class="req-meta">Qty: '+(r.qty||1)+' · '+r.time+'</div></div><button class="req-cancel" onclick="cancelRequest('+r.id+')">Cancel</button></div>').join('');
+  document.getElementById('inv-list').innerHTML=reqs.map(r=>{
+    const unit = r.unit && r.unit !== 'Part' ? ' ' + r.unit + ((r.qty||1) > 1 ? 's' : '') : '';
+    const qtyStr = (r.qty||1) + unit;
+    const elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'"> · '+fmtElapsed(r.submittedAt)+'</span>' : '';
+    return '<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text)+'</div><div class="req-meta">Qty: '+qtyStr+' · '+r.time+elapsedHtml+'</div></div><button class="req-cancel" onclick="cancelRequest('+r.id+')">Cancel</button></div>';
+  }).join('');
 }
+
+function fmtElapsed(submittedAt) {
+  if (!submittedAt) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+setInterval(() => {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(el => {
+    const t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = ' · ' + fmtElapsed(t);
+  });
+}, 1000);
 
 function tick() {
   if (!state?.running) return;
