@@ -373,13 +373,27 @@ function adjQty(key, delta) {
   adjustedQtys[entry.reqId + '|' + entry.location] = next;
 }
 function handleQtyInput(key) {
+  // Fires on every keystroke — allow empty/mid-edit, only enforce the MAX here.
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
   var el = document.getElementById('pick-qty-' + key);
   if (!el) return;
-  var val = parseInt(el.value);
+  if (el.value === '') return;                // let them clear and retype
+  var val = parseInt(el.value, 10);
+  if (isNaN(val)) return;                     // let them finish typing
+  if (val > entry.availableQty) { val = entry.availableQty; el.value = val; }
+  entry.qty = val;
+  adjustedQtys[entry.reqId + '|' + entry.location] = val;
+}
+function blurQtyInput(key) {
+  // Runs when the user leaves the field — enforce both bounds, commit final value.
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  var val = parseInt(el.value, 10);
   if (isNaN(val) || val < 0) val = 0;
-  if (val > entry.availableQty) val = entry.availableQty;
+  else if (val > entry.availableQty) val = entry.availableQty;
   el.value = val; entry.qty = val;
   adjustedQtys[entry.reqId + '|' + entry.location] = val;
 }
@@ -438,7 +452,7 @@ function renderQueue() {
         '<span class="loc-qty-txt '+(lq < qtyRemaining?'low':'ok')+'">'+(lq < qtyRemaining?'⚠ ':'')+lq+' in stock</span></div>'+
         '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
         '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
-        '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" onchange="handleQtyInput('+key+')" oninput="handleQtyInput('+key+')">'+
+        '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
         '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
         '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
     }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
@@ -726,7 +740,7 @@ function renderTransferForm() {
       '</div>'+
       '<div class="transfer-qty-row">'+
         '<span class="transfer-qty-label">Qty to move</span>'+
-        '<input class="transfer-qty-input" type="number" id="transfer-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="'+Math.min(maxQty,1)+'" oninput="clampTransferQty('+maxQty+')"/>'+
+        '<input class="transfer-qty-input" type="number" id="transfer-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="'+Math.min(maxQty,1)+'" oninput="clampTransferQty('+maxQty+')" onblur="blurTransferQty('+maxQty+')"/>'+
       '</div>'+
       '<div class="transfer-dest-label">Destination location</div>'+
       '<input class="transfer-dest-input" type="text" id="transfer-dest" placeholder="e.g. 02-B3-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>'+
@@ -736,11 +750,22 @@ function renderTransferForm() {
 }
 
 function clampTransferQty(max) {
+  // Fires on every keystroke — allow empty/mid-edit, only enforce the MAX here.
+  // Minimum is enforced on blur so the user can freely clear the field and retype.
   var el = document.getElementById('transfer-qty');
   if (!el) return;
-  var v = parseInt(el.value);
-  if (isNaN(v) || v < 1) el.value = 1;
+  if (el.value === '') return;                // let them clear and retype
+  var v = parseInt(el.value, 10);
+  if (isNaN(v)) return;                       // let them finish typing
   if (v > max) el.value = max;
+}
+function blurTransferQty(max) {
+  // Runs when the user leaves the field — enforce both bounds here.
+  var el = document.getElementById('transfer-qty');
+  if (!el) return;
+  var v = parseInt(el.value, 10);
+  if (isNaN(v) || v < 1) el.value = 1;
+  else if (v > max) el.value = max;
 }
 
 function cancelTransfer() {
