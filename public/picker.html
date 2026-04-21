@@ -432,14 +432,14 @@ function handlePick(key) {
   ws.send(JSON.stringify({ type: 'fulfill', reqId: entry.reqId, location: entry.location, qty: entry.qty }));
 }
 function lineClass(line) {
-  var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','TITAN':'titan','VULCAN':'vulcan','XR':'xr','MR1':'mr1','Shipping':'shipping','SHIPPING':'shipping' };
+  var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','Titan':'titan','TITAN':'titan','Vulcan':'vulcan','VULCAN':'vulcan','XR':'xr','MR1':'mr1','Shipping':'shipping','SHIPPING':'shipping' };
   return map[line] || 'apollo';
 }
 
 // ── Render queue ──────────────────────────────────────────────
 function renderQueue() {
   if (document.activeElement && document.activeElement.classList.contains('adj-val')) return;
-  var filtered = activeFilter === 'all' ? requests : requests.filter(function(r){ return r.line === activeFilter; });
+  var filtered = activeFilter === 'all' ? requests : requests.filter(function(r){ return String(r.line || '').toLowerCase() === String(activeFilter).toLowerCase(); });
   document.getElementById('total-count').textContent = requests.length;
   var queue = document.getElementById('queue');
   if (!filtered.length) { queue.innerHTML = '<div class="empty">— No Pending Requests —</div>'; return; }
