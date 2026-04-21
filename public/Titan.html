@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>TITAN Production Board</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1e24; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  .header { background: #12151a; border-bottom: 3px solid #fb923c; padding: 0 28px; display: flex; align-items: stretch; justify-content: space-between; min-height: 64px; }
+  .header-left  { display: flex; align-items: center; gap: 14px; }
+  .header-mid   { display: flex; align-items: center; justify-content: center; flex: 1; }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .brand-icon   { width: 38px; height: 38px; background: #fb923c; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17px; color: #fff; flex-shrink: 0; }
+  .brand-text .top { font-size: 10px; font-weight: 700; color: #fb923c; letter-spacing: 0.15em; text-transform: uppercase; }
+  .brand-text .btm { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .takt-pill { text-align: center; padding: 10px 48px; border-left: 1px solid #2d3340; border-right: 1px solid #2d3340; }
+  .takt-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
+  .takt-time  { font-size: 64px; font-weight: 900; letter-spacing: -3px; color: #EF9F27; line-height: 1; transition: color 0.3s; }
+  .takt-time.warning { color: #f97316; }
+  .takt-time.over    { color: #C8102E; animation: flash-red 0.8s ease-in-out infinite; }
+  .takt-time.paused  { color: #60a5fa; }
+  @keyframes flash-red { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .datetime .date  { font-size: 11px; color: #6b7280; text-align: right; }
+  .datetime .clock { font-size: 17px; font-weight: 700; color: #fff; text-align: right; }
+
+  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 8px 28px; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
+  .break-banner { display: none; background: #12151a; border-bottom: 2px solid #60a5fa; padding: 12px 28px; align-items: center; gap: 16px; }
+  .break-banner.lunch   { border-color: #EF9F27; }
+  .break-banner.visible { display: flex; }
+  .banner-icon  { font-size: 22px; }
+  .banner-title { font-size: 16px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; }
+  .banner-sub   { font-size: 12px; color: #6b7280; margin-top: 1px; }
+  .banner-timer { font-size: 22px; font-weight: 900; color: #60a5fa; margin-left: auto; }
+  .break-banner.lunch .banner-timer { color: #EF9F27; }
+
+  /* ── Controls ── */
+  .controls { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid #2d3340; flex-wrap: wrap; gap: 10px; }
+  .ctrl-left  { display: flex; gap: 8px; align-items: center; }
+  .ctrl-right { display: flex; gap: 8px; align-items: center; }
+  .btn { padding: 10px 24px; border-radius: 4px; font-size: 13px; font-weight: 800; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; }
+  .btn-start  { background: #fb923c; color: #fff; } .btn-start:hover  { background: #ea7820; }
+  .btn-end    { background: #374151; color: #fff; } .btn-end:hover    { background: #4b5563; }
+  .btn-pause  { background: transparent; color: #9ca3af; border: 1px solid #374151; }
+  .btn-pause:hover  { border-color: #9ca3af; color: #fff; }
+  .btn-resume { background: transparent; color: #60a5fa; border: 1px solid #374151; }
+  .btn-resume:hover { border-color: #60a5fa; color: #60a5fa; }
+  .btn-unit   { background: #15803d; color: #fff; padding: 14px 32px; font-size: 15px; }
+  .btn-unit:hover { background: #166534; }
+  .btn:disabled { opacity: 0.35; cursor: default; }
+
+  .status-pill { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+  .status-pill.running  { background: #15803d; color: #fff; }
+  .status-pill.paused   { background: #1e3a5f; color: #60a5fa; }
+  .status-pill.stopped  { background: #374151; color: #9ca3af; }
+
+  /* ── Main content ── */
+  .main { padding: 28px; max-width: 1200px; margin: 0 auto; }
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
+  .panel { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; padding: 24px; }
+  .panel-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+
+  /* ── Cycle counter ── */
+  .cycle-big { font-size: 96px; font-weight: 900; line-height: 1; color: #fb923c; letter-spacing: -4px; }
+  .cycle-sub { font-size: 14px; font-weight: 700; color: #9ca3af; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .cycle-last-time { font-size: 13px; color: #6b7280; margin-top: 14px; }
+
+  /* ── Requests ── */
+  .req-item { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+  .req-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+  .req-pri { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; }
+  .req-pri.low    { background: #374151; color: #d1d5db; }
+  .req-pri.medium { background: #2d1f00; color: #EF9F27; }
+  .req-pri.high   { background: #2d0808; color: #f87171; }
+  .req-pos  { font-size: 10px; font-weight: 800; color: #EF9F27; letter-spacing: 0.08em; text-transform: uppercase; }
+  .req-elapsed { font-size: 11px; color: #9ca3af; margin-left: auto; }
+  .req-part { font-size: 14px; font-weight: 700; color: #fff; }
+  .req-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .req-empty { padding: 20px; text-align: center; color: #4b5563; font-size: 13px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand-icon">T</div>
+    <div class="brand-text">
+      <div class="top">Langmuir Systems</div>
+      <div class="btm">Titan Production</div>
+    </div>
+  </div>
+  <div class="header-mid">
+    <div class="takt-pill">
+      <div class="takt-label">Current Cycle Takt</div>
+      <div class="takt-time" id="takt-time">2:00:00</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="datetime">
+      <div class="date"  id="today"></div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+</div>
+
+<div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
+
+<div class="break-banner" id="break-banner">
+  <span class="banner-icon">☕</span>
+  <div>
+    <div class="banner-title" id="banner-title">Morning Break</div>
+    <div class="banner-sub">Timer paused — auto-resumes when break ends</div>
+  </div>
+  <div class="banner-timer" id="banner-countdown"></div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-left">
+    <button class="btn btn-start"  id="btn-start"  onclick="startLine()">▶ Start Line</button>
+    <button class="btn btn-pause"  id="btn-pause"  onclick="pauseLine()" style="display:none">⏸ Pause</button>
+    <button class="btn btn-resume" id="btn-resume" onclick="resumeLine()" style="display:none">▶ Resume</button>
+    <button class="btn btn-end"    id="btn-end"    onclick="endLine()" style="display:none">■ End Line</button>
+    <span class="status-pill stopped" id="status-pill">Stopped</span>
+  </div>
+  <div class="ctrl-right">
+    <button class="btn btn-unit" id="btn-unit" onclick="unitComplete()" disabled>✓ Unit Complete</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-label">Units Completed Today</div>
+      <div class="cycle-big" id="cycle-count">0</div>
+      <div class="cycle-sub">Machines off the line</div>
+      <div class="cycle-last-time" id="last-cycle-time"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Active Inventory Requests</div>
+      <div id="req-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────
+const TITAN_TAKT_SEC = 2 * 60 * 60;  // 2 hours
+const BREAK_ENDS = { 'Morning Break':[10,45], 'Lunch':[12,50], 'Afternoon Break':[15,15] };
+
+// ── State (mirrors server) ───────────────────────────────────
+let state = null;
+let titanReqs = [];
+let lastPong = Date.now();
+let timerInt = null;
+
+// ── WebSocket (picker=0, line=Titan, so we receive titan state) ──
+const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?line=Titan&board=1');
+ws.onopen  = () => { document.getElementById('conn-status').style.display = 'none'; };
+ws.onclose = () => { document.getElementById('conn-status').style.display = 'flex'; setTimeout(() => location.reload(), 3000); };
+ws.onerror = () => { document.getElementById('conn-status').style.display = 'flex'; };
+ws.onmessage = ev => {
+  lastPong = Date.now();
+  const msg = JSON.parse(ev.data);
+  if (msg.type === 'titan-state') { state = msg.state; render(); }
+  if (msg.type === 'requests')    { titanReqs = (msg.requests || []).filter(r => r.line === 'Titan' || r.line === 'TITAN'); renderRequests(); }
+};
+setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
+setInterval(() => { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
+// Polling fallback (in case WS missed a message)
+setInterval(() => {
+  fetch('/api/titan-state').then(r => r.json()).then(d => { if (d.state) { state = d.state; render(); } }).catch(() => {});
+  fetch('/api/requests').then(r => r.json()).then(d => { titanReqs = (d.requests || []).filter(r => r.line === 'Titan' || r.line === 'TITAN'); renderRequests(); }).catch(() => {});
+}, 5000);
+
+// ── Button actions ───────────────────────────────────────────
+function startLine()    { ws.send(JSON.stringify({ type: 'titan-start' })); }
+function endLine()      { ws.send(JSON.stringify({ type: 'titan-end' })); }
+function pauseLine()    { ws.send(JSON.stringify({ type: 'titan-pause' })); }
+function resumeLine()   { ws.send(JSON.stringify({ type: 'titan-resume' })); }
+function unitComplete() { ws.send(JSON.stringify({ type: 'titan-unit-complete' })); }
+
+// ── Clock in header ──────────────────────────────────────────
+function tickClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ── Render ───────────────────────────────────────────────────
+function fmt(s) {
+  s = Math.round(Math.abs(s));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function render() {
+  if (!state) return;
+  const pill  = document.getElementById('status-pill');
+  const btnStart  = document.getElementById('btn-start');
+  const btnPause  = document.getElementById('btn-pause');
+  const btnResume = document.getElementById('btn-resume');
+  const btnEnd    = document.getElementById('btn-end');
+  const btnUnit   = document.getElementById('btn-unit');
+
+  // Buttons
+  if (!state.running) {
+    btnStart.style.display  = '';
+    btnPause.style.display  = 'none';
+    btnResume.style.display = 'none';
+    btnEnd.style.display    = 'none';
+    btnUnit.disabled = true;
+    pill.className = 'status-pill stopped';
+    pill.textContent = 'Stopped';
+  } else if (state.paused) {
+    btnStart.style.display  = 'none';
+    btnPause.style.display  = 'none';
+    btnResume.style.display = state.pauseLabel === 'Paused' ? '' : 'none';
+    btnEnd.style.display    = '';
+    btnUnit.disabled = true;
+    pill.className = 'status-pill paused';
+    pill.textContent = state.pauseLabel || 'Paused';
+  } else {
+    btnStart.style.display  = 'none';
+    btnPause.style.display  = '';
+    btnResume.style.display = 'none';
+    btnEnd.style.display    = '';
+    btnUnit.disabled = false;
+    pill.className = 'status-pill running';
+    pill.textContent = 'Running';
+  }
+
+  // Cycle count
+  document.getElementById('cycle-count').textContent = state.cycleCount || 0;
+
+  // Last cycle time display
+  const lastEl = document.getElementById('last-cycle-time');
+  if (state.lastCycleSeconds != null) {
+    const target = TITAN_TAKT_SEC;
+    const diff = state.lastCycleSeconds - target;
+    const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '');
+    const diffStr = diff === 0 ? 'on takt' : sign + fmt(Math.abs(diff)) + ' vs 2h takt';
+    lastEl.textContent = 'Last unit: ' + fmt(state.lastCycleSeconds) + ' (' + diffStr + ')';
+  } else {
+    lastEl.textContent = '';
+  }
+
+  // Break banner
+  const banner = document.getElementById('break-banner');
+  if (state.paused && state.pauseLabel && state.pauseLabel !== 'Paused') {
+    const isLunch = state.pauseLabel === 'Lunch';
+    banner.className = 'break-banner visible' + (isLunch ? ' lunch' : '');
+    document.getElementById('banner-title').textContent = state.pauseLabel;
+  } else {
+    banner.className = 'break-banner';
+    document.getElementById('banner-countdown').textContent = '';
+  }
+
+  // Start/restart ticking
+  clearInterval(timerInt);
+  if (state.running) { timerInt = setInterval(tick, 500); tick(); }
+  else { document.getElementById('takt-time').textContent = fmt(TITAN_TAKT_SEC); document.getElementById('takt-time').className = 'takt-time'; }
+}
+
+function tick() {
+  if (!state || !state.running) return;
+  const timerEl = document.getElementById('takt-time');
+
+  // Compute elapsed for current cycle, excluding pause time
+  let pausedSoFar = state.totalPausedMs || 0;
+  if (state.paused && state.pauseStart) pausedSoFar += Date.now() - state.pauseStart;
+  const elapsedMs = Math.max(0, Date.now() - state.startTime - pausedSoFar);
+  const elapsedSec = elapsedMs / 1000;
+  const remaining  = TITAN_TAKT_SEC - elapsedSec;
+
+  // Display as countdown (positive) or overage (negative)
+  if (remaining >= 0) {
+    timerEl.textContent = fmt(remaining);
+    timerEl.className = 'takt-time' + (state.paused ? ' paused' : (remaining < TITAN_TAKT_SEC * 0.1 ? ' warning' : ''));
+  } else {
+    timerEl.textContent = '-' + fmt(Math.abs(remaining));
+    timerEl.className = 'takt-time' + (state.paused ? ' paused' : ' over');
+  }
+
+  // Break countdown
+  if (state.paused && state.pauseLabel && BREAK_ENDS[state.pauseLabel]) {
+    const ends = BREAK_ENDS[state.pauseLabel];
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const end = new Date(now);
+    end.setHours(ends[0], ends[1], 0, 0);
+    const left = Math.max(0, Math.round((end - now) / 1000));
+    document.getElementById('banner-countdown').textContent = left > 0 ? fmt(left) : '';
+  }
+}
+
+function renderRequests() {
+  const list = document.getElementById('req-list');
+  if (!titanReqs.length) { list.innerHTML = '<div class="req-empty">— No active requests —</div>'; return; }
+  list.innerHTML = titanReqs.map(r => {
+    const pri = String(r.priority || 'low');
+    const unit = r.unit && r.unit !== 'Part' ? ' ' + r.unit + ((r.qty||1) > 1 ? 's' : '') : '';
+    const qtyStr = (r.qty || 1) + unit;
+    const pos = r.queuePosition ? '<span class="req-pos">#' + r.queuePosition + ' in queue</span>' : '';
+    const el = r.submittedAt ? '<span class="req-elapsed" data-submitted="' + r.submittedAt + '">' + fmtElapsed(r.submittedAt) + '</span>' : '';
+    return '<div class="req-item">'+
+      '<div class="req-head">'+
+        '<span class="req-pri ' + pri + '">' + pri + '</span>' + pos + el +
+      '</div>'+
+      '<div class="req-part">' + esc(r.partName || r.text || r.partNum || '') + '</div>'+
+      '<div class="req-meta">Qty: ' + qtyStr + (r.partNum ? ' · ' + esc(r.partNum) : '') + '</div>'+
+    '</div>';
+  }).join('');
+}
+function fmtElapsed(submittedAt) {
+  const sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+// Tick elapsed every second
+setInterval(() => {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(el => {
+    const t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = fmtElapsed(t);
+  });
+}, 1000);
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
