@@ -17,9 +17,19 @@
   .brand-text .top { font-size: 10px; font-weight: 700; color: #fb923c; letter-spacing: 0.15em; text-transform: uppercase; }
   .brand-text .btm { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
 
-  .takt-pill { text-align: center; padding: 10px 48px; border-left: 1px solid #2d3340; border-right: 1px solid #2d3340; }
-  .takt-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
-  .takt-time  { font-size: 64px; font-weight: 900; letter-spacing: -3px; color: #EF9F27; line-height: 1; transition: color 0.3s; }
+  .takt-pill { text-align: center; padding: 16px 64px; border-left: 1px solid #2d3340; border-right: 1px solid #2d3340; }
+  .takt-label { font-size: 13px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; }
+  .takt-time  { font-size: 200px; font-weight: 900; letter-spacing: -8px; color: #EF9F27; line-height: 1; transition: color 0.3s; font-variant-numeric: tabular-nums; }
+
+  /* ── Takt hero band (visible from a distance) ── */
+  .takt-hero { background: #0d1014; border-bottom: 2px solid #2d3340; padding: 32px 28px 40px; text-align: center; }
+  .takt-hero .takt-label { font-size: 18px; font-weight: 700; color: #6b7280; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 14px; }
+  .takt-hero .takt-time  { font-size: 260px; font-weight: 900; letter-spacing: -12px; color: #EF9F27; line-height: 0.95; transition: color 0.3s; font-variant-numeric: tabular-nums; }
+  .takt-hero .takt-time.warning { color: #f97316; }
+  .takt-hero .takt-time.over    { color: #C8102E; animation: flash-red 0.8s ease-in-out infinite; }
+  .takt-hero .takt-time.paused  { color: #60a5fa; }
+  @media (max-width: 1200px) { .takt-hero .takt-time { font-size: 200px; letter-spacing: -9px; } }
+  @media (max-width: 860px)  { .takt-hero .takt-time { font-size: 120px; letter-spacing: -5px; } .takt-hero .takt-label { font-size: 13px; } }
   .takt-time.warning { color: #f97316; }
   .takt-time.over    { color: #C8102E; animation: flash-red 0.8s ease-in-out infinite; }
   .takt-time.paused  { color: #60a5fa; }
@@ -66,9 +76,10 @@
   .panel-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
 
   /* ── Cycle counter ── */
-  .cycle-big { font-size: 96px; font-weight: 900; line-height: 1; color: #fb923c; letter-spacing: -4px; }
-  .cycle-sub { font-size: 14px; font-weight: 700; color: #9ca3af; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .cycle-last-time { font-size: 13px; color: #6b7280; margin-top: 14px; }
+  .cycle-big { font-size: 180px; font-weight: 900; line-height: 1; color: #fb923c; letter-spacing: -7px; font-variant-numeric: tabular-nums; text-align: center; }
+  .cycle-sub { font-size: 16px; font-weight: 700; color: #9ca3af; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; }
+  .cycle-last-time { font-size: 14px; color: #6b7280; margin-top: 18px; text-align: center; }
+  @media (max-width: 860px) { .cycle-big { font-size: 120px; letter-spacing: -5px; } }
 
   /* ── Requests ── */
   .req-item { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
@@ -94,18 +105,17 @@
       <div class="btm">Titan Production</div>
     </div>
   </div>
-  <div class="header-mid">
-    <div class="takt-pill">
-      <div class="takt-label">Current Cycle Takt</div>
-      <div class="takt-time" id="takt-time">2:00:00</div>
-    </div>
-  </div>
   <div class="header-right">
     <div class="datetime">
       <div class="date"  id="today"></div>
       <div class="clock" id="clock"></div>
     </div>
   </div>
+</div>
+
+<div class="takt-hero">
+  <div class="takt-label">Current Cycle Takt</div>
+  <div class="takt-time" id="takt-time">2:00:00</div>
 </div>
 
 <div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
