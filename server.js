@@ -38,19 +38,27 @@ const HOLD_REASONS = [
 const ALL_LINES   = ['Apollo', 'XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1', 'Shipping'];
 const OTHER_LINES = ['XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1', 'Shipping'];
 
+// Apollo break schedule: 10:30 break, 13:00 lunch, 15:00 break
 const SCHEDULED_BREAKS = [
   { id: 'break1', label: 'Morning Break',   start: [10, 30], end: [10, 45] },
   { id: 'lunch',  label: 'Lunch',           start: [13,  0], end: [13, 30] },
   { id: 'break2', label: 'Afternoon Break', start: [15,  0], end: [15, 15] },
 ];
 
+// Titan break schedule: same breaks but lunch at 12:20 (30 min)
+const TITAN_BREAKS = [
+  { id: 'break1', label: 'Morning Break',   start: [10, 30], end: [10, 45] },
+  { id: 'lunch',  label: 'Lunch',           start: [12, 20], end: [12, 50] },
+  { id: 'break2', label: 'Afternoon Break', start: [15,  0], end: [15, 15] },
+];
+
 function getCSTDate() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 }
-function getScheduledBreak() {
+function getScheduledBreak(schedule = SCHEDULED_BREAKS) {
   const cst  = getCSTDate();
   const mins = cst.getHours() * 60 + cst.getMinutes();
-  for (const b of SCHEDULED_BREAKS) {
+  for (const b of schedule) {
     const start = b.start[0] * 60 + b.start[1];
     const end   = b.end[0]   * 60 + b.end[1];
     if (mins >= start && mins < end) return b;
@@ -88,6 +96,69 @@ let state = {
 let autoEndTimer    = null;
 let breakCheckTimer = null;
 
+// ── Titan state (line takt only, no stations) ────────────────
+// Independent of Apollo. Titan counts cycles manually via "Unit Complete"
+// clicks; the 2h takt clock is a reference. Clock resets on unit complete.
+const TITAN_TAKT_SECONDS = 2 * 60 * 60;
+
+let titanState = {
+  running: false, paused: false,
+  pauseLabel: null, pauseStart: null, totalPausedMs: 0,
+  startTime: null,             // start of current Titan cycle (resets on unit complete)
+  cycleCount: 0,               // units completed today
+  cycleDate: todayStr(),
+  lastCycleSeconds: null,      // duration of the last completed cycle (for display)
+};
+
+let titanBreakCheckTimer = null;
+
+function titanEffectiveElapsedMs() {
+  if (!titanState.running || !titanState.startTime) return 0;
+  let e = Date.now() - titanState.startTime - titanState.totalPausedMs;
+  if (titanState.paused && titanState.pauseStart) e -= (Date.now() - titanState.pauseStart);
+  return Math.max(0, e);
+}
+
+function titanPauseCycle(label) {
+  if (!titanState.running || titanState.paused) return;
+  titanState.paused = true;
+  titanState.pauseLabel = label;
+  titanState.pauseStart = Date.now();
+  broadcastTitanState();
+}
+function titanResumeCycle() {
+  if (!titanState.running || !titanState.paused) return;
+  titanState.totalPausedMs += Date.now() - titanState.pauseStart;
+  titanState.paused = false;
+  titanState.pauseLabel = null;
+  titanState.pauseStart = null;
+  broadcastTitanState();
+}
+function titanCheckBreaks() {
+  if (!titanState.running) return;
+  const brk = getScheduledBreak(TITAN_BREAKS);
+  if (brk && !titanState.paused) titanPauseCycle(brk.label);
+  else if (!brk && titanState.paused && titanState.pauseLabel !== 'Paused') titanResumeCycle();
+}
+function titanStartBreakChecker() {
+  if (titanBreakCheckTimer) clearInterval(titanBreakCheckTimer);
+  titanBreakCheckTimer = setInterval(titanCheckBreaks, 15000);
+  titanCheckBreaks();
+}
+function titanStopBreakChecker() {
+  if (titanBreakCheckTimer) { clearInterval(titanBreakCheckTimer); titanBreakCheckTimer = null; }
+}
+
+// Day-boundary reset: if date changed, zero the cycle count
+function titanMaybeResetDay() {
+  const today = todayStr();
+  if (titanState.cycleDate !== today) {
+    titanState.cycleCount = 0;
+    titanState.cycleDate  = today;
+    titanState.lastCycleSeconds = null;
+  }
+}
+
 // ── Station timer helpers ────────────────────────────────────
 function pauseStationTimer(st) {
   if (st.stationStatus === 'active' && st.stationStartTime) {
@@ -110,6 +181,7 @@ function effectiveElapsedMs() {
 // ── WebSocket client sets ────────────────────────────────────
 const apolloClients = new Set();
 const pickerClients = new Set();
+const titanClients  = new Set();
 
 function getActiveRequestsWithPositions() {
   const priOrder = { high: 0, medium: 1, low: 2 };
@@ -133,6 +205,10 @@ function broadcastState() {
 function broadcastRequests() {
   const msg = JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() });
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
+}
+function broadcastTitanState() {
+  const data = JSON.stringify({ type: 'titan-state', state: titanState, taktSeconds: TITAN_TAKT_SECONDS });
+  titanClients.forEach(c => { if (c.readyState === 1) c.send(data); });
 }
 
 // ── Pause / Resume ───────────────────────────────────────────
@@ -272,6 +348,53 @@ async function postToSheets(payload) {
   } catch(e) { console.error('Sheets post failed:', e.message); }
 }
 
+// ── Titan cycle logger ───────────────────────────────────────
+// Writes one row to the 'Titan Cycle Log' sheet per completed unit.
+function logTitanCycle(cycleStartMs, cycleEndMs, cycleCount, totalPausedMs) {
+  if (!LOCATIONS_URL) return;
+  const activeMs = Math.max(0, cycleEndMs - cycleStartMs - (totalPausedMs || 0));
+  const activeSec = Math.round(activeMs / 1000);
+  const hh = String(Math.floor(activeSec / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((activeSec % 3600) / 60)).padStart(2, '0');
+  const ss = String(activeSec % 60).padStart(2, '0');
+  const activeTime = hh + ':' + mm + ':' + ss;
+
+  const pauseSec = Math.round((totalPausedMs || 0) / 1000);
+  const ph = String(Math.floor(pauseSec / 3600)).padStart(2, '0');
+  const pm = String(Math.floor((pauseSec % 3600) / 60)).padStart(2, '0');
+  const ps = String(pauseSec % 60).padStart(2, '0');
+  const pauseTime = ph + ':' + pm + ':' + ps;
+
+  const taktSec = TITAN_TAKT_SECONDS;
+  const varianceSec = activeSec - taktSec;
+  const varSign = varianceSec > 0 ? '+' : (varianceSec < 0 ? '-' : '');
+  const absVar = Math.abs(varianceSec);
+  const vh = String(Math.floor(absVar / 3600)).padStart(2, '0');
+  const vm = String(Math.floor((absVar % 3600) / 60)).padStart(2, '0');
+  const vs = String(absVar % 60).padStart(2, '0');
+  const variance = varSign + vh + ':' + vm + ':' + vs;
+  const compliance = Math.abs(varianceSec) < 60 ? 'On Takt' : (varianceSec > 0 ? 'Over' : 'Under');
+
+  fetch(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:       'logTitanCycle',
+      cycleNumber:  cycleCount,
+      cycleStart:   new Date(cycleStartMs).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
+      cycleEnd:     new Date(cycleEndMs).toLocaleString('en-US',   { timeZone: 'America/Chicago' }),
+      activeTime:   activeTime,
+      pauseTime:    pauseTime,
+      taktTarget:   '02:00:00',
+      variance:     variance,
+      compliance:   compliance,
+    }),
+    redirect: 'follow',
+  }).then(r => r.json())
+    .then(d => console.log('Titan cycle log:', d))
+    .catch(e => console.error('Titan cycle log failed:', e.message));
+}
+
 // ── Request completion logger ────────────────────────────────
 // Writes a "Request Completed" row to the Apps Script transaction log with
 // submitted/completed timestamps and total elapsed time (HH:MM:SS).
@@ -334,6 +457,7 @@ async function postOrphanAssignment(partNum, partName, line, station) {
 
 // ── REST endpoints ───────────────────────────────────────────
 app.get('/api/state',    (req, res) => res.json({ state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS }));
+app.get('/api/titan-state', (req, res) => res.json({ state: titanState, taktSeconds: TITAN_TAKT_SECONDS }));
 app.get('/api/requests', (req, res) => {
   res.json({ requests: getActiveRequestsWithPositions() });
 });
@@ -361,18 +485,23 @@ app.get('/api/refresh-locations', async (req, res) => {
 wss.on('connection', (ws, req) => {
   const url      = req.url || '';
   const isPicker = url.includes('picker=1');
+  const isTitan  = url.includes('board=1') && /line=Titan/i.test(url);
 
   if (isPicker) {
     pickerClients.add(ws);
     ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
     ws.send(JSON.stringify({ type: 'recent-picks', recentPicks: recentlyFulfilled }));
+  } else if (isTitan) {
+    titanClients.add(ws);
+    ws.send(JSON.stringify({ type: 'titan-state', state: titanState, taktSeconds: TITAN_TAKT_SECONDS }));
+    ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
   } else {
     apolloClients.add(ws);
     ws.send(JSON.stringify({ type: 'state', state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS }));
     ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
   }
 
-  ws.on('close', () => { apolloClients.delete(ws); pickerClients.delete(ws); });
+  ws.on('close', () => { apolloClients.delete(ws); pickerClients.delete(ws); titanClients.delete(ws); });
 
   ws.on('message', async raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
@@ -380,6 +509,70 @@ wss.on('connection', (ws, req) => {
     // ── Ping ─────────────────────────────────────────────────
     if (msg.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
+
+    // ── Titan: Start line ────────────────────────────────────
+    if (msg.type === 'titan-start') {
+      if (titanState.running) return;
+      titanMaybeResetDay();
+      titanState.running = true;
+      titanState.paused  = false;
+      titanState.pauseLabel = null;
+      titanState.pauseStart = null;
+      titanState.totalPausedMs = 0;
+      titanState.startTime = Date.now();
+      broadcastTitanState();
+      titanStartBreakChecker();
+      return;
+    }
+
+    // ── Titan: End line ──────────────────────────────────────
+    if (msg.type === 'titan-end') {
+      if (!titanState.running) return;
+      titanStopBreakChecker();
+      titanState.running = false;
+      titanState.paused  = false;
+      titanState.pauseLabel = null;
+      titanState.pauseStart = null;
+      titanState.startTime = null;
+      broadcastTitanState();
+      return;
+    }
+
+    // ── Titan: Manual pause / resume ─────────────────────────
+    if (msg.type === 'titan-pause') {
+      if (!titanState.running || titanState.paused) return;
+      titanPauseCycle('Paused');
+      return;
+    }
+    if (msg.type === 'titan-resume') {
+      if (!titanState.running || !titanState.paused) return;
+      if (titanState.pauseLabel !== 'Paused') return;  // break pauses auto-resume only
+      titanResumeCycle();
+      return;
+    }
+
+    // ── Titan: Unit complete (counts a cycle, resets the clock) ──
+    if (msg.type === 'titan-unit-complete') {
+      if (!titanState.running || titanState.paused) return;
+      titanMaybeResetDay();
+      const now = Date.now();
+      const cycleStartMs  = titanState.startTime;
+      const cycleEndMs    = now;
+      const totalPausedMs = titanState.totalPausedMs;
+      const activeMs      = Math.max(0, cycleEndMs - cycleStartMs - totalPausedMs);
+
+      titanState.cycleCount += 1;
+      titanState.lastCycleSeconds = Math.round(activeMs / 1000);
+      // Reset for next cycle
+      titanState.startTime     = now;
+      titanState.totalPausedMs = 0;
+      titanState.pauseStart    = null;
+      broadcastTitanState();
+
+      // Log the completed cycle to the Titan Cycle Log sheet
+      logTitanCycle(cycleStartMs, cycleEndMs, titanState.cycleCount, totalPausedMs);
       return;
     }
 
