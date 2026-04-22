@@ -487,10 +487,11 @@ function render() {
   document.getElementById('st-type').textContent = st.type==='sub'?'Subassembly':'Main Line';
   document.title = st.name;
   const btn=document.getElementById('btn'),statusEl=document.getElementById('status'),timerEl=document.getElementById('timer'),activeEl=document.getElementById('active-time');
-  const globalPaused=state.paused,isActive=st.stationStatus==='active'&&!st.done,isHold=st.stationStatus==='hold'&&!st.done;
+  const globalPaused=state.paused,isActive=st.stationStatus==='active'&&!st.done,isHold=st.stationStatus==='hold'&&!st.done,isIdle=st.stationStatus==='idle'&&!st.done;
   if (!state.running) { btn.className='big-btn idle';btn.innerHTML='—';statusEl.textContent='Waiting for takt...';timerEl.textContent='';activeEl.textContent=''; }
   else if (globalPaused) { btn.className='big-btn paused';btn.innerHTML='⏸';statusEl.textContent=state.pauseLabel||'Paused';timerInt=setInterval(tick,500);tick(); }
   else if (st.done) { btn.className='big-btn done';btn.innerHTML='Done<span class="sub">'+fmtSec(st.completedAt)+'</span>';statusEl.textContent='Complete';timerEl.textContent='';activeEl.textContent='Active time: '+fmtMs(liveActiveMs(st)); }
+  else if (isIdle) { btn.className='big-btn idle';btn.innerHTML='—';statusEl.textContent='Tap Start Station to begin';timerEl.textContent='';activeEl.textContent=''; }
   else if (isHold) { btn.className='big-btn on-hold';btn.innerHTML='On Hold';statusEl.textContent=st.holdReason||'On Hold';timerInt=setInterval(tick,500);tick();activeEl.textContent='Active: '+fmtMs(liveActiveMs(st)); }
   else { btn.className='big-btn done-btn';btn.innerHTML="I'm<br/>Done";statusEl.textContent=st.andon?'Timer paused (andon)':'Tap when complete';timerInt=setInterval(tick,500);tick();activeEl.textContent='Active: '+fmtMs(liveActiveMs(st)); }
 
@@ -498,12 +499,16 @@ function render() {
   if (globalPaused&&state.pauseLabel&&state.pauseLabel!=='Paused') { const isLunch=state.pauseLabel==='Lunch'; banner.className='break-banner visible'+(isLunch?' lunch':''); document.getElementById('banner-title').textContent=state.pauseLabel; }
   else { banner.className='break-banner'; document.getElementById('banner-countdown').textContent=''; }
 
-  const canStart=state.running&&!globalPaused&&!st.done&&isHold, canHold=state.running&&!st.done&&isActive;
+  const canStart=state.running&&!globalPaused&&!st.done&&(isHold||isIdle), canHold=state.running&&!st.done&&isActive;
   document.getElementById('btn-start-station').disabled=!canStart;
   document.getElementById('btn-hold-station').disabled=!canHold;
   document.getElementById('hold-reason-row').style.display=isHold?'block':'none';
   const csb=document.getElementById('current-status-bar');
-  if (state.running&&!st.done) { csb.className='status-bar '+(isActive?'active':'on-hold'); csb.innerHTML='<div class="status-bar-label">'+(isActive?'Station Active':'Station On Hold')+'</div>'+(isHold&&st.holdReason?'<div class="status-bar-reason">'+esc(st.holdReason)+'</div>':''); }
+  if (state.running&&!st.done) {
+    if (isActive)      { csb.className='status-bar active';  csb.innerHTML='<div class="status-bar-label">Station Active</div>'; }
+    else if (isHold)   { csb.className='status-bar on-hold'; csb.innerHTML='<div class="status-bar-label">Station On Hold</div>'+(st.holdReason?'<div class="status-bar-reason">'+esc(st.holdReason)+'</div>':''); }
+    else               { csb.className='status-bar';         csb.innerHTML='<div class="status-bar-label">Station Idle</div>'; }
+  }
   else { csb.innerHTML='';csb.className=''; }
   const sel=document.getElementById('hold-reason-sel');
   sel.innerHTML=holdReasons.map(r=>'<option value="'+esc(r)+'"'+(st.holdReason===r?' selected':'')+'>'+esc(r)+'</option>').join('');
