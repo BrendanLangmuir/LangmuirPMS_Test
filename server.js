@@ -12,7 +12,18 @@ app.use(express.static('public'));
 const SHEETS_URL    = process.env.SHEETS_URL    || '';
 const LOCATIONS_URL = process.env.LOCATIONS_URL || '';
 const PORT          = process.env.PORT          || 8080;
-const TAKT_SECONDS  = 3 * 60 * 60;
+
+// Apollo line takt (scheduled cadence reference; does not gate station cycles)
+const APOLLO_TAKT_SECONDS = 3 * 60 * 60;
+// Legacy alias kept for any inline references; remove in 5b.
+const TAKT_SECONDS = APOLLO_TAKT_SECONDS;
+
+// Titan line takt (2h reference; Titan cycles are still driven by manual unit-complete clicks)
+const TITAN_TAKT_SECONDS = 2 * 60 * 60;
+
+// Green-flash window after a station Done — keeps index.html's completed-state
+// visual cue until 5b gives 'break'/new states proper treatment. See spec §4.
+const DONE_FLASH_MS = 5000;
 
 const STATIONS = [
   { id: 1,  name: 'Framing',               type: 'main' },
@@ -72,111 +83,367 @@ let allRequests      = [];
 let nextReqId        = 1;
 let recentlyFulfilled = []; // max 2, server-side persisted
 
-// ── Apollo state ─────────────────────────────────────────────
-function resetStations() {
-  const now = Date.now();
+// ═══════════════════════════════════════════════════════════════
+// PR 5a — Per-line state model
+// ═══════════════════════════════════════════════════════════════
+// `states` replaces the old globals `state` and `titanState`.
+// `states.apollo` owns the Apollo board; `states.titan` owns Titan.
+// Future lines (XF/PRO, VULCAN, etc.) plug in here.
+//
+// Key semantic shift for Apollo:
+//   - `running` = "line is open for the day" (not "cycle in progress")
+//   - Stations cycle INDEPENDENTLY. Each tracks its own cycle count.
+//   - `lineCycleCount` stays 0 in 5a — will be driven by Skirting in PR 5c.
+// ═══════════════════════════════════════════════════════════════
+
+function newApolloStations() {
   return STATIONS.map(s => ({
-    ...s,
-    done: false, completedAt: null,
-    stationStatus: 'active', holdReason: null,
-    stationStartTime: now, activeMs: 0,
+    id: s.id, name: s.name, type: s.type,
+    stationStatus: 'idle',           // 'idle' | 'active' | 'hold' | 'break'
+    holdReason: null,
+    stationStartTime: null,          // epoch ms when current 'active' span began
+    activeMs: 0,                     // active time in CURRENT cycle
+    stationCycleCount: 0,            // cycles this station completed today
+    lastCycleSeconds: null,          // active-time of most-recent completed cycle
+    // Per-cycle accumulators — reset at the start of each new cycle.
+    holdMs: 0,
+    breakMs: 0,
+    holdSpanStart: null,             // epoch ms when current 'hold' span began
+    breakSpanStart: null,            // epoch ms when current 'break' span began
+    preBreakStatus: null,            // 'active' | 'hold' — what to restore to after break
+    // Transient done flash — see spec §4.
+    done: false,
+    completedAt: null,
+    _doneTimeoutId: null,            // stripped from broadcasts
+    // Andon — unchanged from pre-5a.
     andon: null, andonTime: null,
     andonPauseStart: null, totalAndonPause: 0,
+    // Inventory requests — unchanged.
     requests: [],
   }));
 }
 
-let state = {
-  running: false, paused: false,
-  pauseLabel: null, pauseStart: null, totalPausedMs: 0,
-  startTime: null, cycleCount: 0, cycleDate: todayStr(),
-  stations: resetStations(),
+let states = {
+  apollo: {
+    taktSeconds:    APOLLO_TAKT_SECONDS,
+    lineCycleCount: 0,
+    cycleDate:      todayStr(),
+    running:        false,
+    paused:         false,
+    pauseLabel:     null,
+    pauseStart:     null,
+    totalPausedMs:  0,
+    startTime:      null,            // when the line was opened today
+    stations:       newApolloStations(),
+    _breakCheckTimer: null,
+  },
+  titan: {
+    taktSeconds:      TITAN_TAKT_SECONDS,
+    running:          false,
+    paused:           false,
+    pauseLabel:       null,
+    pauseStart:       null,
+    totalPausedMs:    0,
+    startTime:        null,          // start of current Titan cycle (resets on unit-complete)
+    cycleCount:       0,             // units completed today
+    cycleDate:        todayStr(),
+    lastCycleSeconds: null,
+    _breakCheckTimer: null,
+  },
 };
 
-let autoEndTimer    = null;
-let breakCheckTimer = null;
+// ── Serialization helper ──────────────────────────────────────
+// Strips internal fields (prefixed with _) before broadcasting.
+function serializeLine(line) {
+  const copy = {};
+  for (const k of Object.keys(line)) {
+    if (k.startsWith('_')) continue;
+    if (k === 'stations') {
+      copy.stations = line.stations.map(st => {
+        const s = {};
+        for (const sk of Object.keys(st)) {
+          if (sk.startsWith('_')) continue;
+          s[sk] = st[sk];
+        }
+        return s;
+      });
+    } else {
+      copy[k] = line[k];
+    }
+  }
+  // Backward-compat alias — index.html reads state.cycleCount for the line counter.
+  if (line === states.apollo) copy.cycleCount = line.lineCycleCount;
+  return copy;
+}
 
-// ── Titan state (line takt only, no stations) ────────────────
-// Independent of Apollo. Titan counts cycles manually via "Unit Complete"
-// clicks; the 2h takt clock is a reference. Clock resets on unit complete.
-const TITAN_TAKT_SECONDS = 2 * 60 * 60;
-
-let titanState = {
-  running: false, paused: false,
-  pauseLabel: null, pauseStart: null, totalPausedMs: 0,
-  startTime: null,             // start of current Titan cycle (resets on unit complete)
-  cycleCount: 0,               // units completed today
-  cycleDate: todayStr(),
-  lastCycleSeconds: null,      // duration of the last completed cycle (for display)
-};
-
-let titanBreakCheckTimer = null;
-
-function titanEffectiveElapsedMs() {
-  if (!titanState.running || !titanState.startTime) return 0;
-  let e = Date.now() - titanState.startTime - titanState.totalPausedMs;
-  if (titanState.paused && titanState.pauseStart) e -= (Date.now() - titanState.pauseStart);
+// ── Apollo line helpers ───────────────────────────────────────
+function apolloEffectiveElapsedMs() {
+  const s = states.apollo;
+  if (!s.running || !s.startTime) return 0;
+  let e = Date.now() - s.startTime - s.totalPausedMs;
+  if (s.paused && s.pauseStart) e -= (Date.now() - s.pauseStart);
   return Math.max(0, e);
 }
 
-function titanPauseCycle(label) {
-  if (!titanState.running || titanState.paused) return;
-  titanState.paused = true;
-  titanState.pauseLabel = label;
-  titanState.pauseStart = Date.now();
-  broadcastTitanState();
-}
-function titanResumeCycle() {
-  if (!titanState.running || !titanState.paused) return;
-  titanState.totalPausedMs += Date.now() - titanState.pauseStart;
-  titanState.paused = false;
-  titanState.pauseLabel = null;
-  titanState.pauseStart = null;
-  broadcastTitanState();
-}
-function titanCheckBreaks() {
-  if (!titanState.running) return;
-  const brk = getScheduledBreak(TITAN_BREAKS);
-  if (brk && !titanState.paused) titanPauseCycle(brk.label);
-  else if (!brk && titanState.paused && titanState.pauseLabel !== 'Paused') titanResumeCycle();
-}
-function titanStartBreakChecker() {
-  if (titanBreakCheckTimer) clearInterval(titanBreakCheckTimer);
-  titanBreakCheckTimer = setInterval(titanCheckBreaks, 15000);
-  titanCheckBreaks();
-}
-function titanStopBreakChecker() {
-  if (titanBreakCheckTimer) { clearInterval(titanBreakCheckTimer); titanBreakCheckTimer = null; }
-}
-
-// Day-boundary reset: if date changed, zero the cycle count
-function titanMaybeResetDay() {
-  const today = todayStr();
-  if (titanState.cycleDate !== today) {
-    titanState.cycleCount = 0;
-    titanState.cycleDate  = today;
-    titanState.lastCycleSeconds = null;
-  }
-}
-
-// ── Station timer helpers ────────────────────────────────────
-function pauseStationTimer(st) {
+// Pauses the 'active' timer WITHOUT changing stationStatus. Used by manual
+// line-level pause (not by break — break transitions status to 'break').
+function suspendActiveTimer(st) {
   if (st.stationStatus === 'active' && st.stationStartTime) {
     st.activeMs += Date.now() - st.stationStartTime;
     st.stationStartTime = null;
   }
 }
-function resumeStationTimer(st) {
+function resumeActiveTimer(st) {
   if (st.stationStatus === 'active' && !st.stationStartTime) {
     st.stationStartTime = Date.now();
   }
 }
-function effectiveElapsedMs() {
-  if (!state.running || !state.startTime) return 0;
-  let e = Date.now() - state.startTime - state.totalPausedMs;
-  if (state.paused && state.pauseStart) e -= (Date.now() - state.pauseStart);
+
+// ── Station lifecycle transitions ─────────────────────────────
+// Invariant: exactly one of (stationStartTime, holdSpanStart, breakSpanStart)
+// is non-null at any time, matching the current stationStatus.
+
+function cancelDoneFlash(st) {
+  if (st._doneTimeoutId) {
+    clearTimeout(st._doneTimeoutId);
+    st._doneTimeoutId = null;
+  }
+  st.done = false;
+  st.completedAt = null;
+}
+
+function resetPerCycleAccumulators(st) {
+  st.activeMs         = 0;
+  st.holdMs           = 0;
+  st.breakMs          = 0;
+  st.totalAndonPause  = 0;
+  st.stationStartTime = null;
+  st.holdSpanStart    = null;
+  st.breakSpanStart   = null;
+}
+
+// Close out whichever span is currently open and roll its elapsed ms into the
+// appropriate accumulator.
+function closeOpenSpan(st) {
+  const now = Date.now();
+  if (st.stationStatus === 'active' && st.stationStartTime) {
+    st.activeMs += now - st.stationStartTime;
+    st.stationStartTime = null;
+  } else if (st.stationStatus === 'hold' && st.holdSpanStart) {
+    st.holdMs += now - st.holdSpanStart;
+    st.holdSpanStart = null;
+  } else if (st.stationStatus === 'break' && st.breakSpanStart) {
+    st.breakMs += now - st.breakSpanStart;
+    st.breakSpanStart = null;
+  }
+}
+
+function stationStart(line, st) {
+  // Allowed from: idle (fresh cycle) or hold (resume).
+  if (st.stationStatus !== 'idle' && st.stationStatus !== 'hold') return false;
+  cancelDoneFlash(st);
+  if (st.stationStatus === 'idle') {
+    resetPerCycleAccumulators(st);
+  } else {
+    closeOpenSpan(st);  // roll closing hold span into holdMs
+  }
+  st.stationStatus    = 'active';
+  st.holdReason       = null;
+  st.stationStartTime = Date.now();
+  return true;
+}
+
+function stationHold(line, st, reason) {
+  if (st.stationStatus !== 'active') return false;
+  closeOpenSpan(st);
+  st.stationStatus = 'hold';
+  st.holdReason    = reason || HOLD_REASONS[0];
+  st.holdSpanStart = Date.now();
+  return true;
+}
+
+function stationDone(line, st) {
+  if (st.stationStatus !== 'active') return false;
+  closeOpenSpan(st);
+  st.stationCycleCount += 1;
+  st.lastCycleSeconds   = Math.round(st.activeMs / 1000);
+  // Log to Apollo Cycle Log BEFORE resetting — log reads the accumulators.
+  logStationCycle(line, st);
+  // Transient done flash for frontend compat.
+  st.done          = true;
+  st.completedAt   = st.lastCycleSeconds;
+  st.stationStatus = 'idle';
+  st._doneTimeoutId = setTimeout(() => {
+    cancelDoneFlash(st);
+    resetPerCycleAccumulators(st);
+    broadcastApolloState();
+  }, DONE_FLASH_MS);
+  return true;
+}
+
+// Transition an active/hold station into 'break' when break starts.
+function stationEnterBreak(st) {
+  if (st.stationStatus !== 'active' && st.stationStatus !== 'hold') return;
+  st.preBreakStatus = st.stationStatus;
+  closeOpenSpan(st);
+  st.stationStatus  = 'break';
+  st.breakSpanStart = Date.now();
+}
+// Transition a 'break' station back to its prior status when break ends.
+function stationExitBreak(st) {
+  if (st.stationStatus !== 'break') return;
+  closeOpenSpan(st);
+  const prior = st.preBreakStatus || 'active';
+  st.preBreakStatus = null;
+  if (prior === 'active') {
+    st.stationStatus    = 'active';
+    st.stationStartTime = Date.now();
+  } else { // was 'hold'
+    st.stationStatus = 'hold';
+    st.holdSpanStart = Date.now();
+    // holdReason preserved from before the break.
+  }
+}
+
+// ── Apollo pause / resume ────────────────────────────────────
+// Per spec decision (a): during breaks, line-level `paused` stays true so
+// existing frontend (index.html, worker.html) still shows its pause overlay.
+// Stations ALSO transition to 'break' status for per-cycle break-time logging.
+// Manual pauses (label='Paused') only suspend active timers without changing
+// station status.
+function apolloPauseCycle(label) {
+  const s = states.apollo;
+  if (!s.running || s.paused) return;
+  s.paused     = true;
+  s.pauseLabel = label;
+  s.pauseStart = Date.now();
+  const isBreak = label && label !== 'Paused';
+  s.stations.forEach(st => {
+    if (isBreak) stationEnterBreak(st);
+    else         suspendActiveTimer(st);
+  });
+  broadcastApolloState();
+}
+function apolloResumeCycle() {
+  const s = states.apollo;
+  if (!s.running || !s.paused) return;
+  s.totalPausedMs += Date.now() - s.pauseStart;
+  const wasBreak = s.pauseLabel && s.pauseLabel !== 'Paused';
+  s.paused     = false;
+  s.pauseLabel = null;
+  s.pauseStart = null;
+  s.stations.forEach(st => {
+    if (wasBreak) stationExitBreak(st);
+    else          resumeActiveTimer(st);
+  });
+  broadcastApolloState();
+}
+function apolloCheckBreaks() {
+  const s = states.apollo;
+  if (!s.running) return;
+  const brk = getScheduledBreak(SCHEDULED_BREAKS);
+  if (brk && !s.paused) apolloPauseCycle(brk.label);
+  else if (!brk && s.paused && s.pauseLabel !== 'Paused') apolloResumeCycle();
+}
+function apolloStartBreakChecker() {
+  const s = states.apollo;
+  if (s._breakCheckTimer) clearInterval(s._breakCheckTimer);
+  s._breakCheckTimer = setInterval(apolloCheckBreaks, 15000);
+  apolloCheckBreaks();
+}
+function apolloStopBreakChecker() {
+  const s = states.apollo;
+  if (s._breakCheckTimer) { clearInterval(s._breakCheckTimer); s._breakCheckTimer = null; }
+}
+
+// ── Titan pause / resume ─────────────────────────────────────
+function titanEffectiveElapsedMs() {
+  const t = states.titan;
+  if (!t.running || !t.startTime) return 0;
+  let e = Date.now() - t.startTime - t.totalPausedMs;
+  if (t.paused && t.pauseStart) e -= (Date.now() - t.pauseStart);
   return Math.max(0, e);
 }
+function titanPauseCycle(label) {
+  const t = states.titan;
+  if (!t.running || t.paused) return;
+  t.paused     = true;
+  t.pauseLabel = label;
+  t.pauseStart = Date.now();
+  broadcastTitanState();
+}
+function titanResumeCycle() {
+  const t = states.titan;
+  if (!t.running || !t.paused) return;
+  t.totalPausedMs += Date.now() - t.pauseStart;
+  t.paused     = false;
+  t.pauseLabel = null;
+  t.pauseStart = null;
+  broadcastTitanState();
+}
+function titanCheckBreaks() {
+  const t = states.titan;
+  if (!t.running) return;
+  const brk = getScheduledBreak(TITAN_BREAKS);
+  if (brk && !t.paused) titanPauseCycle(brk.label);
+  else if (!brk && t.paused && t.pauseLabel !== 'Paused') titanResumeCycle();
+}
+function titanStartBreakChecker() {
+  const t = states.titan;
+  if (t._breakCheckTimer) clearInterval(t._breakCheckTimer);
+  t._breakCheckTimer = setInterval(titanCheckBreaks, 15000);
+  titanCheckBreaks();
+}
+function titanStopBreakChecker() {
+  const t = states.titan;
+  if (t._breakCheckTimer) { clearInterval(t._breakCheckTimer); t._breakCheckTimer = null; }
+}
+function titanMaybeResetDay() {
+  const t = states.titan;
+  const today = todayStr();
+  if (t.cycleDate !== today) {
+    t.cycleCount       = 0;
+    t.cycleDate        = today;
+    t.lastCycleSeconds = null;
+  }
+}
+
+// ── Day boundary reset (runs every 60s) ──────────────────────
+function maybeResetApolloDay() {
+  const s = states.apollo;
+  const today = todayStr();
+  if (s.cycleDate === today) return;
+  console.log('Apollo day rollover — resetting station state');
+  s.cycleDate      = today;
+  s.lineCycleCount = 0;
+  s.stations.forEach(st => {
+    if (st._doneTimeoutId) { clearTimeout(st._doneTimeoutId); st._doneTimeoutId = null; }
+    st.stationCycleCount = 0;
+    st.lastCycleSeconds  = null;
+    st.stationStatus     = 'idle';
+    st.holdReason        = null;
+    st.activeMs          = 0;
+    st.holdMs            = 0;
+    st.breakMs           = 0;
+    st.totalAndonPause   = 0;
+    st.stationStartTime  = null;
+    st.holdSpanStart     = null;
+    st.breakSpanStart    = null;
+    st.preBreakStatus    = null;
+    st.done              = false;
+    st.completedAt       = null;
+    st.andon             = null;
+    st.andonTime         = null;
+    st.andonPauseStart   = null;
+    st.requests          = [];
+  });
+  broadcastApolloState();
+}
+function dayBoundaryCheck() {
+  titanMaybeResetDay();
+  maybeResetApolloDay();
+}
+setInterval(dayBoundaryCheck, 60 * 1000);
 
 // ── WebSocket client sets ────────────────────────────────────
 const apolloClients = new Set();
@@ -199,70 +466,25 @@ function broadcastApollo(msg) {
   const data = JSON.stringify(msg);
   apolloClients.forEach(c => { if (c.readyState === 1) c.send(data); });
 }
-function broadcastState() {
-  broadcastApollo({ type: 'state', state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS });
+function broadcastApolloState() {
+  broadcastApollo({
+    type: 'state',
+    state: serializeLine(states.apollo),
+    taktSeconds: APOLLO_TAKT_SECONDS,
+    holdReasons: HOLD_REASONS,
+  });
 }
 function broadcastRequests() {
   const msg = JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() });
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 function broadcastTitanState() {
-  const data = JSON.stringify({ type: 'titan-state', state: titanState, taktSeconds: TITAN_TAKT_SECONDS });
-  titanClients.forEach(c => { if (c.readyState === 1) c.send(data); });
-}
-
-// ── Pause / Resume ───────────────────────────────────────────
-function pauseCycle(label) {
-  if (!state.running || state.paused) return;
-  state.paused = true; state.pauseLabel = label; state.pauseStart = Date.now();
-  state.stations.forEach(st => pauseStationTimer(st));
-  if (autoEndTimer) { clearTimeout(autoEndTimer); autoEndTimer = null; }
-  broadcastState();
-}
-function resumeCycle() {
-  if (!state.running || !state.paused) return;
-  state.totalPausedMs += Date.now() - state.pauseStart;
-  state.paused = false; state.pauseLabel = null; state.pauseStart = null;
-  state.stations.forEach(st => resumeStationTimer(st));
-  broadcastState();
-}
-function checkBreaks() {
-  if (!state.running) return;
-  const brk = getScheduledBreak();
-  if (brk && !state.paused) pauseCycle(brk.label);
-  else if (!brk && state.paused && state.pauseLabel !== 'Paused') resumeCycle();
-}
-function startBreakChecker() {
-  if (breakCheckTimer) clearInterval(breakCheckTimer);
-  breakCheckTimer = setInterval(checkBreaks, 15000);
-  checkBreaks();
-}
-function stopBreakChecker() {
-  if (breakCheckTimer) { clearInterval(breakCheckTimer); breakCheckTimer = null; }
-}
-
-// ── End cycle ────────────────────────────────────────────────
-function endCycle() {
-  if (!state.running) return;
-  if (autoEndTimer) { clearTimeout(autoEndTimer); autoEndTimer = null; }
-  stopBreakChecker();
-  state.stations.forEach(st => pauseStationTimer(st));
-  state.running = false; state.paused = false;
-  state.pauseLabel = null; state.pauseStart = null;
-  state.cycleCount++;
-  const elapsed = Math.round(effectiveElapsedMs() / 1000);
-  broadcastState();
-  postToSheets({
-    cycle: state.cycleCount,
-    date: new Date().toLocaleDateString(),
-    time: new Date().toLocaleTimeString(),
-    elapsedSeconds: elapsed,
-    stations: state.stations.map(s => ({
-      id: s.id, name: s.name, type: s.type,
-      completedAt: s.completedAt,
-      activeSeconds: Math.round(s.activeMs / 1000),
-    })),
+  const data = JSON.stringify({
+    type: 'titan-state',
+    state: serializeLine(states.titan),
+    taktSeconds: TITAN_TAKT_SECONDS,
   });
+  titanClients.forEach(c => { if (c.readyState === 1) c.send(data); });
 }
 
 // ── Fetch with retry ─────────────────────────────────────────
@@ -348,32 +570,91 @@ async function postToSheets(payload) {
   } catch(e) { console.error('Sheets post failed:', e.message); }
 }
 
+// ── Format helpers for logs ──────────────────────────────────
+function fmtHMS(totalSec) {
+  const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  return hh + ':' + mm + ':' + ss;
+}
+
+// ── Apollo Cycle Log writer ──────────────────────────────────
+// One row per completed station cycle. Called from stationDone() BEFORE
+// per-cycle accumulators are reset.
+function logStationCycle(line, st) {
+  if (!LOCATIONS_URL) return;
+  if (line !== states.apollo) return;  // future lines (5b/5c) will extend this
+  const now          = Date.now();
+  const totalSpanMs  = st.activeMs + st.holdMs + st.breakMs + (st.totalAndonPause || 0);
+  const cycleStartMs = now - totalSpanMs;
+  const activeSec    = Math.round(st.activeMs / 1000);
+  const holdSec      = Math.round(st.holdMs / 1000);
+  const breakSec     = Math.round(st.breakMs / 1000);
+  const andonSec     = Math.round((st.totalAndonPause || 0) / 1000);
+
+  fetch(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:      'logStationCycle',
+      lineName:    'Apollo',
+      stationName: st.name,
+      cycleNumber: st.stationCycleCount,
+      cycleStart:  new Date(cycleStartMs).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
+      cycleEnd:    new Date(now).toLocaleString('en-US',          { timeZone: 'America/Chicago' }),
+      activeTime:  fmtHMS(activeSec),
+      holdTime:    fmtHMS(holdSec),
+      breakTime:   fmtHMS(breakSec),
+      andonTime:   fmtHMS(andonSec),
+    }),
+    redirect: 'follow',
+  }).then(r => r.json())
+    .then(d => console.log('Station cycle log:', d))
+    .catch(e => console.error('Station cycle log failed:', e.message));
+}
+
+// ── Line Cycle Log writer (scaffolded, unused in 5a) ─────────
+// TODO(PR 5c): wire to Skirting completion via completionStation config.
+// Kept here so the Apps Script handler has a matching client when 5c lands.
+// eslint-disable-next-line no-unused-vars
+function logLineCycle(lineName, cycleNumber, cycleStartMs, cycleEndMs, activeMs, taktSec) {
+  if (!LOCATIONS_URL) return;
+  const activeSec   = Math.round(activeMs / 1000);
+  const varianceSec = activeSec - taktSec;
+  const varSign     = varianceSec > 0 ? '+' : (varianceSec < 0 ? '-' : '');
+  const variance    = varSign + fmtHMS(Math.abs(varianceSec));
+  const compliance  = Math.abs(varianceSec) < 60 ? 'On Takt' : (varianceSec > 0 ? 'Over' : 'Under');
+  fetch(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:      'logLineCycle',
+      lineName:    lineName,
+      cycleNumber: cycleNumber,
+      cycleStart:  new Date(cycleStartMs).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
+      cycleEnd:    new Date(cycleEndMs).toLocaleString('en-US',   { timeZone: 'America/Chicago' }),
+      activeTime:  fmtHMS(activeSec),
+      taktTarget:  fmtHMS(taktSec),
+      variance:    variance,
+      compliance:  compliance,
+    }),
+    redirect: 'follow',
+  }).then(r => r.json())
+    .then(d => console.log('Line cycle log:', d))
+    .catch(e => console.error('Line cycle log failed:', e.message));
+}
+
 // ── Titan cycle logger ───────────────────────────────────────
-// Writes one row to the 'Titan Cycle Log' sheet per completed unit.
 function logTitanCycle(cycleStartMs, cycleEndMs, cycleCount, totalPausedMs) {
   if (!LOCATIONS_URL) return;
-  const activeMs = Math.max(0, cycleEndMs - cycleStartMs - (totalPausedMs || 0));
-  const activeSec = Math.round(activeMs / 1000);
-  const hh = String(Math.floor(activeSec / 3600)).padStart(2, '0');
-  const mm = String(Math.floor((activeSec % 3600) / 60)).padStart(2, '0');
-  const ss = String(activeSec % 60).padStart(2, '0');
-  const activeTime = hh + ':' + mm + ':' + ss;
-
-  const pauseSec = Math.round((totalPausedMs || 0) / 1000);
-  const ph = String(Math.floor(pauseSec / 3600)).padStart(2, '0');
-  const pm = String(Math.floor((pauseSec % 3600) / 60)).padStart(2, '0');
-  const ps = String(pauseSec % 60).padStart(2, '0');
-  const pauseTime = ph + ':' + pm + ':' + ps;
-
-  const taktSec = TITAN_TAKT_SECONDS;
+  const activeMs    = Math.max(0, cycleEndMs - cycleStartMs - (totalPausedMs || 0));
+  const activeSec   = Math.round(activeMs / 1000);
+  const pauseSec    = Math.round((totalPausedMs || 0) / 1000);
+  const taktSec     = TITAN_TAKT_SECONDS;
   const varianceSec = activeSec - taktSec;
-  const varSign = varianceSec > 0 ? '+' : (varianceSec < 0 ? '-' : '');
-  const absVar = Math.abs(varianceSec);
-  const vh = String(Math.floor(absVar / 3600)).padStart(2, '0');
-  const vm = String(Math.floor((absVar % 3600) / 60)).padStart(2, '0');
-  const vs = String(absVar % 60).padStart(2, '0');
-  const variance = varSign + vh + ':' + vm + ':' + vs;
-  const compliance = Math.abs(varianceSec) < 60 ? 'On Takt' : (varianceSec > 0 ? 'Over' : 'Under');
+  const varSign     = varianceSec > 0 ? '+' : (varianceSec < 0 ? '-' : '');
+  const variance    = varSign + fmtHMS(Math.abs(varianceSec));
+  const compliance  = Math.abs(varianceSec) < 60 ? 'On Takt' : (varianceSec > 0 ? 'Over' : 'Under');
 
   fetch(LOCATIONS_URL, {
     method: 'POST',
@@ -383,8 +664,8 @@ function logTitanCycle(cycleStartMs, cycleEndMs, cycleCount, totalPausedMs) {
       cycleNumber:  cycleCount,
       cycleStart:   new Date(cycleStartMs).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
       cycleEnd:     new Date(cycleEndMs).toLocaleString('en-US',   { timeZone: 'America/Chicago' }),
-      activeTime:   activeTime,
-      pauseTime:    pauseTime,
+      activeTime:   fmtHMS(activeSec),
+      pauseTime:    fmtHMS(pauseSec),
       taktTarget:   '02:00:00',
       variance:     variance,
       compliance:   compliance,
@@ -396,18 +677,12 @@ function logTitanCycle(cycleStartMs, cycleEndMs, cycleCount, totalPausedMs) {
 }
 
 // ── Request completion logger ────────────────────────────────
-// Writes a "Request Completed" row to the Apps Script transaction log with
-// submitted/completed timestamps and total elapsed time (HH:MM:SS).
-// outcome: 'fulfilled' | 'cancelled' | 'dismissed'
 function logRequestCompletion(req, outcome) {
   if (!LOCATIONS_URL) return;
   const completedAtMs = Date.now();
   const submittedAtMs = req.submittedAt || completedAtMs;
   const totalSec      = Math.max(0, Math.round((completedAtMs - submittedAtMs) / 1000));
-  const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-  const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-  const ss = String(totalSec % 60).padStart(2, '0');
-  const totalTime = hh + ':' + mm + ':' + ss;
+  const totalTime     = fmtHMS(totalSec);
 
   const submittedAtStr = new Date(submittedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
   const completedAtStr = new Date(completedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
@@ -456,8 +731,8 @@ async function postOrphanAssignment(partNum, partName, line, station) {
 }
 
 // ── REST endpoints ───────────────────────────────────────────
-app.get('/api/state',    (req, res) => res.json({ state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS }));
-app.get('/api/titan-state', (req, res) => res.json({ state: titanState, taktSeconds: TITAN_TAKT_SECONDS }));
+app.get('/api/state',    (req, res) => res.json({ state: serializeLine(states.apollo), taktSeconds: APOLLO_TAKT_SECONDS, holdReasons: HOLD_REASONS }));
+app.get('/api/titan-state', (req, res) => res.json({ state: serializeLine(states.titan), taktSeconds: TITAN_TAKT_SECONDS }));
 app.get('/api/requests', (req, res) => {
   res.json({ requests: getActiveRequestsWithPositions() });
 });
@@ -493,11 +768,11 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'recent-picks', recentPicks: recentlyFulfilled }));
   } else if (isTitan) {
     titanClients.add(ws);
-    ws.send(JSON.stringify({ type: 'titan-state', state: titanState, taktSeconds: TITAN_TAKT_SECONDS }));
+    ws.send(JSON.stringify({ type: 'titan-state', state: serializeLine(states.titan), taktSeconds: TITAN_TAKT_SECONDS }));
     ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
   } else {
     apolloClients.add(ws);
-    ws.send(JSON.stringify({ type: 'state', state, taktSeconds: TAKT_SECONDS, holdReasons: HOLD_REASONS }));
+    ws.send(JSON.stringify({ type: 'state', state: serializeLine(states.apollo), taktSeconds: APOLLO_TAKT_SECONDS, holdReasons: HOLD_REASONS }));
     ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
   }
 
@@ -514,14 +789,15 @@ wss.on('connection', (ws, req) => {
 
     // ── Titan: Start line ────────────────────────────────────
     if (msg.type === 'titan-start') {
-      if (titanState.running) return;
+      const t = states.titan;
+      if (t.running) return;
       titanMaybeResetDay();
-      titanState.running = true;
-      titanState.paused  = false;
-      titanState.pauseLabel = null;
-      titanState.pauseStart = null;
-      titanState.totalPausedMs = 0;
-      titanState.startTime = Date.now();
+      t.running       = true;
+      t.paused        = false;
+      t.pauseLabel    = null;
+      t.pauseStart    = null;
+      t.totalPausedMs = 0;
+      t.startTime     = Date.now();
       broadcastTitanState();
       titanStartBreakChecker();
       return;
@@ -529,114 +805,135 @@ wss.on('connection', (ws, req) => {
 
     // ── Titan: End line ──────────────────────────────────────
     if (msg.type === 'titan-end') {
-      if (!titanState.running) return;
+      const t = states.titan;
+      if (!t.running) return;
       titanStopBreakChecker();
-      titanState.running = false;
-      titanState.paused  = false;
-      titanState.pauseLabel = null;
-      titanState.pauseStart = null;
-      titanState.startTime = null;
+      t.running    = false;
+      t.paused     = false;
+      t.pauseLabel = null;
+      t.pauseStart = null;
+      t.startTime  = null;
       broadcastTitanState();
       return;
     }
 
     // ── Titan: Manual pause / resume ─────────────────────────
     if (msg.type === 'titan-pause') {
-      if (!titanState.running || titanState.paused) return;
+      const t = states.titan;
+      if (!t.running || t.paused) return;
       titanPauseCycle('Paused');
       return;
     }
     if (msg.type === 'titan-resume') {
-      if (!titanState.running || !titanState.paused) return;
-      if (titanState.pauseLabel !== 'Paused') return;  // break pauses auto-resume only
+      const t = states.titan;
+      if (!t.running || !t.paused) return;
+      if (t.pauseLabel !== 'Paused') return;  // break pauses auto-resume only
       titanResumeCycle();
       return;
     }
 
-    // ── Titan: Unit complete (counts a cycle, resets the clock) ──
+    // ── Titan: Unit complete ─────────────────────────────────
     if (msg.type === 'titan-unit-complete') {
-      if (!titanState.running || titanState.paused) return;
+      const t = states.titan;
+      if (!t.running || t.paused) return;
       titanMaybeResetDay();
-      const now = Date.now();
-      const cycleStartMs  = titanState.startTime;
+      const now           = Date.now();
+      const cycleStartMs  = t.startTime;
       const cycleEndMs    = now;
-      const totalPausedMs = titanState.totalPausedMs;
+      const totalPausedMs = t.totalPausedMs;
       const activeMs      = Math.max(0, cycleEndMs - cycleStartMs - totalPausedMs);
 
-      titanState.cycleCount += 1;
-      titanState.lastCycleSeconds = Math.round(activeMs / 1000);
-      // Reset for next cycle
-      titanState.startTime     = now;
-      titanState.totalPausedMs = 0;
-      titanState.pauseStart    = null;
+      t.cycleCount       += 1;
+      t.lastCycleSeconds  = Math.round(activeMs / 1000);
+      t.startTime         = now;
+      t.totalPausedMs     = 0;
+      t.pauseStart        = null;
       broadcastTitanState();
 
-      // Log the completed cycle to the Titan Cycle Log sheet
-      logTitanCycle(cycleStartMs, cycleEndMs, titanState.cycleCount, totalPausedMs);
+      logTitanCycle(cycleStartMs, cycleEndMs, t.cycleCount, totalPausedMs);
       return;
     }
 
-    // ── Start takt ───────────────────────────────────────────
+    // ── Apollo: Start line (open for the day) ────────────────
     if (msg.type === 'start') {
-      if (state.running) return;
-      const today = todayStr();
-      if (state.cycleDate !== today) { state.cycleCount = 0; state.cycleDate = today; }
-      state.running = true; state.paused = false;
-      state.pauseLabel = null; state.pauseStart = null; state.totalPausedMs = 0;
-      state.stations = resetStations();
-      const startTime = Date.now() + 100;
-      state.startTime = startTime;
-      state.stations.forEach(st => { st.stationStartTime = startTime; });
-      broadcastApollo({ type: 'start', startTime, taktSeconds: TAKT_SECONDS, stations: state.stations, cycleCount: state.cycleCount, holdReasons: HOLD_REASONS });
-      startBreakChecker();
+      const s = states.apollo;
+      if (s.running) return;
+      maybeResetApolloDay();  // belt-and-suspenders day reset
+      s.running       = true;
+      s.paused        = false;
+      s.pauseLabel    = null;
+      s.pauseStart    = null;
+      s.totalPausedMs = 0;
+      s.startTime     = Date.now();
+      // Do NOT reset per-station state here — stations keep their today counts.
+      // (Day rollover at midnight handles the reset.)
+      broadcastApollo({
+        type: 'start',
+        startTime:   s.startTime,
+        taktSeconds: APOLLO_TAKT_SECONDS,
+        stations:    serializeLine(s).stations,
+        cycleCount:  s.lineCycleCount,
+        holdReasons: HOLD_REASONS,
+      });
+      broadcastApolloState();
+      apolloStartBreakChecker();
     }
 
-    // ── Pause toggle ─────────────────────────────────────────
+    // ── Apollo: End line (close for the day) ─────────────────
+    if (msg.type === 'end') {
+      const s = states.apollo;
+      if (!s.running) return;
+      apolloStopBreakChecker();
+      // Close any open spans so accumulators are final. Do NOT log partial
+      // cycles — a mid-cycle Done is not a cycle. Preserve station status so
+      // end-of-day reporting can still read what each station was doing.
+      s.stations.forEach(st => closeOpenSpan(st));
+      s.running    = false;
+      s.paused     = false;
+      s.pauseLabel = null;
+      s.pauseStart = null;
+      broadcastApolloState();
+    }
+
+    // ── Apollo: Pause toggle (manual) ────────────────────────
     if (msg.type === 'pause') {
-      if (!state.running) return;
-      if (state.paused && state.pauseLabel === 'Paused') resumeCycle();
-      else if (!state.paused) pauseCycle('Paused');
+      const s = states.apollo;
+      if (!s.running) return;
+      if (s.paused && s.pauseLabel === 'Paused') apolloResumeCycle();
+      else if (!s.paused) apolloPauseCycle('Paused');
     }
 
     // ── Station start ────────────────────────────────────────
     if (msg.type === 'station-start') {
-      const st = state.stations.find(s => s.id === msg.stationId);
-      if (st && !st.done && state.running && !state.paused) {
-        st.stationStatus = 'active'; st.holdReason = null;
-        st.stationStartTime = Date.now();
-        broadcastState();
-      }
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
+      if (!st) return;
+      if (!s.running || s.paused) return;
+      if (stationStart(s, st)) broadcastApolloState();
     }
 
     // ── Station hold ─────────────────────────────────────────
     if (msg.type === 'station-hold') {
-      const st = state.stations.find(s => s.id === msg.stationId);
-      if (st && !st.done) {
-        pauseStationTimer(st);
-        st.stationStatus = 'hold';
-        st.holdReason = msg.reason || 'No operator assigned';
-        st.stationStartTime = null;
-        broadcastState();
-      }
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
+      if (!st) return;
+      if (stationHold(s, st, msg.reason)) broadcastApolloState();
     }
 
     // ── Station done ─────────────────────────────────────────
     if (msg.type === 'done') {
-      const st = state.stations.find(s => s.id === msg.stationId);
-      if (st && !st.done && state.running) {
-        pauseStationTimer(st);
-        st.stationStatus = 'hold'; st.done = true;
-        const andonMs = (st.totalAndonPause || 0) + (st.andonPauseStart ? Date.now() - st.andonPauseStart : 0);
-        st.completedAt = Math.round((effectiveElapsedMs() - andonMs) / 1000);
-        broadcastState();
-        if (state.stations.every(s => s.done)) endCycle();
-      }
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
+      if (!st) return;
+      if (!s.running) return;
+      if (stationDone(s, st)) broadcastApolloState();
     }
 
     // ── Inventory request ────────────────────────────────────
     if (msg.type === 'request') {
       console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority);
-      const stName = msg.station || (msg.stationId ? (state.stations.find(s => s.id === msg.stationId)?.name || null) : null);
+      const s      = states.apollo;
+      const stName = msg.station || (msg.stationId ? (s.stations.find(x => x.id === msg.stationId)?.name || null) : null);
       const loc    = lookupLocation(msg.partNum || '');
       const nowMs  = Date.now();
       const req = {
@@ -647,7 +944,7 @@ wss.on('connection', (ws, req) => {
         partName:        msg.partName || '',
         text:            msg.text     || '',
         qty:             (msg.qty !== undefined && msg.qty !== null) ? msg.qty : 1,
-        unit:            String(msg.unit || 'Part'),   // display-only: Part / Box / Pallet
+        unit:            String(msg.unit || 'Part'),
         qtyFulfilled:    0,
         pickedLocations: {},
         priority:        String(msg.priority || 'low'),
@@ -656,12 +953,12 @@ wss.on('connection', (ws, req) => {
         allLocations:    loc.allLocations,
         location:        loc.location,
         stockQty:        loc.quantity,
-        submittedAt:     nowMs,                        // epoch ms, for math / elapsed display
+        submittedAt:     nowMs,
         time:            new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         fulfilled:       false,
       };
       if (msg.stationId) {
-        const st = state.stations.find(s => s.id === msg.stationId);
+        const st = s.stations.find(x => x.id === msg.stationId);
         if (st) {
           st.requests = st.requests || [];
           st.requests.push({
@@ -673,7 +970,7 @@ wss.on('connection', (ws, req) => {
             unit: req.unit,
             priority: req.priority,
           });
-          broadcastState();
+          broadcastApolloState();
         }
       }
       allRequests.push(req);
@@ -682,8 +979,9 @@ wss.on('connection', (ws, req) => {
 
     // ── Dismiss ──────────────────────────────────────────────
     if (msg.type === 'dismiss') {
-      const st = state.stations.find(s => s.id === msg.stationId);
-      if (st) { st.requests = (st.requests || []).filter(r => r.id !== msg.reqId); broadcastState(); }
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
+      if (st) { st.requests = (st.requests || []).filter(r => r.id !== msg.reqId); broadcastApolloState(); }
       const req = allRequests.find(r => r.id === msg.reqId);
       if (req && !req.fulfilled) {
         req.fulfilled = true;
@@ -694,37 +992,43 @@ wss.on('connection', (ws, req) => {
 
     // ── Andon ────────────────────────────────────────────────
     if (msg.type === 'andon') {
-      const st = state.stations.find(s => s.id === msg.stationId);
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
       if (st && (msg.level === 'line-lead' || msg.level === 'floor-manager')) {
-        st.andon = msg.level;
+        st.andon     = msg.level;
         st.andonTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         st.andonPauseStart = Date.now();
-        pauseStationTimer(st);
-        broadcastState();
+        // Andon suspends the active timer but keeps stationStatus='active'.
+        // Matches pre-5a: operator is still assigned, just blocked. Andon time
+        // is tracked separately from hold time and accumulated in totalAndonPause.
+        if (st.stationStatus === 'active' && st.stationStartTime) {
+          st.activeMs += Date.now() - st.stationStartTime;
+          st.stationStartTime = null;
+        }
+        broadcastApolloState();
       }
     }
 
     // ── Andon clear ──────────────────────────────────────────
     if (msg.type === 'andon-clear') {
-      const st = state.stations.find(s => s.id === msg.stationId);
+      const s = states.apollo;
+      const st = s.stations.find(x => x.id === msg.stationId);
       if (st) {
         if (st.andonPauseStart) { st.totalAndonPause += Date.now() - st.andonPauseStart; st.andonPauseStart = null; }
         st.andon = null; st.andonTime = null;
-        if (st.stationStatus === 'active' && !state.paused) st.stationStartTime = Date.now();
-        broadcastState();
+        if (st.stationStatus === 'active' && !s.paused) st.stationStartTime = Date.now();
+        broadcastApolloState();
       }
     }
 
     // ── Fulfill (partial fulfillment supported) ───────────────
     if (msg.type === 'fulfill') {
+      const s   = states.apollo;
       const req = allRequests.find(r => r.id === msg.reqId);
       console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
       if (!req) return;
 
-      const location  = msg.location || '';
-      // If no location is supplied, treat as cancel regardless of qty — the only
-      // caller that sends fulfill is the picker (who always supplies a location)
-      // or a requester's Cancel button (which sends no location).
+      const location = msg.location || '';
       let pickedQty;
       if (!location) {
         pickedQty = 0;
@@ -736,19 +1040,17 @@ wss.on('connection', (ws, req) => {
       if (pickedQty === 0 && !location) {
         req.fulfilled = true;
         logRequestCompletion(req, 'cancelled');
-        state.stations.forEach(st => {
+        s.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== req.id);
         });
-        broadcastState();
+        broadcastApolloState();
         broadcastRequests();
         return;
       }
 
-      // Track per-location picks
       if (!req.pickedLocations) req.pickedLocations = {};
       if (location) req.pickedLocations[location] = (req.pickedLocations[location] || 0) + pickedQty;
 
-      // Accumulate fulfilled qty
       if (!req.qtyFulfilled) req.qtyFulfilled = 0;
       req.qtyFulfilled += pickedQty;
 
@@ -756,17 +1058,11 @@ wss.on('connection', (ws, req) => {
       const qtyRemaining = Math.max(0, qtyOriginal - req.qtyFulfilled);
       console.log(`Fulfill: req ${req.id} | picked ${pickedQty} from ${location} | fulfilled ${req.qtyFulfilled}/${qtyOriginal} | remaining ${qtyRemaining}`);
 
-      // Subtract from sheet
       if (LOCATIONS_URL && req.partNum && pickedQty > 0) {
-        // If this pick closes out the request, compute total time so the
-        // Transaction Log row captures it. Partial picks leave it blank.
         let totalTime = '';
         if (qtyRemaining <= 0 && req.submittedAt) {
           const totalSec = Math.max(0, Math.round((Date.now() - req.submittedAt) / 1000));
-          const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-          const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-          const ss = String(totalSec % 60).padStart(2, '0');
-          totalTime = hh + ':' + mm + ':' + ss;
+          totalTime = fmtHMS(totalSec);
         }
         fetch(LOCATIONS_URL, {
           method: 'POST',
@@ -806,13 +1102,8 @@ wss.on('connection', (ws, req) => {
           .catch(e => console.error('Subtract failed:', e.message));
       }
 
-      // Only close when fully fulfilled
       if (qtyRemaining <= 0) {
         req.fulfilled = true;
-        // Note: completion is already logged to the Transaction Log by the
-        // subtract/Pick row above (with priority/submittedAt/totalTime attached).
-
-        // Store in recently fulfilled (max 2, newest first)
         recentlyFulfilled.unshift({
           partNum:  req.partNum  || '',
           partName: req.partName || '',
@@ -823,18 +1114,16 @@ wss.on('connection', (ws, req) => {
         });
         if (recentlyFulfilled.length > 2) recentlyFulfilled.pop();
 
-        state.stations.forEach(st => {
+        s.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== req.id);
         });
-        broadcastState();
+        broadcastApolloState();
 
-        // Broadcast updated recent picks to all picker clients
         pickerClients.forEach(c => {
           if (c.readyState === 1) c.send(JSON.stringify({ type: 'recent-picks', recentPicks: recentlyFulfilled }));
         });
       }
 
-      // Always broadcast so picker card updates remaining qty
       broadcastRequests();
     }
 
@@ -869,7 +1158,6 @@ wss.on('connection', (ws, req) => {
       const { partNum, partName, fromLocation, toLocation, qty } = msg;
       console.log('Transfer:', partNum, fromLocation, '→', toLocation, 'qty:', qty);
 
-      // Step 1 — subtract from source
       const subtractRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -882,7 +1170,6 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
-      // Step 2 — add to destination
       const stowRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -895,13 +1182,11 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
-      // Update local cache
       const srcLoc = locationsCache.find(l => l.partNum.toLowerCase() === partNum.toLowerCase() && l.location.toLowerCase() === fromLocation.toLowerCase());
       if (srcLoc) srcLoc.quantity = String(subtractRes.newQty);
 
       await fetchLocations();
 
-      // Broadcast updated locations to picker clients
       pickerClients.forEach(c => {
         if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
       });
@@ -909,6 +1194,7 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'transfer-result', success: true, message: 'Transferred ' + qty + ' of ' + partNum + ' from ' + fromLocation + ' to ' + toLocation }));
       return;
     }
+
     if (msg.type === 'assign-orphan') {
       const { partNum, partName, line, station } = msg;
       console.log('assign-orphan received:', { partNum, line });
@@ -926,8 +1212,10 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'assign-orphan-result', success: result.success, partNum, line, station, message: result.message || result.error }));
     }
 
-    // ── Manual end takt ──────────────────────────────────────
-    if (msg.type === 'end') endCycle();
+    // NOTE: The old "all stations done => endCycle()" Apollo line-cycle trigger
+    // is removed. Apollo line cycles are no longer driven by station completion.
+    // PR 5c will reintroduce line-cycle completion via the Skirting station
+    // trigger and increment `states.apollo.lineCycleCount` at that point.
   });
 });
 
