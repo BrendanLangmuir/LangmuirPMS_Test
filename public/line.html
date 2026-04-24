@@ -272,9 +272,11 @@ function loadInventory() {
       allItems.sort(function(a, b) {
         return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' });
       });
-      document.getElementById('inv-loading').style.display = 'none';
-      document.getElementById('inv-form').style.display    = '';
-      renderParts('');
+      appendBundles(function() {
+        document.getElementById('inv-loading').style.display = 'none';
+        document.getElementById('inv-form').style.display    = '';
+        renderParts('');
+      });
       return;
     }
 
@@ -321,13 +323,34 @@ function loadInventory() {
       allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true });
     });
 
-    document.getElementById('inv-loading').style.display = 'none';
-    document.getElementById('inv-form').style.display    = '';
-    renderParts('');
+    appendBundles(function() {
+      document.getElementById('inv-loading').style.display = 'none';
+      document.getElementById('inv-form').style.display    = '';
+      renderParts('');
+    });
   }).catch(function(e){
     document.getElementById('inv-loading').textContent = 'Failed: '+e.message;
     document.getElementById('inv-form').style.display  = '';
   });
+}
+
+// Fetch bundles and append to allItems. Bundles work for any line.
+// Callback fires whether the fetch succeeds or fails (bundles are optional).
+function appendBundles(done) {
+  fetch('/api/bundles').then(function(r){ return r.json(); }).then(function(bd) {
+    if (bd && bd.success && Array.isArray(bd.bundles)) {
+      bd.bundles.forEach(function(b) {
+        allItems.push({
+          partNum:  '',
+          partName: b.name,
+          isBundle: true,
+          bundleName: b.name,
+          bundleChildren: b.children,
+        });
+      });
+    }
+    done();
+  }).catch(function(){ done(); });
 }
 
 function loadOrphans() {
@@ -365,19 +388,48 @@ function renderParts(q) {
   }
   list.innerHTML = filtered.slice(0,40).map(function(i){
     var pn = String(i.partNum||''), pa = String(i.partName||'');
-    var outTag = i.outOfStock ? '<div class="out-tag">OUT OF STOCK</div>' : '';
-    return '<div class="part-item" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')">'
-      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+outTag+'</div>';
+    var tag = '';
+    if (i.isBundle)        tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
+    else if (i.outOfStock) tag = '<div class="out-tag">OUT OF STOCK</div>';
+    var click, primary, secondary;
+    if (i.isBundle) {
+      click     = 'selectBundle(\''+esc(pa)+'\')';
+      primary   = esc(pa);
+      secondary = 'Bundle — multiple parts';
+    } else {
+      click     = 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')';
+      primary   = esc(pn);
+      secondary = esc(pa);
+    }
+    return '<div class="part-item" onclick="'+click+'">'
+      +'<div class="pn">'+primary+'</div><div class="pa">'+secondary+'</div>'+tag+'</div>';
   }).join('');
 }
 document.getElementById('part-search').addEventListener('input', function(){ renderParts(this.value); });
 
 function selectPart(pn, pa, isOut) {
-  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut };
+  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut, isBundle: false };
   document.getElementById('part-search').value = '';
   document.getElementById('parts-list').innerHTML = '';
   document.getElementById('selected-bar').style.display = 'block';
   document.getElementById('selected-bar-text').textContent = pn + ' — ' + pa;
+  document.getElementById('send-btn').disabled = false;
+  showStock();
+}
+function selectBundle(bundleName) {
+  var b = allItems.find(function(i){ return i.isBundle && i.bundleName === bundleName; });
+  selectedPart = {
+    partNum:  '',
+    partName: bundleName,
+    isBundle: true,
+    bundleName: bundleName,
+    bundleChildren: b ? b.bundleChildren : [],
+    outOfStock: false,
+  };
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+  document.getElementById('selected-bar').style.display = 'block';
+  document.getElementById('selected-bar-text').textContent = 'Bundle: ' + bundleName;
   document.getElementById('send-btn').disabled = false;
   showStock();
 }
@@ -395,6 +447,47 @@ function showStock() {
   var sEl = document.getElementById('stock-info');
   if (!selectedPart) { sEl.style.display='none'; return; }
   var qty  = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+
+  if (selectedPart.isBundle) {
+    // Compute complete-bundle total across all locations.
+    var children = selectedPart.bundleChildren || [];
+    var locs = window._locations || [];
+    var locSet = {};
+    children.forEach(function(c) {
+      locs.forEach(function(l) {
+        if (String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase()) locSet[l.location] = true;
+      });
+    });
+    var total = 0;
+    Object.keys(locSet).forEach(function(loc) {
+      var possible = Infinity;
+      for (var i = 0; i < children.length; i++) {
+        var c = children[i];
+        var r = locs.find(function(l){
+          return l.location === loc &&
+                 String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase();
+        });
+        var onHand = r ? (parseInt(r.quantity)||0) : 0;
+        var poss = Math.floor(onHand / c.qty);
+        if (poss < possible) possible = poss;
+      }
+      if (possible === Infinity) possible = 0;
+      total += possible;
+    });
+    sEl.style.display='';
+    if (total === 0) {
+      sEl.className='stock-info stock-out';
+      sEl.innerHTML='⚠ No complete bundles available — picker will see individual parts';
+    } else if (total < qty) {
+      sEl.className='stock-info stock-warn';
+      sEl.innerHTML='Low bundle stock: <strong>'+total+'</strong> complete bundle'+(total===1?'':'s')+' available';
+    } else {
+      sEl.className='stock-info stock-ok';
+      sEl.innerHTML='In Stock: <strong>'+total+'</strong> complete bundle'+(total===1?'':'s')+' available';
+    }
+    return;
+  }
+
   var locs = (window._locations||[]).filter(function(l){
     return String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase();
   });
@@ -414,6 +507,28 @@ document.getElementById('qty-input').addEventListener('input', showStock);
 
 document.getElementById('send-btn').addEventListener('click', function() {
   if (!selectedPart) return;
+
+  if (selectedPart.isBundle) {
+    var qty = Math.max(1, parseInt(document.getElementById('qty-input').value)||1);
+    ws.send(JSON.stringify({
+      type:       'request',
+      line:       lineName,
+      partNum:    '',
+      partName:   selectedPart.bundleName,
+      text:       'Bundle: ' + selectedPart.bundleName,
+      qty:        qty,
+      unit:       'Bundle',
+      priority:   priority,
+      isBundle:   true,
+      bundleName: selectedPart.bundleName,
+    }));
+    clearSelected();
+    document.getElementById('qty-input').value = '1';
+    document.getElementById('unit-select').value = 'Part';
+    showFlash('sent-flash', null);
+    return;
+  }
+
   var locs  = (window._locations||[]).filter(function(l){
     return String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase();
   });
