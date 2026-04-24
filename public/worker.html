@@ -292,9 +292,10 @@ async function loadInventory() {
 
     // Fetch bundles and append. A bundle appears in the dropdown with its
     // human-readable name in the partName slot (partNum is blank — bundles
-    // are identified by name).
+    // are identified by name). Filtered server-side to bundles assigned to
+    // Apollo (or unassigned / available everywhere).
     try {
-      const br = await fetch('/api/bundles');
+      const br = await fetch('/api/bundles?line=Apollo');
       const bd = await br.json();
       if (bd.success && Array.isArray(bd.bundles)) {
         bd.bundles.forEach(b => {
