@@ -290,6 +290,25 @@ async function loadInventory() {
       allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true });
     });
 
+    // Fetch bundles and append. A bundle appears in the dropdown with its
+    // human-readable name in the partName slot (partNum is blank — bundles
+    // are identified by name).
+    try {
+      const br = await fetch('/api/bundles');
+      const bd = await br.json();
+      if (bd.success && Array.isArray(bd.bundles)) {
+        bd.bundles.forEach(b => {
+          allItems.push({
+            partNum:  '',
+            partName: b.name,
+            isBundle: true,
+            bundleName: b.name,
+            bundleChildren: b.children,
+          });
+        });
+      }
+    } catch(e) { /* bundles are optional — ignore fetch errors */ }
+
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-form').style.display    = '';
   } catch(e) {
@@ -313,9 +332,16 @@ function renderParts(q) {
   }
   list.innerHTML = filtered.slice(0,40).map(i => {
     const pn = String(i.partNum||''), pa = String(i.partName||'');
-    const outTag = i.outOfStock ? '<div class="out-tag">OUT OF STOCK</div>' : '';
-    return '<div class="part-item" onclick="selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')">'
-      +'<div class="pn">'+esc(pn)+'</div><div class="pa">'+esc(pa)+'</div>'+outTag+'</div>';
+    let tag = '';
+    if (i.isBundle)      tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
+    else if (i.outOfStock) tag = '<div class="out-tag">OUT OF STOCK</div>';
+    const click = i.isBundle
+      ? 'selectBundle(\''+esc(pa)+'\')'
+      : 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')';
+    const primary = i.isBundle ? esc(pa) : esc(pn);
+    const secondary = i.isBundle ? 'Bundle — multiple parts' : esc(pa);
+    return '<div class="part-item" onclick="'+click+'">'
+      +'<div class="pn">'+primary+'</div><div class="pa">'+secondary+'</div>'+tag+'</div>';
   }).join('');
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -332,11 +358,29 @@ setTimeout(() => {
 }, 0);
 
 function selectPart(pn, pa, isOut) {
-  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut };
+  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut, isBundle: false };
   document.getElementById('part-search').value = '';
   document.getElementById('parts-list').innerHTML = '';
   document.getElementById('selected-bar').style.display = 'block';
   document.getElementById('selected-bar-text').textContent = pn + ' — ' + pa;
+  document.getElementById('send-btn').disabled = false;
+  showStock();
+}
+function selectBundle(bundleName) {
+  // Find the bundle entry in allItems (it's there since loadInventory pushed it)
+  const b = allItems.find(i => i.isBundle && i.bundleName === bundleName);
+  selectedPart = {
+    partNum:  '',
+    partName: bundleName,
+    isBundle: true,
+    bundleName: bundleName,
+    bundleChildren: b ? b.bundleChildren : [],
+    outOfStock: false,
+  };
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+  document.getElementById('selected-bar').style.display = 'block';
+  document.getElementById('selected-bar-text').textContent = 'Bundle: ' + bundleName;
   document.getElementById('send-btn').disabled = false;
   showStock();
 }
@@ -351,6 +395,44 @@ function clearSelected() {
 function showStock() {
   const sEl = document.getElementById('stock-info');
   if (!selectedPart) { sEl.style.display='none'; return; }
+  if (selectedPart.isBundle) {
+    // For bundles we'd need to compute complete-bundle counts from locations.
+    // Quick approximation using locationsList + bundleChildren:
+    const children = selectedPart.bundleChildren || [];
+    if (!children.length) {
+      sEl.style.display='block';
+      sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+      sEl.textContent='⚠ Bundle has no children defined';
+      return;
+    }
+    const locSet = new Set();
+    children.forEach(c => {
+      locationsList.forEach(l => {
+        if (String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase()) locSet.add(l.location);
+      });
+    });
+    let total = 0;
+    for (const loc of locSet) {
+      let possible = Infinity;
+      for (const c of children) {
+        const r = locationsList.find(l => l.location === loc && String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase());
+        const onHand = r ? (parseInt(r.quantity)||0) : 0;
+        const poss = Math.floor(onHand / c.qty);
+        if (poss < possible) possible = poss;
+      }
+      if (possible === Infinity) possible = 0;
+      total += possible;
+    }
+    sEl.style.display='block';
+    if (total === 0) {
+      sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+      sEl.textContent='⚠ No complete bundles — picker will see individual child parts';
+    } else {
+      sEl.style.background='#1e1535'; sEl.style.border='1px solid #6d28d9'; sEl.style.color='#a78bfa';
+      sEl.textContent='✓ ' + total + ' complete bundle' + (total===1?'':'s') + ' available';
+    }
+    return;
+  }
   const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
   const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
   if (!locs.length || total === 0) {
@@ -449,12 +531,36 @@ function holdStation()   { const sel=document.getElementById('hold-reason-sel');
 
 function sendRequest() {
   if (!selectedPart) return;
+  const stName = state?.stations?.find(s => s.id === stationId)?.name || '';
+
+  if (selectedPart.isBundle) {
+    const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
+    ws.send(JSON.stringify({
+      type:       'request',
+      stationId,
+      partNum:    '',
+      partName:   selectedPart.bundleName,
+      text:       'Bundle: ' + selectedPart.bundleName,
+      qty:        qty,
+      unit:       'Bundle',
+      priority:   priority,
+      line:       'Apollo',
+      station:    stName,
+      isBundle:   true,
+      bundleName: selectedPart.bundleName,
+    }));
+    clearSelected();
+    document.getElementById('qty-input').value = '1';
+    document.getElementById('unit-select').value = 'Part';
+    showFlash('sent-flash', null);
+    return;
+  }
+
   const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
   const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
   const isOut = !locs.length || total === 0;
   const qty   = isOut ? 0 : Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
   const unit  = document.getElementById('unit-select').value || 'Part';
-  const stName = state?.stations?.find(s => s.id === stationId)?.name || '';
   ws.send(JSON.stringify({
     type:     'request',
     stationId,
