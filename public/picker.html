@@ -448,64 +448,111 @@ function renderQueue() {
     var qtyNeeded    = r.qty || 1;
     var qtyFulfilled = r.qtyFulfilled || 0;
     var qtyRemaining = Math.max(0, qtyNeeded - qtyFulfilled);
-    var locs         = getLocsForPart(r.partNum);
-    var totalQty     = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
     var pri          = r.priority || 'low';
     var pickedLocs   = r.pickedLocations || {};
     var remainingHtml = '';
     if (qtyFulfilled > 0 && qtyRemaining > 0)  remainingHtml = '<span class="remaining-badge partial">'+qtyRemaining+' remaining</span>';
     else if (qtyFulfilled > 0 && qtyRemaining === 0) remainingHtml = '<span class="remaining-badge done">✓ Fulfilled</span>';
     var isEscalation = (r.qty || 1) === 0;
-    var locHtml = isEscalation
-      ? '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
-      : locs.length ? locs.map(function(l) {
-      var lq = parseInt(l.quantity) || 0;
-      var alreadyPicked = pickedLocs[l.location] || 0;
-      var isExhausted   = lq === 0 && alreadyPicked > 0;
-      var key    = pickKey++;
-      var adjKey = r.id + '|' + l.location;
-      var defaultQty = Math.min(qtyRemaining, lq);
-      if (defaultQty < 1 && !isExhausted) defaultQty = qtyRemaining;
-      if (isExhausted) defaultQty = 0;
-      var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
-      if (isExhausted) initQty = 0;
-      pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: lq, exhausted: isExhausted };
-      var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' already picked from this location</div>' : '';
-      if (isExhausted) {
-        return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 in stock</span></div>'+
-          '<div class="loc-pick-row"><span class="pick-label">Exhausted</span><button class="adj-btn" disabled>−</button>'+
-          '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="0" disabled>'+
-          '<button class="adj-btn" disabled>+</button><button class="pick-btn exhausted-btn">Picked</button></div>'+pickedNote+'</div>';
+    var locHtml = '';
+    var totalQty = 0;
+    var locsLen  = 0;
+
+    // ── Bundle branch: render complete-bundle counts per location ──
+    if (r.isBundle) {
+      var bLocs = r.allLocations || [];
+      totalQty = bLocs.reduce(function(s,l){ return s + (parseInt(l.completeBundles||l.quantity)||0); }, 0);
+      locsLen  = bLocs.length;
+      if (!bLocs.length || totalQty === 0) {
+        locHtml = '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;">⚠ No complete bundles available — check individual parts</div>';
+      } else {
+        locHtml = bLocs.map(function(l) {
+          var available = parseInt(l.completeBundles || l.quantity) || 0;
+          if (available === 0) {
+            var missing = l.limitingChild ? ' (missing '+esc(l.limitingChild)+')' : '';
+            return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 complete bundles'+missing+'</span></div></div>';
+          }
+          var key    = pickKey++;
+          var adjKey = r.id + '|' + l.location;
+          var defaultQty = Math.min(qtyRemaining, available);
+          var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
+          pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: available, exhausted: false };
+          var alreadyPicked = pickedLocs[l.location] || 0;
+          var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' bundle'+(alreadyPicked===1?'':'s')+' already picked from this location</div>' : '';
+          return '<div class="loc-row" style="border-left:3px solid #6d28d9"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
+            '<span class="loc-qty-txt '+(available < qtyRemaining?'low':'ok')+'">'+(available < qtyRemaining?'⚠ ':'')+available+' complete bundle'+(available===1?'':'s')+'</span></div>'+
+            '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
+            '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
+            '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+available+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
+            '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
+            '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
+        }).join('');
       }
-      return '<div class="loc-row"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
-        '<span class="loc-qty-txt '+(lq < qtyRemaining?'low':'ok')+'">'+(lq < qtyRemaining?'⚠ ':'')+lq+' in stock</span></div>'+
-        '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
-        '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
-        '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
-        '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
-        '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
-    }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
+    } else {
+      // ── Regular-part branch (unchanged) ──
+      var locs = getLocsForPart(r.partNum);
+      totalQty = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
+      locsLen  = locs.length;
+      locHtml = isEscalation
+        ? '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
+        : locs.length ? locs.map(function(l) {
+        var lq = parseInt(l.quantity) || 0;
+        var alreadyPicked = pickedLocs[l.location] || 0;
+        var isExhausted   = lq === 0 && alreadyPicked > 0;
+        var key    = pickKey++;
+        var adjKey = r.id + '|' + l.location;
+        var defaultQty = Math.min(qtyRemaining, lq);
+        if (defaultQty < 1 && !isExhausted) defaultQty = qtyRemaining;
+        if (isExhausted) defaultQty = 0;
+        var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
+        if (isExhausted) initQty = 0;
+        pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: lq, exhausted: isExhausted };
+        var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' already picked from this location</div>' : '';
+        if (isExhausted) {
+          return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 in stock</span></div>'+
+            '<div class="loc-pick-row"><span class="pick-label">Exhausted</span><button class="adj-btn" disabled>−</button>'+
+            '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="0" disabled>'+
+            '<button class="adj-btn" disabled>+</button><button class="pick-btn exhausted-btn">Picked</button></div>'+pickedNote+'</div>';
+        }
+        return '<div class="loc-row"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
+          '<span class="loc-qty-txt '+(lq < qtyRemaining?'low':'ok')+'">'+(lq < qtyRemaining?'⚠ ':'')+lq+' in stock</span></div>'+
+          '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
+          '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
+          '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
+          '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
+          '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
+      }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
+    }
+
     var escalationBadge = isEscalation ? '<span class="escalation-badge">Out of Stock</span>' : '';
-    var unitLabel = r.unit && r.unit !== 'Part' ? ' ' + r.unit + (qtyNeeded > 1 ? 's' : '') : '';
+    var bundleBadge = r.isBundle ? '<span class="pri-badge" style="background:#1e1535;color:#a78bfa">BUNDLE</span>' : '';
+    var unitLabel = r.isBundle
+      ? (' Bundle' + (qtyNeeded > 1 ? 's' : ''))
+      : (r.unit && r.unit !== 'Part' ? ' ' + r.unit + (qtyNeeded > 1 ? 's' : '') : '');
     var elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'">'+fmtElapsed(r.submittedAt)+'</span>' : '';
     var posHtml = r.queuePosition ? '<span class="req-queue-pos">#'+r.queuePosition+'</span>' : '';
+    var partDisplay = r.isBundle
+      ? esc(r.bundleName || r.partName || '')
+      : esc(r.partName || r.text || '');
+    var totalLabel = r.isBundle ? 'Total complete bundles' : 'Warehouse total';
     return '<div class="req-card">'+
       '<div class="req-card-header">'+
         posHtml+
         '<span class="line-tag '+lineClass(r.line)+'">'+esc(r.line)+'</span>'+
         (r.station ? '<span class="req-station">'+esc(r.station)+'</span>' : '')+
         '<span class="pri-badge '+pri+'">'+pri+'</span>'+
+        bundleBadge+
         escalationBadge+
         '<span class="req-time">'+r.time+'</span>'+
         elapsedHtml+
       '</div>'+
       '<div class="req-body">'+
-        '<div class="req-part">'+esc(r.partName || r.text || '')+'</div>'+
-        (r.partNum ? '<div class="req-partnum">'+esc(r.partNum)+'</div>' : '')+
+        '<div class="req-part">'+partDisplay+'</div>'+
+        (!r.isBundle && r.partNum ? '<div class="req-partnum">'+esc(r.partNum)+'</div>' : '')+
         '<div class="req-meta">'+
           '<span class="qty-badge">Qty needed: '+qtyNeeded+unitLabel+'</span>'+
           remainingHtml+
-          (locs.length ? '<span class="stock-info">Warehouse total: <span>'+totalQty+'</span></span>' : '')+
+          (locsLen ? '<span class="stock-info">'+totalLabel+': <span>'+totalQty+'</span></span>' : '')+
         '</div>'+
         '<div class="loc-section">'+locHtml+'</div>'+
       '</div></div>';
@@ -537,7 +584,8 @@ window.allStowParts = [];
 Promise.all([
   fetch('/api/bom').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
   fetch('/api/locations').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
-  fetch('/api/orphans').then(function(r){ return r.json(); }).catch(function(){ return {}; })
+  fetch('/api/orphans').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/bundles').then(function(r){ return r.json(); }).catch(function(){ return {}; })
 ]).then(function(results) {
   var seen = {}, combined = [];
   function addParts(arr) {
@@ -553,6 +601,20 @@ Promise.all([
   addParts(results[1].locations);
   addParts(results[2].orphanParts);
   combined.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
+
+  // Append bundles at the end. Bundle entries are identified by isBundle=true.
+  if (results[3] && Array.isArray(results[3].bundles)) {
+    results[3].bundles.forEach(function(b) {
+      combined.push({
+        partNum:  '',
+        partName: b.name,
+        isBundle: true,
+        bundleName: b.name,
+        bundleChildren: b.children,
+      });
+    });
+  }
+
   window.allStowParts = combined;
   console.log('Stow parts ready:', window.allStowParts.length);
 });
@@ -562,7 +624,7 @@ document.getElementById('stow-search').addEventListener('input', function() {
   var resultsEl = document.getElementById('stow-results');
   if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
   var results = (window.allStowParts || []).filter(function(i) {
-    return i.partNum.toLowerCase().includes(q.toLowerCase()) || i.partName.toLowerCase().includes(q.toLowerCase());
+    return (i.partNum||'').toLowerCase().includes(q.toLowerCase()) || (i.partName||'').toLowerCase().includes(q.toLowerCase());
   }).slice(0, 20);
   if (!results.length) {
     resultsEl.style.display = 'block';
@@ -571,13 +633,17 @@ document.getElementById('stow-search').addEventListener('input', function() {
   }
   resultsEl.style.display = 'block';
   resultsEl.innerHTML = results.map(function(i) {
+    if (i.isBundle) {
+      return '<div class="stow-result-item" onclick="selectStowBundle(\''+esc(i.bundleName)+'\')">' +
+        '<div class="stow-result-pn" style="color:#a78bfa">BUNDLE</div><div class="stow-result-pa">'+esc(i.bundleName)+'</div></div>';
+    }
     return '<div class="stow-result-item" onclick="selectStowPart(\''+esc(i.partNum)+'\',\''+esc(i.partName)+'\')">' +
       '<div class="stow-result-pn">'+esc(i.partNum)+'</div><div class="stow-result-pa">'+esc(i.partName)+'</div></div>';
   }).join('');
 });
 
 function selectStowPart(pn, pa) {
-  stowSelected = { partNum: pn, partName: pa };
+  stowSelected = { partNum: pn, partName: pa, isBundle: false };
   document.getElementById('stow-search').value = '';
   document.getElementById('stow-results').style.display = 'none';
   document.getElementById('stow-selected').style.display = 'block';
@@ -602,6 +668,36 @@ function selectStowPart(pn, pa) {
   }
 }
 
+function selectStowBundle(bundleName) {
+  var b = (window.allStowParts || []).find(function(x){ return x.isBundle && x.bundleName === bundleName; });
+  if (!b) return;
+  stowSelected = {
+    partNum:  '',
+    partName: bundleName,
+    isBundle: true,
+    bundleName: bundleName,
+    bundleChildren: b.bundleChildren,
+  };
+  document.getElementById('stow-search').value = '';
+  document.getElementById('stow-results').style.display = 'none';
+  document.getElementById('stow-selected').style.display = 'block';
+  document.getElementById('stow-sel-pn').textContent = 'BUNDLE';
+  document.getElementById('stow-sel-pa').textContent = bundleName;
+
+  // Show what a single bundle contains as the "existing locations" area
+  var existEl = document.getElementById('existing-locs');
+  var listEl  = document.getElementById('existing-locs-list');
+  existEl.style.display = 'block';
+  var childRows = (b.bundleChildren || []).map(function(c) {
+    return '<div class="existing-loc-row">'+
+      '<span class="existing-loc-code">'+esc(c.partNum)+'</span>'+
+      '<span class="existing-loc-qty">×'+c.qty+' per bundle</span>'+
+    '</div>';
+  }).join('');
+  listEl.innerHTML = '<div style="font-size:10px;color:#6b7280;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Contents per bundle</div>' +
+    (childRows || '<div style="font-size:12px;color:#4b5563;font-style:italic;">No children defined</div>');
+}
+
 function clearStowPart() {
   stowSelected = null;
   document.getElementById('stow-selected').style.display = 'none';
@@ -621,7 +717,22 @@ function stowPart() {
   if (!location)     { showResult(false, 'Please enter a shelf location'); return; }
   var btn = document.getElementById('stow-btn');
   btn.disabled = true; btn.textContent = 'Stowing...';
-  ws.send(JSON.stringify({ type: 'stow', location: location, partNum: stowSelected.partNum, partName: stowSelected.partName, qty: qty }));
+  if (stowSelected.isBundle) {
+    ws.send(JSON.stringify({
+      type:       'stow',
+      location:   location,
+      bundleName: stowSelected.bundleName,
+      qty:        qty,
+    }));
+  } else {
+    ws.send(JSON.stringify({
+      type:     'stow',
+      location: location,
+      partNum:  stowSelected.partNum,
+      partName: stowSelected.partName,
+      qty:      qty,
+    }));
+  }
   setTimeout(function() {
     if (btn.disabled) { btn.disabled = false; btn.textContent = '📥 Stow Part'; showResult(false, 'No response — check connection'); }
   }, 8000);
@@ -693,9 +804,10 @@ function renderTransferResults(q) {
     seen[key] = true; matches.push({ partNum: pn, partName: pa });
   });
   (window.allStowParts || []).forEach(function(p) {
-    var key = p.partNum.toLowerCase();
-    if (seen[key]) return;
-    if (!key.includes(ql) && !p.partName.toLowerCase().includes(ql)) return;
+    if (p.isBundle) return;  // bundles handled separately below
+    var key = (p.partNum||'').toLowerCase();
+    if (!key || seen[key]) return;
+    if (!key.includes(ql) && !(p.partName||'').toLowerCase().includes(ql)) return;
     seen[key] = true; matches.push({ partNum: p.partNum, partName: p.partName });
   });
 
