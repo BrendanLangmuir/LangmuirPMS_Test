@@ -334,10 +334,12 @@ function loadInventory() {
   });
 }
 
-// Fetch bundles and append to allItems. Bundles work for any line.
+// Fetch bundles and append to allItems. Filtered server-side to bundles
+// assigned to the current line (or unassigned / available everywhere).
 // Callback fires whether the fetch succeeds or fails (bundles are optional).
 function appendBundles(done) {
-  fetch('/api/bundles').then(function(r){ return r.json(); }).then(function(bd) {
+  var url = '/api/bundles?line=' + encodeURIComponent(lineName);
+  fetch(url).then(function(r){ return r.json(); }).then(function(bd) {
     if (bd && bd.success && Array.isArray(bd.bundles)) {
       bd.bundles.forEach(function(b) {
         allItems.push({
