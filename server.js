@@ -807,7 +807,20 @@ app.get('/api/recent-picks', (req, res) => {
   res.json({ success: true, recentPicks: recentlyFulfilled });
 });
 app.get('/api/orphans',    (req, res) => res.json({ success: true, orphanParts: orphanPartsCache, orphanAssignments: orphanAssignCache, allLines: ALL_LINES }));
-app.get('/api/bundles',    (req, res) => res.json({ success: true, bundles: bundlesCache }));
+// Optional `line` query param filters bundles to those available on that line.
+// A bundle with an empty assignedLines list is considered available on every line.
+// `?line=Apollo` → returns bundles assigned to Apollo OR with no assignment.
+// No param or unknown line → returns all bundles (backward compatible).
+app.get('/api/bundles', (req, res) => {
+  const line = String(req.query.line || '').trim().toLowerCase();
+  if (!line) return res.json({ success: true, bundles: bundlesCache });
+  const filtered = bundlesCache.filter(b => {
+    const assigned = Array.isArray(b.assignedLines) ? b.assignedLines : [];
+    if (!assigned.length) return true;  // unassigned → available everywhere
+    return assigned.some(a => String(a).toLowerCase() === line);
+  });
+  res.json({ success: true, bundles: filtered });
+});
 app.get('/api/bundle-locations/:name', (req, res) => {
   const bundle = lookupBundle(req.params.name);
   if (!bundle) return res.json({ success: false, error: 'Bundle not found: ' + req.params.name });
