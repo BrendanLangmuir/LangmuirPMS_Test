@@ -125,16 +125,17 @@ function newApolloStations() {
 
 let states = {
   apollo: {
-    taktSeconds:    APOLLO_TAKT_SECONDS,
-    lineCycleCount: 0,
-    cycleDate:      todayStr(),
-    running:        false,
-    paused:         false,
-    pauseLabel:     null,
-    pauseStart:     null,
-    totalPausedMs:  0,
-    startTime:      null,            // when the line was opened today
-    stations:       newApolloStations(),
+    taktSeconds:      APOLLO_TAKT_SECONDS,
+    lineCycleCount:   0,
+    cycleDate:        todayStr(),
+    running:          false,
+    paused:           false,
+    pauseLabel:       null,
+    pauseStart:       null,
+    totalPausedMs:    0,
+    startTime:        null,            // when the line was opened today
+    lastCycleSeconds: null,            // active time of most-recent line cycle (5b)
+    stations:         newApolloStations(),
     _breakCheckTimer: null,
   },
   titan: {
@@ -414,8 +415,9 @@ function maybeResetApolloDay() {
   const today = todayStr();
   if (s.cycleDate === today) return;
   console.log('Apollo day rollover — resetting station state');
-  s.cycleDate      = today;
-  s.lineCycleCount = 0;
+  s.cycleDate        = today;
+  s.lineCycleCount   = 0;
+  s.lastCycleSeconds = null;
   s.stations.forEach(st => {
     if (st._doneTimeoutId) { clearTimeout(st._doneTimeoutId); st._doneTimeoutId = null; }
     st.stationCycleCount = 0;
@@ -521,6 +523,7 @@ setInterval(fetchLocations, 5 * 60 * 1000);
 let inventoryCache    = null;
 let orphanPartsCache  = [];
 let orphanAssignCache = {};
+let bundlesCache      = [];   // [{name, children: [{partNum, qty}]}]
 
 async function fetchInventory() {
   if (!LOCATIONS_URL) return;
@@ -529,14 +532,69 @@ async function fetchInventory() {
     inventoryCache    = d;
     orphanPartsCache  = d.orphanParts      || [];
     orphanAssignCache = d.orphanAssignments || {};
+    bundlesCache      = d.bundles           || [];
     console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups,',
-      (d.bomList || []).length, 'BOM parts,', orphanPartsCache.length, 'orphans');
+      (d.bomList || []).length, 'BOM parts,', orphanPartsCache.length, 'orphans,',
+      bundlesCache.length, 'bundles');
   } else if (!d) {
     console.error('Inventory fetch failed after retries');
   }
 }
 fetchInventory();
 setInterval(fetchInventory, 10 * 60 * 1000);
+
+// ── Bundle lookup ────────────────────────────────────────────
+// Find a bundle by name (case-insensitive). Returns definition or null.
+function lookupBundle(name) {
+  if (!name) return null;
+  const n = String(name).toLowerCase();
+  return bundlesCache.find(b => b.name.toLowerCase() === n) || null;
+}
+
+// For a given bundle, compute how many complete bundles can be picked from
+// each location. Returns [{location, completeBundles, limitingChild}] sorted
+// most-complete first. Locations that are missing any child return 0 with
+// the name of the missing child recorded.
+function computeBundleLocations(bundle) {
+  if (!bundle || !bundle.children.length) return [];
+  // Collect every location that has at least one child of this bundle, so we
+  // can then ask "how many complete sets?" at each.
+  const locSet = new Set();
+  for (const child of bundle.children) {
+    const childPn = child.partNum.toLowerCase();
+    for (const l of locationsCache) {
+      if (l.partNum.toLowerCase() === childPn) locSet.add(l.location);
+    }
+  }
+  const results = [];
+  for (const loc of locSet) {
+    let maxBundles   = Infinity;
+    let limitingChild = null;
+    const childQtys  = [];
+    for (const child of bundle.children) {
+      const row = locationsCache.find(l =>
+        l.location === loc &&
+        l.partNum.toLowerCase() === child.partNum.toLowerCase()
+      );
+      const onHand = row ? (parseInt(row.quantity) || 0) : 0;
+      const possible = Math.floor(onHand / child.qty);
+      childQtys.push({ partNum: child.partNum, perBundle: child.qty, onHand });
+      if (possible < maxBundles) {
+        maxBundles    = possible;
+        limitingChild = child.partNum;
+      }
+    }
+    if (maxBundles === Infinity) maxBundles = 0;
+    results.push({ location: loc, completeBundles: maxBundles, limitingChild, children: childQtys });
+  }
+  results.sort((a, b) => b.completeBundles - a.completeBundles);
+  return results;
+}
+
+// Find any bundle request's totalQty (for display): total across all locations.
+function totalCompleteBundles(bundle) {
+  return computeBundleLocations(bundle).reduce((sum, loc) => sum + loc.completeBundles, 0);
+}
 
 // ── Location lookup ──────────────────────────────────────────
 function lookupLocation(partNum) {
@@ -613,10 +671,9 @@ function logStationCycle(line, st) {
     .catch(e => console.error('Station cycle log failed:', e.message));
 }
 
-// ── Line Cycle Log writer (scaffolded, unused in 5a) ─────────
-// TODO(PR 5c): wire to Skirting completion via completionStation config.
-// Kept here so the Apps Script handler has a matching client when 5c lands.
-// eslint-disable-next-line no-unused-vars
+// ── Line Cycle Log writer ────────────────────────────────────
+// PR 5b: called from the manual apollo-unit-complete handler as a stopgap.
+// PR 5c will replace the caller with Skirting completion.
 function logLineCycle(lineName, cycleNumber, cycleStartMs, cycleEndMs, activeMs, taktSec) {
   if (!LOCATIONS_URL) return;
   const activeSec   = Math.round(activeMs / 1000);
@@ -750,6 +807,12 @@ app.get('/api/recent-picks', (req, res) => {
   res.json({ success: true, recentPicks: recentlyFulfilled });
 });
 app.get('/api/orphans',    (req, res) => res.json({ success: true, orphanParts: orphanPartsCache, orphanAssignments: orphanAssignCache, allLines: ALL_LINES }));
+app.get('/api/bundles',    (req, res) => res.json({ success: true, bundles: bundlesCache }));
+app.get('/api/bundle-locations/:name', (req, res) => {
+  const bundle = lookupBundle(req.params.name);
+  if (!bundle) return res.json({ success: false, error: 'Bundle not found: ' + req.params.name });
+  res.json({ success: true, bundle: bundle, locations: computeBundleLocations(bundle) });
+});
 app.get('/api/refresh-locations', async (req, res) => {
   await fetchLocations();
   await fetchInventory();
@@ -903,6 +966,34 @@ wss.on('connection', (ws, req) => {
       else if (!s.paused) apolloPauseCycle('Paused');
     }
 
+    // ── Apollo: Manual unit complete (PR 5b stopgap) ─────────
+    // Increments the line cycle counter and resets the takt clock. This is
+    // a temporary manual trigger until PR 5c wires Skirting station Done
+    // as the automatic line-cycle trigger. Mirrors Titan's unit-complete
+    // handler exactly. Does NOT touch station state — stations keep their
+    // own independent cycles from 5a.
+    if (msg.type === 'apollo-unit-complete') {
+      const s = states.apollo;
+      if (!s.running || s.paused) return;
+      maybeResetApolloDay();
+      const now           = Date.now();
+      const cycleStartMs  = s.startTime;
+      const cycleEndMs    = now;
+      const totalPausedMs = s.totalPausedMs;
+      const activeMs      = Math.max(0, cycleEndMs - cycleStartMs - totalPausedMs);
+
+      s.lineCycleCount    += 1;
+      s.lastCycleSeconds   = Math.round(activeMs / 1000);
+      s.startTime          = now;
+      s.totalPausedMs      = 0;
+      s.pauseStart         = null;
+      broadcastApolloState();
+
+      logLineCycle('Apollo', s.lineCycleCount, cycleStartMs, cycleEndMs,
+                   activeMs, APOLLO_TAKT_SECONDS);
+      return;
+    }
+
     // ── Station start ────────────────────────────────────────
     if (msg.type === 'station-start') {
       const s = states.apollo;
@@ -934,7 +1025,39 @@ wss.on('connection', (ws, req) => {
       console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority);
       const s      = states.apollo;
       const stName = msg.station || (msg.stationId ? (s.stations.find(x => x.id === msg.stationId)?.name || null) : null);
-      const loc    = lookupLocation(msg.partNum || '');
+
+      // Detect if this is a bundle request. msg.isBundle is set by the client,
+      // but we also fall back to looking up partNum/partName against the bundle
+      // cache to be defensive. Bundles don't live in Locations so the regular
+      // lookupLocation would return '—' for them.
+      const bundleHint = msg.isBundle || msg.bundleName || null;
+      const bundle = bundleHint
+        ? lookupBundle(bundleHint === true ? (msg.partName || msg.partNum) : bundleHint)
+        : lookupBundle(msg.partName || msg.partNum);
+      const isBundle = !!bundle;
+
+      let loc;
+      if (isBundle) {
+        const bLocs = computeBundleLocations(bundle);
+        const total = bLocs.reduce((sum, l) => sum + l.completeBundles, 0);
+        loc = {
+          location:     bLocs[0] ? bLocs[0].location : '—',
+          quantity:     bLocs[0] ? String(bLocs[0].completeBundles) : '—',
+          totalQty:     String(total),
+          // For bundles, `allLocations` carries complete-bundle counts per location
+          // rather than raw child qty. Picker reads these directly.
+          allLocations: bLocs.map(l => ({
+            location:        l.location,
+            quantity:        String(l.completeBundles),
+            completeBundles: l.completeBundles,
+            limitingChild:   l.limitingChild,
+            children:        l.children,
+          })),
+        };
+      } else {
+        loc = lookupLocation(msg.partNum || '');
+      }
+
       const nowMs  = Date.now();
       const req = {
         id:              nextReqId++,
@@ -956,6 +1079,10 @@ wss.on('connection', (ws, req) => {
         submittedAt:     nowMs,
         time:            new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         fulfilled:       false,
+        // Bundle fields — only set if this is a bundle request.
+        isBundle:        isBundle,
+        bundleName:      isBundle ? bundle.name : null,
+        bundleChildren:  isBundle ? bundle.children.map(c => ({ partNum: c.partNum, qty: c.qty })) : null,
       };
       if (msg.stationId) {
         const st = s.stations.find(x => x.id === msg.stationId);
@@ -969,6 +1096,8 @@ wss.on('connection', (ws, req) => {
             qty: req.qty,
             unit: req.unit,
             priority: req.priority,
+            isBundle: isBundle,
+            bundleName: req.bundleName,
           });
           broadcastApolloState();
         }
@@ -1021,11 +1150,11 @@ wss.on('connection', (ws, req) => {
       }
     }
 
-    // ── Fulfill (partial fulfillment supported) ───────────────
+    // ── Fulfill (partial fulfillment supported; bundle-aware) ──
     if (msg.type === 'fulfill') {
       const s   = states.apollo;
       const req = allRequests.find(r => r.id === msg.reqId);
-      console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty });
+      console.log('Fulfill received:', { reqId: msg.reqId, location: msg.location, partNum: req?.partNum, qty: msg.qty, isBundle: req?.isBundle });
       if (!req) return;
 
       const location = msg.location || '';
@@ -1058,59 +1187,104 @@ wss.on('connection', (ws, req) => {
       const qtyRemaining = Math.max(0, qtyOriginal - req.qtyFulfilled);
       console.log(`Fulfill: req ${req.id} | picked ${pickedQty} from ${location} | fulfilled ${req.qtyFulfilled}/${qtyOriginal} | remaining ${qtyRemaining}`);
 
-      if (LOCATIONS_URL && req.partNum && pickedQty > 0) {
+      // ── Subtract from sheet ───────────────────────────────
+      // Regular part: one subtract call for the part.
+      // Bundle: one subtract call PER child, expanded by pickedQty * perBundle qty.
+      if (LOCATIONS_URL && pickedQty > 0) {
         let totalTime = '';
         if (qtyRemaining <= 0 && req.submittedAt) {
           const totalSec = Math.max(0, Math.round((Date.now() - req.submittedAt) / 1000));
           totalTime = fmtHMS(totalSec);
         }
-        fetch(LOCATIONS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action:      'subtract',
-            partNum:     req.partNum  || '',
-            partName:    req.partName || '',
-            location:    location,
-            qty:         pickedQty,
-            line:        req.line     || '',
-            priority:    req.priority || '',
-            submittedAt: req.submittedAt ? new Date(req.submittedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : '',
-            totalTime:   totalTime,
-          }),
-          redirect: 'follow',
-        }).then(r => r.json())
-          .then(d => {
-            console.log('Qty subtracted:', d);
+        const submittedAtStr = req.submittedAt ? new Date(req.submittedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : '';
+
+        const subtractOne = async (childPartNum, childQty, bundleName) => {
+          try {
+            const r = await fetch(LOCATIONS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action:      'subtract',
+                partNum:     childPartNum,
+                partName:    '',
+                location:    location,
+                qty:         childQty,
+                line:        req.line     || '',
+                priority:    req.priority || '',
+                submittedAt: submittedAtStr,
+                totalTime:   totalTime,
+                bundleName:  bundleName || '',
+              }),
+              redirect: 'follow',
+            });
+            const d = await r.json();
+            console.log('Qty subtracted' + (bundleName ? ' (bundle ' + bundleName + ')' : '') + ':', d);
             if (d.success && d.newQty !== undefined) {
-              const loc = locationsCache.find(l =>
+              const cacheLoc = locationsCache.find(l =>
+                l.partNum.toLowerCase()  === String(childPartNum).toLowerCase() &&
+                l.location.toLowerCase() === location.toLowerCase()
+              );
+              if (cacheLoc) cacheLoc.quantity = String(d.newQty);
+            }
+          } catch(e) {
+            console.error('Subtract failed for ' + childPartNum + ':', e.message);
+          }
+        };
+
+        (async () => {
+          if (req.isBundle && req.bundleChildren && req.bundleChildren.length) {
+            // Expand: each bundle picked = children[i].qty units of children[i].partNum
+            for (const child of req.bundleChildren) {
+              const totalChildQty = pickedQty * child.qty;
+              await subtractOne(child.partNum, totalChildQty, req.bundleName);
+            }
+          } else if (req.partNum) {
+            await subtractOne(req.partNum, pickedQty, null);
+          }
+          // Keep request.allLocations in sync for display: for regular parts,
+          // update the specific location's quantity; for bundles, recompute
+          // complete-bundle counts from the now-updated locationsCache.
+          if (req.isBundle) {
+            const bDef = lookupBundle(req.bundleName);
+            if (bDef) {
+              const fresh = computeBundleLocations(bDef);
+              req.allLocations = fresh.map(l => ({
+                location:        l.location,
+                quantity:        String(l.completeBundles),
+                completeBundles: l.completeBundles,
+                limitingChild:   l.limitingChild,
+                children:        l.children,
+              }));
+            }
+          } else {
+            const reqLoc = req.allLocations && req.allLocations.find(l =>
+              l.location.toLowerCase() === location.toLowerCase()
+            );
+            if (reqLoc) {
+              const cacheLoc = locationsCache.find(l =>
                 l.partNum.toLowerCase()  === (req.partNum || '').toLowerCase() &&
                 l.location.toLowerCase() === location.toLowerCase()
               );
-              if (loc) {
-                loc.quantity = String(d.newQty);
-                const reqLoc = req.allLocations && req.allLocations.find(l =>
-                  l.location.toLowerCase() === location.toLowerCase()
-                );
-                if (reqLoc) reqLoc.quantity = String(d.newQty);
-              }
-              pickerClients.forEach(c => {
-                if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
-              });
+              if (cacheLoc) reqLoc.quantity = cacheLoc.quantity;
             }
-          })
-          .catch(e => console.error('Subtract failed:', e.message));
+          }
+          pickerClients.forEach(c => {
+            if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
+          });
+          broadcastRequests();
+        })();
       }
 
       if (qtyRemaining <= 0) {
         req.fulfilled = true;
         recentlyFulfilled.unshift({
-          partNum:  req.partNum  || '',
-          partName: req.partName || '',
+          partNum:  req.isBundle ? '' : (req.partNum || ''),
+          partName: req.isBundle ? req.bundleName : (req.partName || ''),
           qty:      req.qty      || 1,
           location: location,
           line:     req.line     || '',
           time:     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          isBundle: !!req.isBundle,
         });
         if (recentlyFulfilled.length > 2) recentlyFulfilled.pop();
 
@@ -1127,35 +1301,135 @@ wss.on('connection', (ws, req) => {
       broadcastRequests();
     }
 
-    // ── Stow ─────────────────────────────────────────────────
+    // ── Stow (bundle-aware) ──────────────────────────────────
+    // Regular: stow N units of partNum at location.
+    // Bundle:  if msg.bundleName is set, stow N bundles = for each child,
+    //          stow (N × child.qty) units at location. Each child is a
+    //          separate Apps Script call, reported as "Stow (Bundle Name)"
+    //          in Transaction Log.
     if (msg.type === 'stow') {
       if (!LOCATIONS_URL) return;
-      fetch(LOCATIONS_URL, {
+
+      const stowOne = (partNum, partName, qty, bundleName) => fetch(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action:   'stow',
-          location: msg.location || '',
-          partNum:  msg.partNum  || '',
-          partName: msg.partName || '',
-          qty:      msg.qty      || 1,
-          line:     msg.line     || '',
-          station:  msg.station  || '',
+          action:     'stow',
+          location:   msg.location || '',
+          partNum:    partNum,
+          partName:   partName || '',
+          qty:        qty,
+          line:       msg.line     || '',
+          station:    msg.station  || '',
+          bundleName: bundleName || '',
         }),
         redirect: 'follow',
-      }).then(r => r.json())
-        .then(d => {
-          console.log('Stow response:', d);
-          if (d.success) { fetchLocations(); fetchInventory(); }
-          ws.send(JSON.stringify({ type: 'stow-result', success: d.success, message: d.message || d.error }));
-        })
-        .catch(e => ws.send(JSON.stringify({ type: 'stow-result', success: false, message: e.message })));
+      }).then(r => r.json());
+
+      (async () => {
+        try {
+          if (msg.bundleName) {
+            const bundle = lookupBundle(msg.bundleName);
+            if (!bundle) {
+              ws.send(JSON.stringify({ type: 'stow-result', success: false, message: 'Bundle not found: ' + msg.bundleName }));
+              return;
+            }
+            const bundleQty = parseInt(msg.qty) || 1;
+            if (bundleQty < 1) {
+              ws.send(JSON.stringify({ type: 'stow-result', success: false, message: 'Bundle stow qty must be a positive integer' }));
+              return;
+            }
+            const results = [];
+            for (const child of bundle.children) {
+              const total = bundleQty * child.qty;
+              const d = await stowOne(child.partNum, '', total, bundle.name);
+              console.log('Stow response (bundle child ' + child.partNum + '):', d);
+              results.push(d);
+              if (!d.success) break;  // stop on first failure
+            }
+            const allOk = results.every(d => d.success);
+            if (allOk) { fetchLocations(); fetchInventory(); }
+            ws.send(JSON.stringify({
+              type:    'stow-result',
+              success: allOk,
+              message: allOk
+                ? ('Stowed ' + bundleQty + ' × ' + bundle.name + ' at ' + (msg.location || ''))
+                : ('Partial failure — ' + results.filter(d=>!d.success).length + ' of ' + bundle.children.length + ' child stows failed. Check sheet manually.'),
+            }));
+          } else {
+            const d = await stowOne(msg.partNum || '', msg.partName || '', msg.qty || 1, null);
+            console.log('Stow response:', d);
+            if (d.success) { fetchLocations(); fetchInventory(); }
+            ws.send(JSON.stringify({ type: 'stow-result', success: d.success, message: d.message || d.error }));
+          }
+        } catch(e) {
+          ws.send(JSON.stringify({ type: 'stow-result', success: false, message: e.message }));
+        }
+      })();
     }
 
-    // ── Transfer ──────────────────────────────────────────────
+    // ── Transfer (bundle-aware) ──────────────────────────────
+    // Regular: subtract from fromLocation, stow at toLocation (N units of partNum).
+    // Bundle:  subtract each child × bundleQty from fromLocation, stow each child ×
+    //          bundleQty at toLocation. Sequential: on first failure, reports a
+    //          partial-transfer message and stops. Same Transaction Log tagging
+    //          as bundle pick/stow.
     if (msg.type === 'transfer') {
       if (!LOCATIONS_URL) return;
-      const { partNum, partName, fromLocation, toLocation, qty } = msg;
+      const { partNum, partName, fromLocation, toLocation, qty, bundleName } = msg;
+
+      if (bundleName) {
+        const bundle = lookupBundle(bundleName);
+        if (!bundle) {
+          ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Bundle not found: ' + bundleName }));
+          return;
+        }
+        const bundleQty = parseInt(qty) || 1;
+        if (bundleQty < 1) {
+          ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Bundle transfer qty must be a positive integer' }));
+          return;
+        }
+        console.log('Transfer bundle:', bundle.name, 'x' + bundleQty, fromLocation, '→', toLocation);
+
+        let failedAt = null;
+        for (const child of bundle.children) {
+          const total = bundleQty * child.qty;
+          const sr = await fetchWithRetry(LOCATIONS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'subtract', partNum: child.partNum, partName: '', location: fromLocation, qty: total, line: '', station: '', bundleName: bundle.name }),
+            redirect: 'follow',
+          });
+          if (!sr || !sr.success) {
+            failedAt = child.partNum + ' (subtract from ' + fromLocation + ')';
+            break;
+          }
+          const st = await fetchWithRetry(LOCATIONS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'stow', partNum: child.partNum, partName: '', location: toLocation, qty: total, line: '', station: '', bundleName: bundle.name }),
+            redirect: 'follow',
+          });
+          if (!st || !st.success) {
+            failedAt = child.partNum + ' (stow at ' + toLocation + ')';
+            break;
+          }
+        }
+
+        await fetchLocations();
+        pickerClients.forEach(c => {
+          if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
+        });
+
+        if (failedAt) {
+          ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Bundle transfer partially failed at ' + failedAt + ' — check sheet manually' }));
+        } else {
+          ws.send(JSON.stringify({ type: 'transfer-result', success: true, message: 'Transferred ' + bundleQty + ' × ' + bundle.name + ' from ' + fromLocation + ' to ' + toLocation }));
+        }
+        return;
+      }
+
+      // ── Regular (non-bundle) transfer ─────────────────────
       console.log('Transfer:', partNum, fromLocation, '→', toLocation, 'qty:', qty);
 
       const subtractRes = await fetchWithRetry(LOCATIONS_URL, {
