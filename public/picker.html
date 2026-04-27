@@ -306,6 +306,8 @@ var stowSelected  = null;
 var allStowParts  = [];
 var inventoryData = {};
 var orphanData    = {};
+var epicorOnHand  = {};       // {partNumLower: qty} from Epicor BAQ
+var epicorLastRefresh = null;
 
 // ── Request update handler ────────────────────────────────────
 // Structure preserved so we can add notification sound later (e.g. in a
@@ -364,11 +366,49 @@ setInterval(loadLocations, 30000);
 
 // Load full inventory for search tab
 fetch('/api/inventory').then(function(r){return r.json();}).then(function(d){
-  if (d.success) { inventoryData = d.inventory || {}; }
+  if (d.success) {
+    inventoryData = d.inventory || {};
+    epicorOnHand = d.epicorOnHand || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
+    renderQueue();
+  }
 }).catch(function(){});
 fetch('/api/orphans').then(function(r){return r.json();}).then(function(d){
   if (d.success) { orphanData = d; }
 }).catch(function(){});
+
+// 60s independent Epicor poll. Cheaper than re-fetching the full inventory;
+// updates the on-hand map in place and re-renders the queue so pick cards
+// reflect fresh data.
+function pollEpicor() {
+  fetch('/api/epicor-onhand').then(function(r){ return r.json(); }).then(function(d) {
+    if (d && d.success) {
+      epicorOnHand = d.onHand || {};
+      epicorLastRefresh = d.lastRefresh || null;
+      renderQueue();
+      // If a part is currently selected on stow/transfer, refresh that view too
+      if (stowSelected && !stowSelected.isBundle) refreshStowEpicor();
+    }
+  }).catch(function(){});
+}
+setInterval(pollEpicor, 60000);
+
+// Returns formatted string for display in the "Factory on-hand" line.
+function epicorLabel(partNum) {
+  if (!partNum) return '—';
+  var v = epicorOnHand[String(partNum).toLowerCase()];
+  if (v === undefined) return '—';
+  var n = Number(v);
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+// Update the on-hand display in the stow panel without rebuilding the whole UI.
+function refreshStowEpicor() {
+  var el = document.getElementById('stow-epicor');
+  if (el && stowSelected && !stowSelected.isBundle) {
+    el.textContent = 'Factory on-hand: ' + epicorLabel(stowSelected.partNum);
+  }
+}
 
 // ── Tabs ──────────────────────────────────────────────────────
 function showTab(tab) {
@@ -535,6 +575,9 @@ function renderQueue() {
       ? esc(r.bundleName || r.partName || '')
       : esc(r.partName || r.text || '');
     var totalLabel = r.isBundle ? 'Total complete bundles' : 'Warehouse total';
+    var epicorBadge = (!r.isBundle && r.partNum)
+      ? '<span class="stock-info">Factory on-hand: <span>'+epicorLabel(r.partNum)+'</span></span>'
+      : '';
     return '<div class="req-card">'+
       '<div class="req-card-header">'+
         posHtml+
@@ -553,6 +596,7 @@ function renderQueue() {
           '<span class="qty-badge">Qty needed: '+qtyNeeded+unitLabel+'</span>'+
           remainingHtml+
           (locsLen ? '<span class="stock-info">'+totalLabel+': <span>'+totalQty+'</span></span>' : '')+
+          epicorBadge+
         '</div>'+
         '<div class="loc-section">'+locHtml+'</div>'+
       '</div></div>';
@@ -650,13 +694,14 @@ function selectStowPart(pn, pa) {
   document.getElementById('stow-sel-pn').textContent = pn;
   document.getElementById('stow-sel-pa').textContent = pa;
 
-  // Show existing locations for this part
+  // Show existing locations for this part, with Factory on-hand banner above
   var locs = locationsData.filter(function(l) { return l.partNum.toLowerCase() === pn.toLowerCase(); });
   var existEl = document.getElementById('existing-locs');
   var listEl  = document.getElementById('existing-locs-list');
+  var epicorBanner = '<div id="stow-epicor" style="font-size:11px;font-weight:600;color:#9ca3af;padding:4px 0 8px;letter-spacing:0.04em;">Factory on-hand: '+epicorLabel(pn)+'</div>';
   if (locs.length) {
     existEl.style.display = 'block';
-    listEl.innerHTML = locs.map(function(l) {
+    listEl.innerHTML = epicorBanner + locs.map(function(l) {
       return '<div class="existing-loc-row">'+
         '<span class="existing-loc-code">'+esc(l.location)+'</span>'+
         '<span class="existing-loc-qty">'+l.quantity+' in stock</span>'+
@@ -664,7 +709,7 @@ function selectStowPart(pn, pa) {
     }).join('');
   } else {
     existEl.style.display = 'block';
-    listEl.innerHTML = '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:4px 0;">No existing locations on file</div>';
+    listEl.innerHTML = epicorBanner + '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:4px 0;">No existing locations on file</div>';
   }
 }
 
@@ -855,6 +900,7 @@ function renderTransferResults(q) {
       '</div>'+
       '<div class="transfer-result-body">'+
         '<div class="transfer-lines">'+lineTags+'</div>'+
+        '<div style="font-size:11px;font-weight:600;color:#9ca3af;margin:4px 0 6px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#fff">'+epicorLabel(m.partNum)+'</span></div>'+
         locRows+
         (locs.length > 1 ? '<div class="transfer-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
       '</div>'+
