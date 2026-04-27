@@ -524,6 +524,8 @@ let inventoryCache    = null;
 let orphanPartsCache  = [];
 let orphanAssignCache = {};
 let bundlesCache      = [];   // [{name, children: [{partNum, qty}]}]
+let epicorCache       = {};   // { partNumLower: qtyOnHand } from Epicor BAQ
+let epicorLastRefresh = null; // ISO timestamp from Refresh_Log!B1
 
 async function fetchInventory() {
   if (!LOCATIONS_URL) return;
@@ -533,15 +535,44 @@ async function fetchInventory() {
     orphanPartsCache  = d.orphanParts      || [];
     orphanAssignCache = d.orphanAssignments || {};
     bundlesCache      = d.bundles           || [];
+    epicorCache       = d.epicorOnHand      || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
     console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups,',
       (d.bomList || []).length, 'BOM parts,', orphanPartsCache.length, 'orphans,',
-      bundlesCache.length, 'bundles');
+      bundlesCache.length, 'bundles,', Object.keys(epicorCache).length, 'Epicor parts');
   } else if (!d) {
     console.error('Inventory fetch failed after retries');
   }
 }
 fetchInventory();
 setInterval(fetchInventory, 10 * 60 * 1000);
+
+// Epicor on-hand refreshes every minute (separate lightweight endpoint).
+// Apps Script's doGet?epicorOnly=1 just reads BAQ_Data, skipping the heavier
+// Locations/BOM/Bundles work. Keeps execution-time cost minimal.
+async function fetchEpicorOnly() {
+  if (!LOCATIONS_URL) return;
+  // Apps Script web apps don't easily route by query param without server code,
+  // so the contract is: this URL still hits doGet, but we look at the response
+  // and only update the Epicor fields. Safe even if doGet always returns the
+  // full payload — we just ignore everything else.
+  // To use a dedicated lighter endpoint, add ?epicorOnly=1 here AND have
+  // doGet(e) check e.parameter.epicorOnly and short-circuit.
+  const url = LOCATIONS_URL + (LOCATIONS_URL.includes('?') ? '&' : '?') + 'epicorOnly=1';
+  const d = await fetchWithRetry(url, { redirect: 'follow' });
+  if (d && d.success) {
+    if (d.epicorOnHand) {
+      epicorCache = d.epicorOnHand;
+      epicorLastRefresh = d.epicorLastRefresh || null;
+      // Also patch into inventoryCache so /api/inventory reflects fresh data
+      if (inventoryCache) {
+        inventoryCache.epicorOnHand = d.epicorOnHand;
+        inventoryCache.epicorLastRefresh = d.epicorLastRefresh;
+      }
+    }
+  }
+}
+setInterval(fetchEpicorOnly, 60 * 1000);
 
 // ── Bundle lookup ────────────────────────────────────────────
 // Find a bundle by name (case-insensitive). Returns definition or null.
@@ -830,6 +861,18 @@ app.get('/api/refresh-locations', async (req, res) => {
   await fetchLocations();
   await fetchInventory();
   res.json({ success: true, count: locationsCache.length });
+});
+
+// Epicor factory-wide on-hand. Lightweight — served from server cache.
+// `/api/epicor-onhand` returns the full map plus last-refresh ISO timestamp.
+// `/api/epicor-onhand/:partNum` returns just one part's qty (or null).
+app.get('/api/epicor-onhand', (req, res) => {
+  res.json({ success: true, onHand: epicorCache, lastRefresh: epicorLastRefresh });
+});
+app.get('/api/epicor-onhand/:partNum', (req, res) => {
+  const pn = String(req.params.partNum || '').toLowerCase();
+  const qty = epicorCache[pn];
+  res.json({ success: true, partNum: req.params.partNum, qty: qty === undefined ? null : qty, lastRefresh: epicorLastRefresh });
 });
 
 // ── WebSocket ────────────────────────────────────────────────
