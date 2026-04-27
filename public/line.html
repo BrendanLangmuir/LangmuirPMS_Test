@@ -194,6 +194,8 @@ var selectedPart   = null;
 var selectedOrphan = null;
 var priority  = 'low';
 var oPriority = 'low';
+var epicorOnHand = {};       // {partNumLower: qty} from Epicor BAQ
+var epicorLastRefresh = null;
 
 // ── Line switcher ─────────────────────────────────────────────
 var sw = document.getElementById('line-switcher');
@@ -249,6 +251,8 @@ function loadInventory() {
   fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
     if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
     window._locations = d.locations || [];
+    epicorOnHand = d.epicorOnHand || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
     var inv       = d.inventory || {};
     var lineUpper = lineName.toUpperCase();
     var isApollo   = lineUpper === 'APOLLO';
@@ -365,6 +369,27 @@ function loadOrphans() {
   }).catch(function(){});
 }
 loadInventory();
+
+// Independent 60s Epicor poll. Lighter than re-fetching the full inventory.
+function pollEpicor() {
+  fetch('/api/epicor-onhand').then(function(r){ return r.json(); }).then(function(d) {
+    if (d && d.success) {
+      epicorOnHand = d.onHand || {};
+      epicorLastRefresh = d.lastRefresh || null;
+    }
+  }).catch(function(){});
+}
+setInterval(pollEpicor, 60000);
+
+// Returns {qty: number|null, label: 'XX'|'—'} for a given part.
+function epicorLookup(partNum) {
+  if (!partNum) return { qty: null, label: '—' };
+  var v = epicorOnHand[String(partNum).toLowerCase()];
+  if (v === undefined) return { qty: null, label: '—' };
+  var n = Number(v);
+  var label = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return { qty: n, label: label };
+}
 
 // ── Priority buttons ──────────────────────────────────────────
 document.querySelectorAll('#pri-row .pri-btn').forEach(function(btn) {
@@ -494,15 +519,17 @@ function showStock() {
     return String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase();
   });
   var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+  var epicor = epicorLookup(selectedPart.partNum);
+  var factoryLine = '<div style="font-size:11px;font-weight:600;color:#9ca3af;margin-top:4px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#fff">'+epicor.label+'</span></div>';
   if (!locs.length || total === 0) {
     sEl.style.display=''; sEl.className='stock-info stock-out';
-    sEl.innerHTML='⚠ Out of Stock — <strong>0</strong> available. Sending will escalate to warehouse.';
+    sEl.innerHTML='<div>⚠ Out of Stock — <strong>0</strong> available. Sending will escalate to warehouse.</div>' + factoryLine;
   } else if (total < qty) {
     sEl.style.display=''; sEl.className='stock-info stock-warn';
-    sEl.innerHTML='Low Stock: <strong>'+total+'</strong> available';
+    sEl.innerHTML='<div>Low Stock: <strong>'+total+'</strong> available</div>' + factoryLine;
   } else {
     sEl.style.display=''; sEl.className='stock-info stock-ok';
-    sEl.innerHTML='In Stock: <strong>'+total+'</strong> available';
+    sEl.innerHTML='<div>In Stock: <strong>'+total+'</strong> available</div>' + factoryLine;
   }
 }
 document.getElementById('qty-input').addEventListener('input', showStock);
