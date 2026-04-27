@@ -233,6 +233,8 @@ let allItems      = [];
 let locationsList = [];
 let selectedPart  = null;
 let priority      = 'low';
+let epicorOnHand  = {};      // {partNumLower: qty} from Epicor BAQ
+let epicorLastRefresh = null; // ISO timestamp
 
 ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
 ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
@@ -253,6 +255,8 @@ async function loadInventory() {
     const d = await r.json();
     if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
     locationsList = d.locations || [];
+    epicorOnHand  = d.epicorOnHand || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
     const inv = d.inventory || {};
 
     // Find all inventory groups that belong to Apollo (Apollo splits by station)
@@ -318,6 +322,35 @@ async function loadInventory() {
 }
 loadInventory();
 setInterval(loadInventory, 60000);
+
+// Independent 60s poll for Epicor on-hand only — cheaper than re-fetching the
+// full inventory. Updates epicorOnHand in place; a re-render on the user's
+// next interaction picks it up.
+async function pollEpicor() {
+  try {
+    const r = await fetch('/api/epicor-onhand');
+    const d = await r.json();
+    if (d.success) {
+      epicorOnHand = d.onHand || {};
+      epicorLastRefresh = d.lastRefresh || null;
+    }
+  } catch {}
+}
+setInterval(pollEpicor, 60000);
+
+// ── Epicor lookup helper ─────────────────────────────────────
+// Returns: { qty: number|null, label: 'XX' or '—' }
+// label is what to display directly; qty is the raw value (null = unknown).
+function epicorLookup(partNum) {
+  if (!partNum) return { qty: null, label: '—' };
+  const v = epicorOnHand[String(partNum).toLowerCase()];
+  if (v === undefined) return { qty: null, label: '—' };
+  // Quantities are usually integers but Epicor may return floats — show
+  // integer if whole, otherwise one decimal place.
+  const n = Number(v);
+  const label = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return { qty: n, label };
+}
 
 // ── Part search + selection (mirrors line.html) ──────────────
 function renderParts(q) {
@@ -436,14 +469,16 @@ function showStock() {
   }
   const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
   const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
+  const epicor = epicorLookup(selectedPart.partNum);
+  const factoryLine = '<div style="font-size:11px;font-weight:600;color:#9ca3af;margin-top:4px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#fff">'+epicor.label+'</span></div>';
   if (!locs.length || total === 0) {
     sEl.style.display='block';
     sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
-    sEl.textContent='⚠ Out of stock — will send escalation';
+    sEl.innerHTML = '<div>⚠ Out of stock — will send escalation</div>' + factoryLine;
   } else {
     sEl.style.display='block';
     sEl.style.background='#052e16'; sEl.style.border='1px solid #166534'; sEl.style.color='#4ade80';
-    sEl.textContent='✓ In stock — total: '+total;
+    sEl.innerHTML = '<div>✓ In stock — total: '+total+'</div>' + factoryLine;
   }
 }
 
