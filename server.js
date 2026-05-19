@@ -1,3 +1,4 @@
+// Managed via the centralized Langmuir Production Management workspace.
 const express = require('express');
 const http    = require('http');
 const { WebSocketServer } = require('ws');
