@@ -248,7 +248,10 @@
       <div class="btm">Warehouse</div>
     </div>
   </div>
-  <div class="clock" id="clock"></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button id="user-chip" onclick="switchUser()" title="Switch user" style="display:none;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;border-radius:99px;font-size:12px;font-weight:800;padding:6px 14px;cursor:pointer;"></button>
+    <div class="clock" id="clock"></div>
+  </div>
 </div>
 
 <div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
@@ -418,7 +421,7 @@ function hideCancelReason() {
 }
 function sendCancelReason(reason) {
   if (pendingCancelId == null) return;
-  ws.send(JSON.stringify({ type: 'dismiss', reqId: pendingCancelId, reason: reason, opId: uid() }));
+  ws.send(JSON.stringify({ type: 'dismiss', reqId: pendingCancelId, reason: reason, opId: uid(), by: pickerName }));
   hideCancelReason();
 }
 
@@ -625,7 +628,7 @@ function confirmPickYes() {
   var p = pendingPick;        // use the snapshot, not pickMap — the list may have
   hidePickConfirm();          // re-rendered while the dialog was open
   if (!p) return;
-  ws.send(JSON.stringify({ type: 'fulfill', reqId: p.reqId, location: p.location, qty: p.qty, opId: uid() }));
+  ws.send(JSON.stringify({ type: 'fulfill', reqId: p.reqId, location: p.location, qty: p.qty, opId: uid(), by: pickerName }));
   bumpPickCount();
 }
 function lineClass(line) {
@@ -947,6 +950,7 @@ function sendStow(payload) {
   if (ws.readyState !== 1) { showResult(false, 'Connection lost — wait for the page to reconnect, then try again'); return; }
   stowInFlight    = true;
   payload.opId    = uid();   // fresh opId per attempt (server processes each exactly once)
+  payload.by      = pickerName;
   lastStowPayload = payload;
   var btn = document.getElementById('stow-btn');
   btn.disabled = true; btn.textContent = 'Stowing... please wait';
@@ -1357,6 +1361,7 @@ function confirmTransfer() {
     toLocation:  dest,
     qty:         qty,
     opId:        uid(),
+    by:          pickerName,
   };
   ws.send(JSON.stringify(lastTransferPayload));
   // Stay locked until the server answers (transfers can take 20-40s through
@@ -1470,7 +1475,8 @@ function renderActivity() {
     var name = p.isBundle ? (p.bundleName || p.partName) : (p.partNum ? p.partNum + ' — ' + (p.partName || '') : (p.text || ''));
     return '<div class="recent-pick-card"><div class="recent-pick-part">' + esc(name) + '</div>' +
       '<div class="recent-pick-meta"><span>' + esc(p.line || '') + '</span><span>Qty ' + esc(String(p.qtyFulfilled != null ? p.qtyFulfilled : p.qty || '')) + '</span>' +
-      (p.location ? '<span class="recent-pick-loc">' + esc(p.location) + '</span>' : '') + '</div></div>';
+      (p.location ? '<span class="recent-pick-loc">' + esc(p.location) + '</span>' : '') +
+      (p.by ? '<span>👤 ' + esc(p.by) + '</span>' : '') + '</div></div>';
   }).join('') : '<div class="empty" style="padding:20px 0">Nothing fulfilled recently</div>';
   // Session stows
   var rs = document.getElementById('act-recent-stows');
@@ -1496,6 +1502,57 @@ function retryWrite(id) {
     .then(function(d){ showResult(d.success === true, d.success ? 'Write retried successfully' : 'Retry failed — still queued'); renderActivity(); });
 }
 
+// ── Picker login ──────────────────────────────────────────────
+// First name + one shared PIN (set server-side via PICKER_PIN). Attribution,
+// not security: every pick/stow/transfer/cancel carries the name into the
+// Transaction Log's User column so odd entries have a person to ask.
+var pickerName = localStorage.getItem('pms-picker-name') || '';
+function refreshUserChip() {
+  var chip = document.getElementById('user-chip');
+  if (pickerName) { chip.style.display = 'inline-block'; chip.textContent = '👤 ' + pickerName; }
+  else chip.style.display = 'none';
+}
+function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  setTimeout(function(){ var n = document.getElementById('login-name'); if (n) n.focus(); }, 100);
+}
+function switchUser() {
+  pickerName = '';
+  localStorage.removeItem('pms-picker-name');
+  refreshUserChip();
+  showLogin();
+}
+function submitLogin() {
+  var name = document.getElementById('login-name').value.trim();
+  var pin  = document.getElementById('login-pin').value.trim();
+  var err  = document.getElementById('login-err');
+  if (!name) { err.textContent = 'Enter your first name'; err.style.display = 'block'; return; }
+  var btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  fetch('/api/picker-login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, pin: pin }),
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    btn.disabled = false; btn.textContent = 'Clock In';
+    if (d && d.success) {
+      pickerName = d.name;
+      localStorage.setItem('pms-picker-name', pickerName);
+      refreshUserChip();
+      document.getElementById('login-overlay').style.display = 'none';
+      document.getElementById('login-pin').value = '';
+      showResult(true, 'Welcome, ' + pickerName + ' 👋');
+    } else {
+      err.textContent = (d && d.error) || 'Login failed';
+      err.style.display = 'block';
+    }
+  }).catch(function() {
+    btn.disabled = false; btn.textContent = 'Clock In';
+    err.textContent = 'Connection problem — try again'; err.style.display = 'block';
+  });
+}
+refreshUserChip();
+if (!pickerName) showLogin();
+
 // ── Clock ─────────────────────────────────────────────────────
 function updateClock() {
   document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -1506,6 +1563,18 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
+<!-- Picker login — first name + shared PIN (attribution, not security) -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.7);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-top:4px solid #C8102E;border-radius:12px;padding:28px;max-width:380px;width:100%;box-shadow:0 12px 48px rgba(22,25,31,0.35);text-align:center;">
+    <div style="font-size:10px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;">Langmuir <span style="color:#C8102E">Systems</span></div>
+    <div style="font-size:19px;font-weight:900;margin-bottom:18px;">Warehouse Clock-In</div>
+    <input type="text" id="login-name" placeholder="First name" autocomplete="off" autocapitalize="words" style="margin-bottom:10px;text-align:center;font-size:16px;" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"/>
+    <input type="password" id="login-pin" placeholder="Team PIN" inputmode="numeric" autocomplete="off" style="margin-bottom:10px;text-align:center;font-size:16px;letter-spacing:0.3em;" onkeydown="if(event.key==='Enter')submitLogin()"/>
+    <div id="login-err" style="display:none;background:#fdecee;border:1px solid #f3aab5;color:#C8102E;border-radius:6px;padding:9px;font-size:12.5px;font-weight:700;margin-bottom:10px;"></div>
+    <button id="login-btn" onclick="submitLogin()" style="width:100%;padding:15px;border-radius:8px;border:none;font-size:15px;font-weight:800;background:#C8102E;color:#fff;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;">Clock In</button>
+    <div style="font-size:11px;color:#9aa1ab;margin-top:12px;">Your name is recorded on every pick, stow, and transfer.</div>
+  </div>
+</div>
 <!-- Duplicate-stow confirmation — the server flagged an identical stow within the last minute -->
 <div id="stow-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideStowDupConfirm()">
   <div style="background:#fff;border:1px solid #e8a13c;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">

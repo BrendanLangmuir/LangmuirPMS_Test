@@ -1049,7 +1049,7 @@ function logTitanCycle(cycleStartMs, cycleEndMs, cycleCount, totalPausedMs) {
 }
 
 // ── Request completion logger ────────────────────────────────
-function logRequestCompletion(req, outcome) {
+function logRequestCompletion(req, outcome, user) {
   if (!LOCATIONS_URL) return;
   const completedAtMs = Date.now();
   const submittedAtMs = req.submittedAt || completedAtMs;
@@ -1074,6 +1074,7 @@ function logRequestCompletion(req, outcome) {
     submittedAt:  submittedAtStr,
     completedAt:  completedAtStr,
     totalTime:    totalTime,
+    user:         String(user || ''),
   }, 'logRequest ' + (req.partNum || req.text || ''));
 }
 
@@ -1118,6 +1119,17 @@ app.get('/api/places', (req, res) => {
   const reg = computeBinRegistry();
   res.json({ success: true, occupied: reg.occupied, open: reg.open,
     areas: ['RECEIVING', 'WEST BULK', 'MIDDLE BULK', 'INSPECTION AREA', 'PARKING LOT', '04/05 ENDCAP', '06/07 ENDCAP', '08/09 ENDCAP', '10/11 ENDCAP'] });
+});
+// ── Picker login: first name + one shared PIN. The point isn't security —
+// it's attribution: every stow/pick/transfer/cancel carries the name so odd
+// transactions have someone to ask. PIN set via PICKER_PIN env var.
+const PICKER_PIN = process.env.PICKER_PIN || '2580';
+app.post('/api/picker-login', (req, res) => {
+  const name = String((req.body || {}).name || '').trim();
+  const pin  = String((req.body || {}).pin || '');
+  if (!name) return res.json({ success: false, error: 'Enter your first name' });
+  if (pin !== PICKER_PIN) return res.json({ success: false, error: 'Wrong PIN' });
+  res.json({ success: true, name: name.charAt(0).toUpperCase() + name.slice(1) });
 });
 // Failed fire-and-forget writes — visible and retryable, never silent.
 app.get('/api/write-health', (req, res) => res.json({ success: true, failed: failedWrites, journalSupported, journalDirty }));
@@ -1489,7 +1501,7 @@ wss.on('connection', (ws, req) => {
         // One-tap cancel reason rides in the outcome label → lands in the
         // Transaction Log as 'Cancelled (<reason>)' with zero schema change.
         const reason = String(msg.reason || '').slice(0, 60);
-        logRequestCompletion(req, reason ? ('dismissed: ' + reason) : 'dismissed');
+        logRequestCompletion(req, reason ? ('dismissed: ' + reason) : 'dismissed', String(msg.by || ''));
         broadcastRequests();
       }
     }
@@ -1593,6 +1605,7 @@ wss.on('connection', (ws, req) => {
                 submittedAt: submittedAtStr,
                 totalTime:   totalTime,
                 bundleName:  bundleName || '',
+                user:        String(msg.by || ''),   // who picked it (login name)
               }),
               redirect: 'follow',
             });
@@ -1666,6 +1679,7 @@ wss.on('connection', (ws, req) => {
           qty:      req.qty      || 1,
           location: location,
           line:     req.line     || '',
+          by:       String(msg.by || ''),
           time:     new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
           isBundle: !!req.isBundle,
         });
@@ -1755,6 +1769,7 @@ wss.on('connection', (ws, req) => {
           station:    msg.station  || '',
           bundleName: bundleName || '',
           txTypeOverride: msg.txTypeOverride || '',
+          user:       String(msg.by || ''),   // who stowed it (login name)
         }),
         redirect: 'follow',
       }).then(r => r.json());
@@ -1853,7 +1868,7 @@ wss.on('connection', (ws, req) => {
           const sr = await fetchWithRetry(LOCATIONS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'subtract', partNum: child.partNum, partName: '', location: fromLocation, qty: total, line: '', station: '', bundleName: bundle.name }),
+            body: JSON.stringify({ action: 'subtract', partNum: child.partNum, partName: '', location: fromLocation, qty: total, line: '', station: '', bundleName: bundle.name, user: String(msg.by || '') }),
             redirect: 'follow',
           });
           if (!sr || !sr.success) {
@@ -1863,7 +1878,7 @@ wss.on('connection', (ws, req) => {
           const st = await fetchWithRetry(LOCATIONS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'stow', partNum: child.partNum, partName: '', location: toLocation, qty: total, line: '', station: '', bundleName: bundle.name }),
+            body: JSON.stringify({ action: 'stow', partNum: child.partNum, partName: '', location: toLocation, qty: total, line: '', station: '', bundleName: bundle.name, user: String(msg.by || '') }),
             redirect: 'follow',
           });
           if (!st || !st.success) {
@@ -1889,9 +1904,10 @@ wss.on('connection', (ws, req) => {
       console.log('Transfer:', partNum, fromType + ':' + fromLocation, '→', toType + ':' + toLocation, 'qty:', qty);
 
       // Step 1 — remove from the source place
+      const txUser = String(msg.by || '');
       const subtractBody = fromType === 'line'
-        ? { action: 'bumpLine', line: fromLocation, partNum, partName, qty: -(parseInt(qty) || 1), txTypeOverride: 'Transfer Out (Line)' }
-        : { action: 'subtract', partNum, partName, location: fromLocation, qty, line: '', station: '', txTypeOverride: 'Transfer Out' };
+        ? { action: 'bumpLine', line: fromLocation, partNum, partName, qty: -(parseInt(qty) || 1), txTypeOverride: 'Transfer Out (Line)', user: txUser }
+        : { action: 'subtract', partNum, partName, location: fromLocation, qty, line: '', station: '', txTypeOverride: 'Transfer Out', user: txUser };
       const subtractRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1906,8 +1922,8 @@ wss.on('connection', (ws, req) => {
 
       // Step 2 — add to the destination place
       const stowBody = toType === 'line'
-        ? { action: 'bumpLine', line: toLocation, partNum, partName, qty: parseInt(qty) || 1, txTypeOverride: 'Transfer In (Line)' }
-        : { action: 'stow', partNum, partName, location: toLocation, qty, line: '', station: '', txTypeOverride: 'Transfer In' };
+        ? { action: 'bumpLine', line: toLocation, partNum, partName, qty: parseInt(qty) || 1, txTypeOverride: 'Transfer In (Line)', user: txUser }
+        : { action: 'stow', partNum, partName, location: toLocation, qty, line: '', station: '', txTypeOverride: 'Transfer In', user: txUser };
       const stowRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
