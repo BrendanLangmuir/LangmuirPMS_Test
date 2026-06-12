@@ -18,8 +18,8 @@ const APOLLO_TAKT_SECONDS = 3 * 60 * 60;
 // Legacy alias kept for any inline references; remove in 5b.
 const TAKT_SECONDS = APOLLO_TAKT_SECONDS;
 
-// Titan line takt (2h reference; Titan cycles are still driven by manual unit-complete clicks)
-const TITAN_TAKT_SECONDS = 2 * 60 * 60;
+// Titan line takt — 1h45m per Brendan (2h didn't meet Titan production standards).
+const TITAN_TAKT_SECONDS = 1.75 * 60 * 60;   // 6300s = 1:45:00
 
 // Green-flash window after a station Done — keeps index.html's completed-state
 // visual cue until 5b gives 'break'/new states proper treatment. See spec §4.
@@ -453,9 +453,8 @@ const pickerClients = new Set();
 const titanClients  = new Set();
 
 function getActiveRequestsWithPositions() {
-  // v2 (P3): the queue is sorted by time-to-breach, not priority buckets.
-  // breachAt = submittedAt + SLA target; lowest time-left first. Requests
-  // created by v1 clients (no sla field) map high→urgent, else standard.
+  // SLA queue: sorted by time-to-breach (submittedAt + target), not priority
+  // buckets. Old-client requests map high→urgent (10m), everything else 20m.
   const now = Date.now();
   const breachAt = r => {
     const targetMs = r.targetMs || ((r.sla === 'urgent' || r.priority === 'high') ? 10 : 20) * 60 * 1000;
@@ -483,7 +482,7 @@ function broadcastApolloState() {
   });
 }
 function broadcastRequests() {
-  // Every request mutation flows through here — single hook for the journal (P4).
+  // Every request mutation flows through here — single hook for the journal.
   try { markJournalDirty(); } catch (_) {}
   const msg = JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() });
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
@@ -549,34 +548,30 @@ const recentStowKeys = new Map();   // dupKey -> timestamp of last attempt
 const STOW_DUP_WINDOW_MS = 60 * 1000;
 
 // ═══════════════════════════════════════════════════════════════
-// v2 — Write pipeline, SLA queue, place registry, request journal
-// See PMS_V2_DESIGN.md. All additive: a v1 client (no opId/sla/place
-// fields) gets exactly the old behavior.
+// Error-resistance layer (ported from the v2 greenfield prototype)
+// Everything here is additive: a client that sends none of the new
+// fields gets exactly the old behavior.
 // ═══════════════════════════════════════════════════════════════
 
-// ── P3: SLA targets (minutes). Queue sorts by time-to-breach. ──
+// ── SLA queue: requests carry a time target instead of relying on
+// priority buckets (data showed high/med/low barely changed outcomes).
+// urgent = line blocked (10 min) · standard = 20 min.
 const SLA_TARGETS_MIN = { urgent: 10, standard: 20 };
 function slaForRequest(msg) {
-  // v2 clients send msg.sla; v1 clients send priority (high → urgent).
   const sla = msg.sla === 'urgent' || String(msg.priority || '') === 'high' ? 'urgent' : 'standard';
   return { sla, targetMs: (SLA_TARGETS_MIN[sla] || 20) * 60 * 1000 };
 }
 
-// ── P1: op-id idempotency. Every mutating WS message may carry a
-// client-generated opId. First arrival is processed; any repeat
-// (retry after reconnect, double-tap that slipped through) replays
-// the stored result — or is dropped if the op is still in flight.
+// ── Exactly-once ops: mutating WS messages may carry a client opId.
+// First arrival processes; repeats replay the stored result or drop.
 const processedOps = new Map();   // opId -> { at, result|null }
 const OP_TTL_MS = 10 * 60 * 1000;
 const MUTATING_TYPES = new Set(['request', 'fulfill', 'dismiss', 'stow', 'transfer', 'assign-orphan']);
-function opGate(ws, msg) {       // true = duplicate, stop processing
+function opGate(ws, msg) {
   const opId = String(msg.opId || '');
   if (!opId) return false;
   const seen = processedOps.get(opId);
-  if (seen) {
-    if (seen.result) ws.send(JSON.stringify(seen.result));
-    return true;
-  }
+  if (seen) { if (seen.result) ws.send(JSON.stringify(seen.result)); return true; }
   processedOps.set(opId, { at: Date.now(), result: null });
   if (processedOps.size > 2000) {
     const cutoff = Date.now() - OP_TTL_MS;
@@ -590,9 +585,9 @@ function opResult(opId, result) {
   if (e) e.result = result;
 }
 
-// ── P1: content-based duplicate guards beyond stow ──
-const recentTransferKeys = new Map();  // part|from|to|qty -> ts (30s window)
-const recentRequestKeys  = new Map();  // line|part|qty -> ts (20s window) — silent drop
+// ── Content-duplicate guards beyond stow ──
+const recentTransferKeys = new Map();  // 30s window
+const recentRequestKeys  = new Map();  // 20s window — silent drop (double-tap)
 function contentDup(map, key, windowMs) {
   const t = map.get(key);
   map.set(key, Date.now());
@@ -603,38 +598,70 @@ function contentDup(map, key, windowMs) {
   return !!(t && Date.now() - t < windowMs);
 }
 
-// ── P2: place registry. A place is a bin (NN-XN-X), a curated named
-// area, or a production line. Free text is normalized (unicode hyphens,
-// double spaces, case) and validated; unknown places need allowUnknownPlace.
-const NAMED_AREAS = ['RECEIVING', 'WEST BULK', 'MIDDLE BULK', 'INSPECTION AREA', 'PARKING LOT',
-  '04/05 ENDCAP', '06/07 ENDCAP', '08/09 ENDCAP', '10/11 ENDCAP', 'TEST'];
+// ── Place normalization: scanner input is usually clean, but typed
+// locations produced "WEST  BULK", unicode hyphens, "3-C3-B", etc.
+// Normalize silently on every stow/transfer write — same physical place,
+// one canonical string.
 const BIN_RE = /^\d{2}-[A-Z]\d-[A-Z]$/;
 function normalizePlace(s) {
-  return String(s || '')
-    .replace(/[‐‑‒–—−]/g, '-')  // unicode hyphens → '-'
-    .replace(/\s*-\s*/g, '-')                                  // '01 - B3 - C' → '01-B3-C'
-    .replace(/\s+/g, ' ')                                      // collapse runs of spaces
+  let p = String(s || '')
+    .replace(/[‐‑‒–—−]/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
     .trim().toUpperCase();
-}
-function validatePlace(raw) {
-  const p = normalizePlace(raw);
-  if (!p) return { ok: false, canonical: '', kind: null, reason: 'empty' };
-  if (BIN_RE.test(p)) {
-    const known = locationsCache.some(l => normalizePlace(l.location) === p);
-    return { ok: true, canonical: p, kind: 'bin', known };
-  }
-  // Single-digit rack like '3-C3-B' → pad to '03-C3-B'
-  const padded = p.replace(/^(\d)-/, '0$1-');
-  if (BIN_RE.test(padded)) return { ok: true, canonical: padded, kind: 'bin', known: locationsCache.some(l => normalizePlace(l.location) === padded) };
-  if (NAMED_AREAS.includes(p)) return { ok: true, canonical: p, kind: 'area', known: true };
-  if (ALL_LINES.some(l => l.toUpperCase() === p)) return { ok: true, canonical: ALL_LINES.find(l => l.toUpperCase() === p), kind: 'line', known: true };
-  return { ok: false, canonical: p, kind: null, reason: 'unknown place' };
+  const padded = p.replace(/^(\d)-/, '0$1-');     // 3-C3-B → 03-C3-B
+  if (BIN_RE.test(padded)) p = padded;
+  return p;
 }
 
-// ── P5: write health. Fire-and-forget Apps Script writes that exhaust
-// retries land here (visible + retryable on the warehouse screen) instead
-// of vanishing into a console.
-const failedWrites = [];   // { id, at, label, body, error }
+// ── Open-bin registry, generated from the rack grammar:
+// rack NN × sections (letter+level) seen on that rack × positions A–C.
+// open = generated minus currently occupied. Feeds the stow autocomplete.
+function computeBinRegistry() {
+  const occupied = new Set();
+  const rackSections = {};   // rack -> Set(section)
+  const positions = ['A', 'B', 'C'];
+  for (const l of locationsCache) {
+    const p = normalizePlace(l.location);
+    const m = p.match(/^(\d{2})-([A-Z]\d)-([A-Z])$/);
+    if (!m) continue;
+    occupied.add(p);
+    (rackSections[m[1]] = rackSections[m[1]] || new Set()).add(m[2]);
+  }
+  const open = [];
+  for (const rack of Object.keys(rackSections).sort()) {
+    for (const sec of [...rackSections[rack]].sort()) {
+      for (const pos of positions) {
+        const bin = rack + '-' + sec + '-' + pos;
+        if (!occupied.has(bin)) open.push(bin);
+      }
+    }
+  }
+  return { occupied: [...occupied].sort(), open };
+}
+
+// ── Epicor stow ceiling: inventory is always received into Epicor before
+// it's racked, so tracked total (warehouse + lines) must never exceed
+// Epicor on-hand. BAQ_Data refreshes hourly, so the block is overridable
+// (forceCeiling) for the receive→refresh lag; overrides log as
+// 'Stow (Epicor Override)'. Parts not in Epicor (Uline boxes) are exempt.
+function epicorCeilingCheck(partNum, addQty) {
+  const key = String(partNum || '').toLowerCase();
+  if (!(key in epicorCache)) return null;             // not an Epicor part — exempt
+  const epicor = Number(epicorCache[key]);
+  if (!isFinite(epicor)) return null;
+  const wh = locationsCache.filter(l => String(l.partNum).toLowerCase() === key)
+    .reduce((s, l) => s + (parseInt(l.quantity) || 0), 0);
+  const ln = lineInventoryCache.filter(e => String(e.partNum).toLowerCase() === key)
+    .reduce((s, e) => s + (parseFloat(e.onLineQty) || 0), 0);
+  const after = wh + ln + addQty;
+  if (after <= epicor) return null;
+  return { epicor, tracked: wh + ln, after };
+}
+
+// ── Write health: fire-and-forget Apps Script writes that exhaust retries
+// land here (visible + retryable) instead of vanishing into the console.
+const failedWrites = [];
 let nextFailId = 1;
 function recordFailedWrite(label, body, error) {
   failedWrites.push({ id: nextFailId++, at: Date.now(), label, body, error: String(error).slice(0, 300) });
@@ -653,11 +680,9 @@ async function postFireAndForget(body, label) {
   return d;
 }
 
-// ── P4: request journal. Open requests survive restarts: every request
-// mutation marks the journal dirty; a 20s write-behind posts the open set
-// to the Apps Script 'journalRequests' action (additive — if the deployed
-// script doesn't know it yet, v2 logs once and runs in-memory like v1).
-// Restore happens in fetchInventory() from doGet's requestJournal field.
+// ── Request journal: open requests survive restarts. Mutations mark the
+// journal dirty; a 20s write-behind posts the open set to the Apps Script
+// 'journalRequests' action (additive — absent action = in-memory like before).
 let journalDirty = false;
 let journalSupported = true;
 let journalRestored = false;
@@ -677,7 +702,7 @@ async function flushJournal() {
     journalSupported = false;
     console.log('Request journal: Apps Script action not deployed — running in-memory only');
   } else if (!d) {
-    journalDirty = true;   // retry next tick
+    journalDirty = true;
   }
 }
 setInterval(flushJournal, 20 * 1000);
@@ -688,12 +713,12 @@ function restoreJournal(blobStr) {
   try {
     const blob = typeof blobStr === 'string' ? JSON.parse(blobStr) : blobStr;
     if (!blob || !Array.isArray(blob.requests)) return;
-    if (allRequests.length) return;   // never clobber live state
+    if (allRequests.length) return;
     const ageMs = Date.now() - (blob.savedAt || 0);
-    if (ageMs > 18 * 60 * 60 * 1000) { console.log('Request journal: stale (' + Math.round(ageMs / 3600000) + 'h) — skipped'); return; }
+    if (ageMs > 18 * 60 * 60 * 1000) { console.log('Request journal: stale — skipped'); return; }
     allRequests = blob.requests;
     nextReqId = Math.max(blob.nextReqId || 1, ...allRequests.map(r => (r.id || 0) + 1), 1);
-    console.log('Request journal: restored', allRequests.length, 'open requests (saved ' + Math.round(ageMs / 60000) + 'm ago)');
+    console.log('Request journal: restored', allRequests.length, 'open requests');
     broadcastRequests();
   } catch (e) { console.error('Request journal restore failed:', e.message); }
 }
@@ -710,7 +735,7 @@ async function fetchInventory() {
     epicorLastRefresh = d.epicorLastRefresh || null;
     lineInventoryCache = d.lineInventory    || [];
     replenishmentQueueCache = d.replenishmentQueue || [];
-    restoreJournal(d.requestJournal);   // P4: restore open requests after a restart (no-op if absent)
+    restoreJournal(d.requestJournal);   // restart recovery (no-op if absent)
     console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups,',
       (d.bomList || []).length, 'BOM parts,', orphanPartsCache.length, 'orphans,',
       bundlesCache.length, 'bundles,', Object.keys(epicorCache).length, 'Epicor parts,',
@@ -1034,8 +1059,7 @@ function logRequestCompletion(req, outcome) {
   const submittedAtStr = new Date(submittedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
   const completedAtStr = new Date(completedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
 
-  // v2 (P5): routed through the write-health pipeline — a failed log is
-  // visible and retryable instead of vanishing into the console.
+  // Routed through write-health — a failed log is visible + retryable.
   postFireAndForget({
     action:       'logRequest',
     partNum:      req.partNum  || '',
@@ -1087,12 +1111,15 @@ app.get('/api/bom', (req, res) => {
   res.json({ success: false, error: 'BOM not yet loaded' });
 });
 app.get('/api/locations',  (req, res) => res.json({ success: true, locations: locationsCache }));
-// v2 (P2): the place registry — everything a stow/transfer destination can be.
+// Bin registry for the stow/transfer autocomplete: open bins are generated
+// from the rack grammar (rack × sections seen on that rack × A–C) minus
+// occupied. Named areas listed for completeness.
 app.get('/api/places', (req, res) => {
-  const bins = [...new Set(locationsCache.map(l => normalizePlace(l.location)).filter(p => BIN_RE.test(p)))].sort();
-  res.json({ success: true, bins, areas: NAMED_AREAS, lines: ALL_LINES, binFormat: 'NN-XN-X' });
+  const reg = computeBinRegistry();
+  res.json({ success: true, occupied: reg.occupied, open: reg.open,
+    areas: ['RECEIVING', 'WEST BULK', 'MIDDLE BULK', 'INSPECTION AREA', 'PARKING LOT', '04/05 ENDCAP', '06/07 ENDCAP', '08/09 ENDCAP', '10/11 ENDCAP'] });
 });
-// v2 (P5): failed fire-and-forget writes — visible and retryable, never silent.
+// Failed fire-and-forget writes — visible and retryable, never silent.
 app.get('/api/write-health', (req, res) => res.json({ success: true, failed: failedWrites, journalSupported, journalDirty }));
 app.post('/api/write-health/retry/:id', async (req, res) => {
   const i = failedWrites.findIndex(f => f.id === parseInt(req.params.id));
@@ -1168,8 +1195,7 @@ wss.on('connection', (ws, req) => {
   ws.on('message', async raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
 
-    // v2 (P1): exactly-once gate for mutating ops. Duplicates (reconnect
-    // retries, double-taps) replay the stored result or are dropped.
+    // Exactly-once gate for mutating ops (duplicates replay/drop).
     if (MUTATING_TYPES.has(msg.type) && opGate(ws, msg)) return;
 
     // ── Ping ─────────────────────────────────────────────────
@@ -1350,13 +1376,13 @@ wss.on('connection', (ws, req) => {
 
     // ── Inventory request ────────────────────────────────────
     if (msg.type === 'request') {
-      // v2 (P1): silent dedupe — identical line+part+qty within 20s is a double-tap.
+      // Silent dedupe — identical line+part+qty within 20s is a double-tap.
       const reqKey = String(msg.line || '') + '|' + String(msg.partNum || msg.text || '').toLowerCase() + '|' + String(msg.qty ?? 1);
       if (contentDup(recentRequestKeys, reqKey, 20 * 1000)) {
         console.log('Request dropped as duplicate:', reqKey);
         return;
       }
-      console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority, 'sla:', msg.sla);
+      console.log('Request received:', msg.line, msg.partNum || msg.text, 'sla:', msg.sla || msg.priority);
       const s      = states.apollo;
       const stName = msg.station || (msg.stationId ? (s.stations.find(x => x.id === msg.stationId)?.name || null) : null);
 
@@ -1406,8 +1432,7 @@ wss.on('connection', (ws, req) => {
         unit:            String(msg.unit || 'Part'),
         qtyFulfilled:    0,
         pickedLocations: {},
-        // v2 (P3): SLA fields. priority is kept (urgent→high) so the Sheet's
-        // Transaction Log and existing reports keep their vocabulary.
+        // SLA fields; priority kept (urgent→high) so sheet logs keep their vocabulary.
         sla:             slaForRequest(msg).sla,
         targetMs:        slaForRequest(msg).targetMs,
         priority:        slaForRequest(msg).sla === 'urgent' ? 'high' : String(msg.priority || 'low'),
@@ -1461,8 +1486,8 @@ wss.on('connection', (ws, req) => {
           postReplenishmentUpdate(req.queueId, 'cancelled', String(req.id));
           delete autoReqByQueueId[req.queueId];
         }
-        // v2 (P5): one-tap cancel reason rides along in the outcome label so it
-        // lands in the Transaction Log with zero schema change.
+        // One-tap cancel reason rides in the outcome label → lands in the
+        // Transaction Log as 'Cancelled (<reason>)' with zero schema change.
         const reason = String(msg.reason || '').slice(0, 60);
         logRequestCompletion(req, reason ? ('dismissed: ' + reason) : 'dismissed');
         broadcastRequests();
@@ -1668,22 +1693,35 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'stow') {
       if (!LOCATIONS_URL) return;
 
-      // v2 (P2): place validation. Normalizes unicode hyphens / spacing / case,
-      // pads single-digit racks, then requires a known bin, named area, or line.
-      // Unknown places bounce with badPlace:true unless allowUnknownPlace
-      // (explicit confirm in the UI, and the canonical string is what's written).
-      const pv = validatePlace(msg.location);
-      if (!pv.ok && !msg.allowUnknownPlace) {
-        const r = { type: 'stow-result', success: false, badPlace: true, canonical: pv.canonical, message: 'Unknown location "' + (msg.location || '') + '" — pick a bin, named area, or line' };
-        opResult(msg.opId, r); ws.send(JSON.stringify(r));
-        return;
+      // Canonicalize the location silently (unicode hyphens, spacing, rack padding)
+      msg.location = normalizePlace(msg.location);
+
+      // ── Epicor stow ceiling ──
+      // Tracked total (warehouse + lines) must not exceed Epicor on-hand;
+      // everything is received into Epicor before it's racked. Overridable
+      // (forceCeiling) for the hourly BAQ-refresh lag; override is audited.
+      if (!msg.forceCeiling) {
+        const stowQty = parseInt(msg.qty) || 1;
+        let ceil = null, ceilPart = '';
+        if (msg.bundleName) {
+          const b = lookupBundle(msg.bundleName);
+          if (b) for (const child of b.children) {
+            const c = epicorCeilingCheck(child.partNum, stowQty * (parseInt(child.qty) || 1));
+            if (c) { ceil = c; ceilPart = child.partNum; break; }
+          }
+        } else {
+          ceil = epicorCeilingCheck(msg.partNum, stowQty);
+          ceilPart = msg.partNum;
+        }
+        if (ceil) {
+          const r = { type: 'stow-result', success: false, epicorCeiling: true,
+            message: 'Epicor shows ' + ceil.epicor + ' of ' + ceilPart + ' but this stow would make the tracked total ' + ceil.after +
+              ' (currently ' + ceil.tracked + '). Was it just received? Epicor data refreshes hourly.' };
+          opResult(msg.opId, r); ws.send(JSON.stringify(r));
+          return;
+        }
       }
-      msg.location = pv.ok ? pv.canonical : normalizePlace(msg.location);
-      if (pv.ok && pv.kind === 'bin' && !pv.known && !msg.allowNewBin && !msg.force) {
-        const r = { type: 'stow-result', success: false, newBin: true, canonical: pv.canonical, message: pv.canonical + ' is a valid bin format but doesn\'t exist yet — create it?' };
-        opResult(msg.opId, r); ws.send(JSON.stringify(r));
-        return;
-      }
+      if (msg.forceCeiling) msg.txTypeOverride = msg.bundleName ? '' : 'Stow (Epicor Override)';
 
       // Duplicate guard (see recentStowKeys above)
       const dupKey = String(msg.bundleName || msg.partNum || '').trim().toLowerCase()
@@ -1716,6 +1754,7 @@ wss.on('connection', (ws, req) => {
           line:       msg.line     || '',
           station:    msg.station  || '',
           bundleName: bundleName || '',
+          txTypeOverride: msg.txTypeOverride || '',
         }),
         redirect: 'follow',
       }).then(r => r.json());
@@ -1779,18 +1818,9 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'transfer') {
       if (!LOCATIONS_URL) return;
 
-      // v2 (P2): destination must be a valid place (source comes from the UI's
-      // own location list, so it's already canonical).
-      if ((msg.toType || 'warehouse') !== 'line') {
-        const pv = validatePlace(msg.toLocation);
-        if (!pv.ok && !msg.allowUnknownPlace) {
-          const r = { type: 'transfer-result', success: false, badPlace: true, canonical: pv.canonical, message: 'Unknown destination "' + (msg.toLocation || '') + '" — pick a bin, named area, or line' };
-          opResult(msg.opId, r); ws.send(JSON.stringify(r));
-          return;
-        }
-        if (pv.ok) msg.toLocation = pv.canonical;
-      }
-      // v2 (P1): content duplicate guard — identical move within 30s needs force.
+      // Canonicalize the typed destination (source comes from the UI's own list)
+      if ((msg.toType || 'warehouse') !== 'line') msg.toLocation = normalizePlace(msg.toLocation);
+      // Content duplicate guard — identical move within 30s needs force.
       const tKey = String(msg.bundleName || msg.partNum || '').toLowerCase() + '|' + String(msg.fromLocation || '').toLowerCase() + '|' + String(msg.toLocation || '').toLowerCase() + '|' + (parseInt(msg.qty) || 1);
       if (!msg.force && contentDup(recentTransferKeys, tKey, 30 * 1000)) {
         const r = { type: 'transfer-result', success: false, duplicate: true, message: 'An identical transfer was received seconds ago and may have already gone through — check the part\'s locations.' };

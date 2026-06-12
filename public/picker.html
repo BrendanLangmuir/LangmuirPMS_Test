@@ -1,5 +1,1567 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Redirecting…</title>
-<script>location.replace('/?role=warehouse');</script></head>
-<body style="background:#0b0e13;color:#9ca3af;font-family:sans-serif;text-align:center;padding-top:60px">
-Moved — opening the PMS app… <a href="/?role=warehouse" style="color:#f87171">tap here</a> if nothing happens.
-</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Warehouse</title>
+<style>
+  /* ════════════════════════════════════════════════════════════
+     Langmuir brand light theme — matches langmuirsystems.com:
+     white surfaces, dark text, Langmuir red (#C8102E) actions.
+     Class names unchanged from the dark build so all JS templates
+     keep working. Production boards intentionally stay dark.
+     ════════════════════════════════════════════════════════════ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f4f5f7; color: #16191f; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  .header { background: #ffffff; border-bottom: 3px solid #C8102E; padding: 0 24px; display: flex; align-items: stretch; justify-content: space-between; min-height: 60px; box-shadow: 0 1px 6px rgba(22,25,31,0.08); }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .brand-icon { width: 36px; height: 36px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0; }
+  .brand-text .top { font-size: 9px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+  .brand-text .top .lm { color: #16191f; } .brand-text .top .sy { color: #C8102E; }
+  .brand-text .btm { font-size: 16px; font-weight: 800; color: #16191f; letter-spacing: 0.06em; text-transform: uppercase; }
+  .clock { font-size: 15px; font-weight: 700; color: #6b7280; align-self: center; }
+
+  .conn-status { display: none; width: 100%; background: #fdecee; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .tab-bar { display: flex; background: #ffffff; border-bottom: 1px solid #e3e6eb; }
+  .tab { flex: 1; padding: 14px 8px; font-size: 12px; font-weight: 800; cursor: pointer; color: #6b7280; border: none; background: none; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; text-align: center; }
+  .tab.active { color: #16191f; border-bottom-color: #C8102E; }
+  .tab:hover:not(.active) { color: #16191f; }
+
+  .page { padding: 20px 24px; max-width: 600px; margin: 0 auto; }
+
+  .summary-bar { background: #ffffff; border: 1px solid #e3e6eb; border-left: 4px solid #C8102E; border-radius: 6px; padding: 12px 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .summary-num   { font-size: 32px; font-weight: 900; color: #C8102E; line-height: 1; }
+  .summary-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
+
+  .filter-bar { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #d3d8e0; background: #ffffff; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
+  .filter-btn.active { background: #C8102E; border-color: #C8102E; color: #fff; }
+  .filter-btn:hover:not(.active) { border-color: #C8102E; color: #C8102E; }
+
+  .queue { display: flex; flex-direction: column; gap: 10px; }
+  .empty { text-align: center; color: #9aa1ab; font-size: 13px; padding: 60px 0; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .req-card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  /* SLA aging: border tells the story at a glance */
+  .req-card.aging-warn   { border-color: #e8a13c; }
+  .req-card.aging-breach { border-color: #C8102E; animation: breach-pulse 1.6s infinite; }
+  @keyframes breach-pulse { 0%,100% { box-shadow: 0 1px 4px rgba(22,25,31,0.05); } 50% { box-shadow: 0 0 0 4px rgba(200,16,46,0.18); } }
+  .req-card-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef0f3; flex-wrap: wrap; }
+  .line-tag { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; flex-shrink: 0; }
+  .line-tag.apollo { background: #e8f1fd; color: #1d4ed8; }
+  .line-tag.xf     { background: #f1ebfd; color: #6d28d9; }
+  .line-tag.titan  { background: #fdf0e3; color: #c2570b; }
+  .line-tag.vulcan { background: #fdecee; color: #C8102E; }
+  .line-tag.xr     { background: #e8f7ec; color: #15803d; }
+  .line-tag.mr1    { background: #fdf6e3; color: #a16207; }
+  .line-tag.shipping { background: #e3f7f6; color: #0f766e; }
+  .req-station { font-size: 11px; color: #6b7280; }
+  .req-time    { font-size: 10px; color: #9aa1ab; margin-left: auto; }
+  .req-queue-pos { font-size: 11px; font-weight: 800; color: #b45309; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #e8a13c; border-radius: 3px; }
+  .req-elapsed { font-size: 10px; font-weight: 700; color: #6b7280; }
+
+  /* SLA countdown chip (replaces priority badges in the queue) */
+  .sla-chip { font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 900; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+  .sla-chip.ok     { background: #e8f7ec; color: #15803d; }
+  .sla-chip.warn   { background: #fdf6e3; color: #b45309; }
+  .sla-chip.breach { background: #C8102E; color: #fff; }
+  .pri-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .pri-badge.low    { background: #eef0f3; color: #6b7280; }
+  .pri-badge.medium { background: #fdf6e3; color: #b45309; }
+  .pri-badge.high   { background: #fdecee; color: #C8102E; animation: flash-red 1s ease-in-out infinite; }
+  @keyframes flash-red { 0%,100%{opacity:1}50%{opacity:0.5} }
+
+  .req-body    { padding: 12px 14px; }
+  .req-part    { font-size: 15px; font-weight: 800; color: #16191f; margin-bottom: 2px; text-transform: uppercase; }
+  .req-partnum { font-size: 11px; color: #C8102E; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .req-meta    { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .qty-badge   { background: #f4f5f7; border: 1px solid #d3d8e0; color: #374151; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 3px 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .remaining-badge { font-size: 11px; font-weight: 800; border-radius: 3px; padding: 3px 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .remaining-badge.partial { background: #fdf6e3; border: 1px solid #e8a13c; color: #b45309; }
+  .remaining-badge.done    { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
+  .stock-info  { font-size: 11px; color: #6b7280; }
+  .stock-info span { color: #374151; font-weight: 600; }
+
+  .loc-section { display: flex; flex-direction: column; gap: 6px; }
+  .loc-row { background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 6px; padding: 10px 12px; }
+  .loc-row.exhausted { opacity: 0.5; }
+  .loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .loc-code { font-size: 14px; font-weight: 800; color: #16191f; flex: 1; font-family: 'Courier New', monospace; letter-spacing: 0.06em; }
+  .loc-qty-txt { font-size: 12px; font-weight: 700; }
+  .loc-qty-txt.ok  { color: #15803d; }
+  .loc-qty-txt.low { color: #C8102E; }
+  .loc-pick-row { display: flex; align-items: center; gap: 8px; }
+  .pick-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
+  .adj-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #d3d8e0; background: #ffffff; color: #16191f; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .adj-btn:hover:not(:disabled) { background: #eef0f3; }
+  .adj-btn:disabled { opacity: 0.3; cursor: default; }
+  .adj-val { font-size: 16px; font-weight: 900; width: 52px; text-align: center; background: #ffffff; border: 1px solid #d3d8e0; border-radius: 4px; color: #16191f; padding: 4px 6px; -moz-appearance: textfield; }
+  .adj-val::-webkit-outer-spin-button, .adj-val::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .adj-val:focus { outline: none; border-color: #C8102E; }
+  .pick-btn { border: none; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 800; padding: 8px 14px; cursor: pointer; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
+  .pick-btn.active       { background: #C8102E; }
+  .pick-btn.active:hover { background: #a00d24; }
+  .pick-btn.exhausted-btn { background: #d3d8e0; color: #6b7280; cursor: default; }
+  .picked-from-note { font-size: 10px; color: #15803d; margin-top: 6px; }
+
+  /* ── Recently completed ── */
+  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: #e3e6eb; }
+  .recent-pick-card { background: #ffffff; border: 1px solid #e3e6eb; border-left: 3px solid #15803d; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+  .recent-pick-part { font-size: 13px; font-weight: 800; color: #16191f; margin-bottom: 2px; }
+  .recent-pick-meta { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; display: flex; gap: 10px; flex-wrap: wrap; }
+  .recent-pick-loc  { font-family: 'Courier New', monospace; color: #15803d; font-weight: 700; font-size: 11px; }
+
+  /* ── Stow form ── */
+  .card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 18px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  input[type="text"], input[type="number"] { width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; }
+  input:focus { border-color: #C8102E; background: #fff; }
+  input::placeholder { color: #9aa1ab; }
+  .qty-row { display: flex; align-items: center; gap: 10px; }
+  .qty-btn { width: 40px; height: 40px; border-radius: 6px; border: 1.5px solid #d3d8e0; background: #ffffff; color: #16191f; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .qty-btn:hover { background: #eef0f3; }
+  .qty-input { flex: 1; }
+  .send-btn { width: 100%; padding: 14px; border-radius: 6px; border: none; font-size: 14px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; background: #C8102E; color: #fff; }
+  .send-btn:hover { background: #a00d24; }
+  .send-btn:disabled { opacity: 0.4; cursor: default; }
+  .stow-results { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 10px; display: none; }
+  .stow-result-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #eef0f3; }
+  .stow-result-item:last-child { border-bottom: none; }
+  .stow-result-item:hover { background: #f4f5f7; }
+  .stow-result-pn { font-size: 12px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
+  .stow-result-pa { font-size: 13px; color: #374151; margin-top: 2px; }
+  .stow-selected { background: #ffffff; border: 1.5px solid #C8102E; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: none; }
+  .stow-selected-lbl { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .stow-selected-pn  { font-size: 12px; font-weight: 800; color: #C8102E; }
+  .stow-selected-pa  { font-size: 13px; color: #16191f; margin-top: 2px; }
+  .stow-clear { float: right; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+  .stow-clear:hover { color: #C8102E; }
+
+  /* ── Open-bin autocomplete (under the location input) ── */
+  .loc-suggest { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; max-height: 220px; overflow-y: auto; margin-top: 6px; display: none; }
+  .loc-suggest-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; border-bottom: 1px solid #eef0f3; }
+  .loc-suggest-item:last-child { border-bottom: none; }
+  .loc-suggest-item:hover { background: #f4f5f7; }
+  .loc-suggest-code { font-family: 'Courier New', monospace; font-weight: 800; font-size: 13px; color: #16191f; flex: 1; }
+  .loc-suggest-tag { font-size: 9px; font-weight: 900; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .loc-suggest-tag.open  { background: #e8f7ec; color: #15803d; }
+  .loc-suggest-tag.inuse { background: #eef0f3; color: #6b7280; }
+  .loc-suggest-tag.area  { background: #e8f1fd; color: #1d4ed8; }
+
+  /* ── Existing locations for stow ── */
+  .existing-locs { margin-bottom: 14px; }
+  .existing-locs-title { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .existing-loc-row { display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 4px; padding: 8px 12px; margin-bottom: 4px; }
+  .existing-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #16191f; letter-spacing: 0.06em; }
+  .existing-loc-qty  { font-size: 12px; font-weight: 700; color: #15803d; }
+
+  .result-flash { display: none; border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; }
+  .result-flash.success { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
+  .result-flash.error   { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; }
+  .result-flash.wait    { background: #fdf6e3; border: 1px solid #e8a13c; color: #b45309; }
+  .recent-item { background: #ffffff; border: 1px solid #e3e6eb; border-left: 3px solid #e8a13c; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; }
+  .recent-part { font-size: 13px; font-weight: 700; color: #16191f; }
+  .recent-meta { font-size: 10px; color: #6b7280; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ── Transfer tab ── */
+  .search-wrap { margin-bottom: 16px; }
+  .search-wrap input { width: 100%; background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; padding: 12px 14px; outline: none; }
+  .search-wrap input:focus { border-color: #C8102E; }
+  .search-wrap input::placeholder { color: #9aa1ab; }
+  .transfer-result-card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .transfer-result-header { padding: 12px 14px; border-bottom: 1px solid #eef0f3; }
+  .transfer-result-pn { font-size: 13px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
+  .transfer-result-pa { font-size: 14px; font-weight: 700; color: #16191f; margin-top: 2px; }
+  .transfer-result-body { padding: 12px 14px; }
+  .transfer-lines { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .transfer-line-tag { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .transfer-line-tag.apollo { background: #e8f1fd; color: #1d4ed8; }
+  .transfer-line-tag.xf     { background: #f1ebfd; color: #6d28d9; }
+  .transfer-line-tag.titan  { background: #fdf0e3; color: #c2570b; }
+  .transfer-line-tag.vulcan { background: #fdecee; color: #C8102E; }
+  .transfer-line-tag.xr     { background: #e8f7ec; color: #15803d; }
+  .transfer-line-tag.mr1    { background: #fdf6e3; color: #a16207; }
+  .transfer-line-tag.shipping { background: #e3f7f6; color: #0f766e; }
+  .transfer-line-tag.unassigned { background: #f1ebfd; color: #6d28d9; }
+  .transfer-loc-row { background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
+  .transfer-loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+  .transfer-loc-code { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: #16191f; flex: 1; }
+  .transfer-loc-qty  { font-size: 12px; font-weight: 700; }
+  .transfer-loc-qty.ok  { color: #15803d; }
+  .transfer-loc-qty.low { color: #C8102E; }
+  .transfer-from-btn { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 4px; color: #374151; font-size: 11px; font-weight: 800; padding: 6px 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .transfer-from-btn:hover { border-color: #C8102E; color: #C8102E; }
+  .transfer-from-btn.selected { background: #fdecee; border-color: #C8102E; color: #C8102E; }
+  .transfer-form { background: #ffffff; border: 1.5px solid #C8102E; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .transfer-form-title { font-size: 10px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; }
+  .transfer-from-info { background: #f8f9fa; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .transfer-from-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+  .transfer-from-loc { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 800; color: #16191f; }
+  .transfer-from-avail { font-size: 11px; color: #15803d; font-weight: 700; }
+  .transfer-qty-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .transfer-qty-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .transfer-qty-input { flex: 1; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; -moz-appearance: textfield; }
+  .transfer-qty-input::-webkit-outer-spin-button, .transfer-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .transfer-qty-input:focus { border-color: #C8102E; }
+  .transfer-dest-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .transfer-dest-input { width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; margin-bottom: 14px; }
+  .transfer-dest-input:focus { border-color: #C8102E; }
+  .transfer-dest-input::placeholder { color: #9aa1ab; }
+  .transfer-confirm-btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; background: #C8102E; color: #fff; }
+  .transfer-confirm-btn:hover { background: #a00d24; }
+  .transfer-confirm-btn:disabled { opacity: 0.4; cursor: default; }
+  .transfer-flash { border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; display: none; }
+  .transfer-flash.success { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
+  .transfer-flash.error   { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; }
+  .transfer-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
+  .search-empty { text-align: center; color: #9aa1ab; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
+  .transfer-loc-out { background: #fdecee; border: 1px solid #f3aab5; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; font-size: 12px; color: #C8102E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .escalation-badge { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; animation: flash-red 1s ease-in-out infinite; }
+
+  /* ── Activity tab ── */
+  .activity-stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .activity-stat { flex: 1; background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 12px; text-align: center; }
+  .activity-stat .v { font-size: 26px; font-weight: 900; color: #C8102E; }
+  .activity-stat .k { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .health-card { background: #fdf6e3; border: 1px solid #e8a13c; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+
+  /* ── Reason chooser (cancel) ── */
+  .reason-btn { display: block; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 8px; border: 1.5px solid #d3d8e0; background: #f8f9fa; color: #16191f; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
+  .reason-btn:hover { border-color: #C8102E; }
+
+  /* ── Easter egg: queue-cleared celebration ── */
+  @keyframes egg-pop { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+  .egg-banner { display: none; background: linear-gradient(135deg, #C8102E, #7f0a1d); color: #fff; border-radius: 10px; padding: 18px; text-align: center; font-size: 15px; font-weight: 900; margin-bottom: 16px; animation: egg-pop 0.45s ease-out; letter-spacing: 0.03em; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand-icon">L</div>
+    <div class="brand-text">
+      <div class="top"><span class="lm">Langmuir</span> <span class="sy">Systems</span></div>
+      <div class="btm">Warehouse</div>
+    </div>
+  </div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
+  <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
+  <button class="tab"        onclick="showTab('transfer')" id="tab-transfer">↔ Transfer</button>
+  <button class="tab"        onclick="showTab('activity')" id="tab-activity">📈 Activity</button>
+</div>
+
+<!-- PICK TAB -->
+<div id="view-pick" class="page">
+  <div class="egg-banner" id="egg-banner"></div>
+  <div class="summary-bar">
+    <span class="summary-num" id="total-count">0</span>
+    <span class="summary-label">Pending Requests</span>
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all')"      id="filter-all">All</button>
+    <button class="filter-btn" onclick="setFilter('Apollo')"     id="filter-Apollo">Apollo</button>
+    <button class="filter-btn" onclick="setFilter('XF/PRO')"    id="filter-XF/PRO">XF/PRO</button>
+    <button class="filter-btn" onclick="setFilter('TITAN')"     id="filter-TITAN">Titan</button>
+    <button class="filter-btn" onclick="setFilter('VULCAN')"    id="filter-VULCAN">Vulcan</button>
+    <button class="filter-btn" onclick="setFilter('XR')"        id="filter-XR">XR</button>
+    <button class="filter-btn" onclick="setFilter('MR1')"       id="filter-MR1">MR1</button>
+    <button class="filter-btn" onclick="setFilter('Shipping')"  id="filter-Shipping">Shipping</button>
+    <button class="filter-btn" onclick="setFilter('Unassigned')" id="filter-Unassigned">Unassigned</button>
+  </div>
+  <div class="queue" id="queue"><div class="empty">— No Pending Requests —</div></div>
+
+  <!-- Recently completed -->
+  <div id="recent-picks-section" style="display:none">
+    <div class="section-label">Recently completed</div>
+    <div id="recent-picks-list"></div>
+  </div>
+</div>
+
+<!-- STOW TAB -->
+<div id="view-stow" class="page" style="display:none">
+  <div class="section-label" style="margin-top:0;">Stow a part</div>
+  <div class="card">
+    <div id="result-flash" class="result-flash"></div>
+    <div class="field">
+      <label>Search Part Number or Description</label>
+      <input type="text" id="stow-search" placeholder="Type part # or description..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <div style="height:8px"></div>
+      <div class="stow-results" id="stow-results"></div>
+      <div class="stow-selected" id="stow-selected">
+        <div class="stow-selected-lbl">Selected Part <button class="stow-clear" onclick="clearStowPart()">✕ Clear</button></div>
+        <div class="stow-selected-pn" id="stow-sel-pn"></div>
+        <div class="stow-selected-pa" id="stow-sel-pa"></div>
+      </div>
+    </div>
+
+    <!-- Existing locations for this part -->
+    <div class="existing-locs" id="existing-locs" style="display:none">
+      <div class="existing-locs-title">Currently stowed at</div>
+      <div id="existing-locs-list"></div>
+    </div>
+
+    <div class="field">
+      <label>Shelf Location <span style="font-weight:400;color:#4b5563;text-transform:none;letter-spacing:0;">(e.g. 01-A1-A)</span></label>
+      <input type="text" id="location-sel" placeholder="e.g. 01-A1-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>
+      <div class="loc-suggest" id="loc-suggest"></div>
+    </div>
+    <div class="field">
+      <label>Quantity</label>
+      <div class="qty-row">
+        <button class="qty-btn" onclick="changeQty(-1)">−</button>
+        <input class="qty-input" type="number" id="qty-stow" inputmode="numeric" min="1" value="1"/>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+      </div>
+    </div>
+    <button class="send-btn" id="stow-btn" onclick="stowPart()">📥 Stow Part</button>
+  </div>
+  <div class="section-label">Recently stowed</div>
+  <div id="recent-list"></div>
+</div>
+
+<!-- TRANSFER TAB -->
+<div id="view-transfer" class="page" style="display:none">
+  <div class="search-wrap">
+    <input type="text" id="transfer-search-input" placeholder="Search part #, description, or bin location (e.g. 01-A1-A)..." autocomplete="off" spellcheck="false"/>
+  </div>
+  <div class="transfer-flash" id="transfer-flash"></div>
+  <div id="transfer-results"><div class="search-empty">— Search a part or bin location to transfer —</div></div>
+</div>
+
+<!-- ACTIVITY TAB -->
+<div id="view-activity" class="page" style="display:none">
+  <div class="activity-stat-row">
+    <div class="activity-stat"><div class="v" id="act-picks">0</div><div class="k">Picks this session</div></div>
+    <div class="activity-stat"><div class="v" id="act-stows">0</div><div class="k">Stows this session</div></div>
+    <div class="activity-stat"><div class="v" id="act-open">0</div><div class="k">Open requests</div></div>
+  </div>
+  <div id="act-health"></div>
+  <div class="section-label" style="margin-top:0">Recently fulfilled</div>
+  <div id="act-recent-picks"><div class="empty" style="padding:20px 0">Nothing yet</div></div>
+  <div class="section-label">This session's stows</div>
+  <div id="act-recent-stows"><div class="empty" style="padding:20px 0">Nothing yet</div></div>
+</div>
+
+<script>
+var requests      = [];
+var locationsData = [];
+var activeFilter  = 'all';
+var pickMap       = {};
+var pendingPick   = null;   // snapshot of the pick awaiting confirm-dialog approval
+var pickKey       = 0;
+var recentStows   = [];
+var recentPicks   = [];
+var lastPong      = Date.now();
+var adjustedQtys  = {};
+var stowSelected  = null;
+var allStowParts  = [];
+var inventoryData = {};
+var orphanData    = {};
+var epicorOnHand  = {};       // {partNumLower: qty} from Epicor BAQ
+var epicorLastRefresh = null;
+
+// ── Request update handler ────────────────────────────────────
+// Structure preserved so we can add notification sound later (e.g. in a
+// native app wrapper where audio autoplay is permitted).
+function handleRequestsUpdate(list) {
+  var hadRequests = requests.length > 0;
+  requests = list || [];
+  renderQueue();
+  // 🥚 Queue-cleared celebration — earned, not given.
+  if (hadRequests && requests.length === 0) showEggBanner();
+  var openEl = document.getElementById('act-open');
+  if (openEl) openEl.textContent = requests.length;
+}
+
+// ── Easter eggs (small, tasteful, warehouse-approved) ─────────
+var EGG_LINES = [
+  '🔥 QUEUE CRUSHED — the warehouse runs on you',
+  '🏁 ZERO PENDING. Walk tall.',
+  '⚡ Queue cleared faster than an Apollo cuts 16ga',
+  '🧹 Clean sweep. The racks salute you.',
+  '🚀 Nothing pending. Absolute unit of a picker.',
+];
+function showEggBanner() {
+  var el = document.getElementById('egg-banner');
+  if (!el) return;
+  el.textContent = EGG_LINES[Math.floor(Math.random() * EGG_LINES.length)];
+  el.style.display = 'block';
+  setTimeout(function(){ el.style.display = 'none'; }, 6000);
+}
+var sessionPicks = 0, sessionStows = 0;
+function bumpPickCount() {
+  sessionPicks++;
+  var el = document.getElementById('act-picks'); if (el) el.textContent = sessionPicks;
+  // 💯 Century club
+  if (sessionPicks === 100) showResult(true, '💯 100 picks this session — century club!');
+}
+
+// ── Cancel with reason (P5): one tap, lands in the Transaction Log ──
+var pendingCancelId = null;
+function cancelWithReason(reqId) {
+  pendingCancelId = reqId;
+  document.getElementById('cancel-reason-overlay').style.display = 'flex';
+}
+function hideCancelReason() {
+  pendingCancelId = null;
+  document.getElementById('cancel-reason-overlay').style.display = 'none';
+}
+function sendCancelReason(reason) {
+  if (pendingCancelId == null) return;
+  ws.send(JSON.stringify({ type: 'dismiss', reqId: pendingCancelId, reason: reason, opId: uid() }));
+  hideCancelReason();
+}
+
+// ── Elapsed time helpers ──────────────────────────────────────
+function fmtElapsed(submittedAt) {
+  if (!submittedAt) return '';
+  var sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  var m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  var h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+
+// ── SLA helpers (queue sorts by time-to-breach server-side) ──
+function slaBreachAt(r) {
+  var targetMs = r.targetMs || ((r.sla === 'urgent' || r.priority === 'high') ? 10 : 20) * 60 * 1000;
+  return (r.submittedAt || Date.now()) + targetMs;
+}
+function slaChipHtml(r) {
+  var left = slaBreachAt(r) - Date.now();
+  var cls = left < 0 ? 'breach' : left < 5 * 60000 ? 'warn' : 'ok';
+  var a = Math.abs(left), m = Math.floor(a / 60000), s = Math.floor((a % 60000) / 1000);
+  return '<span class="sla-chip ' + cls + '" data-breach="' + slaBreachAt(r) + '">' + (left < 0 ? '⚠ +' : '') + m + ':' + String(s).padStart(2, '0') + '</span>';
+}
+function agingClass(r) {
+  var left = slaBreachAt(r) - Date.now();
+  return left < 0 ? 'aging-breach' : left < 5 * 60000 ? 'aging-warn' : '';
+}
+function uid() { return 'op' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+
+setInterval(function() {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(function(el) {
+    var t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = fmtElapsed(t);
+  });
+  // SLA chips tick live without a full re-render
+  document.querySelectorAll('.sla-chip[data-breach]').forEach(function(el) {
+    var b = parseInt(el.getAttribute('data-breach'), 10);
+    if (!b) return;
+    var left = b - Date.now();
+    var cls = left < 0 ? 'breach' : left < 5 * 60000 ? 'warn' : 'ok';
+    var a = Math.abs(left), m = Math.floor(a / 60000), s = Math.floor((a % 60000) / 1000);
+    el.className = 'sla-chip ' + cls;
+    el.setAttribute('data-breach', b);
+    el.textContent = (left < 0 ? '⚠ +' : '') + m + ':' + String(s).padStart(2, '0');
+  });
+}, 1000);
+
+// ── WebSocket ─────────────────────────────────────────────────
+var ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'?picker=1');
+ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
+ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
+ws.onerror = function() { document.getElementById('conn-status').style.display = 'flex'; };
+ws.onmessage = function(e) {
+  lastPong = Date.now();
+  var msg = JSON.parse(e.data);
+  if (msg.type === 'requests')     { handleRequestsUpdate(msg.requests); }
+  if (msg.type === 'locations')    { locationsData = msg.locations; renderQueue(); }
+  if (msg.type === 'stow-result')     { handleStowResult(msg); }
+  if (msg.type === 'transfer-result') { handleTransferResult(msg); }
+  if (msg.type === 'recent-picks') { recentPicks = msg.recentPicks || []; renderRecentPicks(); }
+};
+setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
+setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
+setInterval(function() {
+  fetch('/api/requests').then(function(r){return r.json();}).then(function(d){ handleRequestsUpdate(d.requests); }).catch(function(){});
+}, 8000);
+setInterval(function() {
+  fetch('/api/recent-picks').then(function(r){return r.json();}).then(function(d){ if (d.success) { recentPicks = d.recentPicks || []; renderRecentPicks(); }}).catch(function(){});
+}, 30000);
+
+function loadLocations() {
+  fetch('/api/locations').then(function(r){return r.json();}).then(function(d){
+    if (d.success && d.locations) { locationsData = d.locations; renderQueue(); }
+  }).catch(function(){});
+}
+loadLocations();
+setInterval(loadLocations, 30000);
+
+// Load full inventory for search tab
+fetch('/api/inventory').then(function(r){return r.json();}).then(function(d){
+  if (d.success) {
+    inventoryData = d.inventory || {};
+    epicorOnHand = d.epicorOnHand || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
+    renderQueue();
+  }
+}).catch(function(){});
+fetch('/api/orphans').then(function(r){return r.json();}).then(function(d){
+  if (d.success) { orphanData = d; }
+}).catch(function(){});
+
+// 60s independent Epicor poll. Cheaper than re-fetching the full inventory;
+// updates the on-hand map in place and re-renders the queue so pick cards
+// reflect fresh data.
+function pollEpicor() {
+  fetch('/api/epicor-onhand').then(function(r){ return r.json(); }).then(function(d) {
+    if (d && d.success) {
+      epicorOnHand = d.onHand || {};
+      epicorLastRefresh = d.lastRefresh || null;
+      renderQueue();
+      // If a part is currently selected on stow/transfer, refresh that view too
+      if (stowSelected && !stowSelected.isBundle) refreshStowEpicor();
+    }
+  }).catch(function(){});
+}
+setInterval(pollEpicor, 5 * 60 * 1000);
+
+// Returns formatted string for display in the "Factory on-hand" line.
+function epicorLabel(partNum) {
+  if (!partNum) return '—';
+  var v = epicorOnHand[String(partNum).toLowerCase()];
+  if (v === undefined) return '—';
+  var n = Number(v);
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+// Update the on-hand display in the stow panel without rebuilding the whole UI.
+function refreshStowEpicor() {
+  var el = document.getElementById('stow-epicor');
+  if (el && stowSelected && !stowSelected.isBundle) {
+    el.textContent = 'Factory on-hand: ' + epicorLabel(stowSelected.partNum);
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────────────────
+function showTab(tab) {
+  ['pick','stow','transfer','activity'].forEach(function(t) {
+    document.getElementById('view-'+t).style.display = t === tab ? 'block' : 'none';
+    document.getElementById('tab-'+t).className = 'tab' + (t === tab ? ' active' : '');
+  });
+  if (tab === 'activity') renderActivity();
+}
+
+// ── Filter ────────────────────────────────────────────────────
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  var el = document.getElementById('filter-' + f);
+  if (el) el.classList.add('active');
+  renderQueue();
+}
+
+// ── Pick helpers ──────────────────────────────────────────────
+function getLocsForPart(partNum) {
+  if (!partNum) return [];
+  return locationsData.filter(function(l) { return l.partNum.toLowerCase() === partNum.toLowerCase(); });
+}
+function adjQty(key, delta) {
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  var next = Math.max(0, Math.min((parseInt(el.value) || 0) + delta, entry.availableQty));
+  el.value = next; entry.qty = next;
+  adjustedQtys[entry.reqId + '|' + entry.location] = next;
+}
+function handleQtyInput(key) {
+  // Fires on every keystroke — allow empty/mid-edit, only enforce the MAX here.
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  if (el.value === '') return;                // let them clear and retype
+  var val = parseInt(el.value, 10);
+  if (isNaN(val)) return;                     // let them finish typing
+  if (val > entry.availableQty) { val = entry.availableQty; el.value = val; }
+  entry.qty = val;
+  adjustedQtys[entry.reqId + '|' + entry.location] = val;
+}
+function blurQtyInput(key) {
+  // Runs when the user leaves the field — enforce both bounds, commit final value.
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  var el = document.getElementById('pick-qty-' + key);
+  if (!el) return;
+  var val = parseInt(el.value, 10);
+  if (isNaN(val) || val < 0) val = 0;
+  else if (val > entry.availableQty) val = entry.availableQty;
+  el.value = val; entry.qty = val;
+  adjustedQtys[entry.reqId + '|' + entry.location] = val;
+}
+function handlePick(key) {
+  var entry = pickMap[key];
+  if (!entry || entry.exhausted) return;
+  if (!entry.qty || entry.qty < 1) return;   // nothing to pick
+  // Snapshot the pick and require a deliberate confirm. An accidental tap on
+  // "Picked" now only opens this dialog — it can't move inventory by itself.
+  pendingPick = { reqId: entry.reqId, location: entry.location, qty: entry.qty };
+  var name     = entry.isBundle ? (entry.bundleName || entry.partName || '') : (entry.partName || entry.partNum || '');
+  var pnPrefix = (!entry.isBundle && entry.partNum) ? (entry.partNum + ' — ') : '';
+  var unitWord = entry.isBundle ? ('bundle' + (entry.qty === 1 ? '' : 's')) : ('unit' + (entry.qty === 1 ? '' : 's'));
+  document.getElementById('pick-confirm-text').innerHTML =
+    'Pick <b>' + entry.qty + '</b> ' + unitWord + ' of<br><b>' + esc(pnPrefix + name) + '</b><br>' +
+    'from <b>' + esc(entry.location) + '</b>' + (entry.line ? ' for <b>' + esc(entry.line) + '</b>' : '') + '?';
+  document.getElementById('pick-confirm-overlay').style.display = 'flex';
+}
+function hidePickConfirm() {
+  pendingPick = null;
+  var ov = document.getElementById('pick-confirm-overlay');
+  if (ov) ov.style.display = 'none';
+}
+function confirmPickYes() {
+  var p = pendingPick;        // use the snapshot, not pickMap — the list may have
+  hidePickConfirm();          // re-rendered while the dialog was open
+  if (!p) return;
+  ws.send(JSON.stringify({ type: 'fulfill', reqId: p.reqId, location: p.location, qty: p.qty, opId: uid() }));
+  bumpPickCount();
+}
+function lineClass(line) {
+  var map = { 'Apollo':'apollo','APOLLO':'apollo','XF/PRO':'xf','Titan':'titan','TITAN':'titan','Vulcan':'vulcan','VULCAN':'vulcan','XR':'xr','MR1':'mr1','Shipping':'shipping','SHIPPING':'shipping' };
+  return map[line] || 'apollo';
+}
+
+// ── Render queue ──────────────────────────────────────────────
+function renderQueue() {
+  if (document.activeElement && document.activeElement.classList.contains('adj-val')) return;
+  var filtered = activeFilter === 'all' ? requests : requests.filter(function(r){ return String(r.line || '').toLowerCase() === String(activeFilter).toLowerCase(); });
+  document.getElementById('total-count').textContent = requests.length;
+  var queue = document.getElementById('queue');
+  if (!filtered.length) { queue.innerHTML = '<div class="empty">— No Pending Requests —</div>'; return; }
+  pickMap = {}; pickKey = 0;
+  var html = filtered.map(function(r) {
+    var qtyNeeded    = r.qty || 1;
+    var qtyFulfilled = r.qtyFulfilled || 0;
+    var qtyRemaining = Math.max(0, qtyNeeded - qtyFulfilled);
+    var pri          = r.priority || 'low';
+    var pickedLocs   = r.pickedLocations || {};
+    var remainingHtml = '';
+    if (qtyFulfilled > 0 && qtyRemaining > 0)  remainingHtml = '<span class="remaining-badge partial">'+qtyRemaining+' remaining</span>';
+    else if (qtyFulfilled > 0 && qtyRemaining === 0) remainingHtml = '<span class="remaining-badge done">✓ Fulfilled</span>';
+    var isEscalation = (r.qty || 1) === 0;
+    var locHtml = '';
+    var totalQty = 0;
+    var locsLen  = 0;
+
+    // ── Bundle branch: render complete-bundle counts per location ──
+    if (r.isBundle) {
+      var bLocs = r.allLocations || [];
+      totalQty = bLocs.reduce(function(s,l){ return s + (parseInt(l.completeBundles||l.quantity)||0); }, 0);
+      locsLen  = bLocs.length;
+      if (!bLocs.length || totalQty === 0) {
+        locHtml = '<div style="background:#fdecee;border:1px solid #f3aab5;border-radius:6px;padding:12px 14px;font-size:13px;color:#C8102E;font-weight:700;">⚠ No complete bundles available — check individual parts</div>';
+      } else {
+        locHtml = bLocs.map(function(l) {
+          var available = parseInt(l.completeBundles || l.quantity) || 0;
+          if (available === 0) {
+            var missing = l.limitingChild ? ' (missing '+esc(l.limitingChild)+')' : '';
+            return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 complete bundles'+missing+'</span></div></div>';
+          }
+          var key    = pickKey++;
+          var adjKey = r.id + '|' + l.location;
+          var defaultQty = Math.min(qtyRemaining, available);
+          var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
+          pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: available, exhausted: false, partNum: r.partNum, partName: r.partName, line: r.line, isBundle: r.isBundle, bundleName: r.bundleName };
+          var alreadyPicked = pickedLocs[l.location] || 0;
+          var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' bundle'+(alreadyPicked===1?'':'s')+' already picked from this location</div>' : '';
+          return '<div class="loc-row" style="border-left:3px solid #6d28d9"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
+            '<span class="loc-qty-txt '+(available < qtyRemaining?'low':'ok')+'">'+(available < qtyRemaining?'⚠ ':'')+available+' complete bundle'+(available===1?'':'s')+'</span></div>'+
+            '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
+            '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
+            '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+available+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
+            '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
+            '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
+        }).join('');
+      }
+    } else {
+      // ── Regular-part branch (unchanged) ──
+      var locs = getLocsForPart(r.partNum);
+      totalQty = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
+      locsLen  = locs.length;
+      locHtml = isEscalation
+        ? '<div style="background:#fdecee;border:1px solid #f3aab5;border-radius:6px;padding:12px 14px;font-size:13px;color:#C8102E;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
+        : locs.length ? locs.map(function(l) {
+        var lq = parseInt(l.quantity) || 0;
+        var alreadyPicked = pickedLocs[l.location] || 0;
+        var isExhausted   = lq === 0 && alreadyPicked > 0;
+        var key    = pickKey++;
+        var adjKey = r.id + '|' + l.location;
+        var defaultQty = Math.min(qtyRemaining, lq);
+        if (defaultQty < 1 && !isExhausted) defaultQty = qtyRemaining;
+        if (isExhausted) defaultQty = 0;
+        var initQty = adjustedQtys[adjKey] !== undefined ? adjustedQtys[adjKey] : defaultQty;
+        if (isExhausted) initQty = 0;
+        pickMap[key] = { reqId: r.id, location: l.location, qty: initQty, availableQty: lq, exhausted: isExhausted, partNum: r.partNum, partName: r.partName, line: r.line, isBundle: r.isBundle, bundleName: r.bundleName };
+        var pickedNote = alreadyPicked > 0 ? '<div class="picked-from-note">✓ '+alreadyPicked+' already picked from this location</div>' : '';
+        if (isExhausted) {
+          return '<div class="loc-row exhausted"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span><span class="loc-qty-txt low">0 in stock</span></div>'+
+            '<div class="loc-pick-row"><span class="pick-label">Exhausted</span><button class="adj-btn" disabled>−</button>'+
+            '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="0" disabled>'+
+            '<button class="adj-btn" disabled>+</button><button class="pick-btn exhausted-btn">Picked</button></div>'+pickedNote+'</div>';
+        }
+        return '<div class="loc-row"><div class="loc-top"><span class="loc-code">'+esc(l.location)+'</span>'+
+          '<span class="loc-qty-txt '+(lq < qtyRemaining?'low':'ok')+'">'+(lq < qtyRemaining?'⚠ ':'')+lq+' in stock</span></div>'+
+          '<div class="loc-pick-row"><span class="pick-label">Picking:</span>'+
+          '<button class="adj-btn" onclick="adjQty('+key+',-1)">−</button>'+
+          '<input type="number" class="adj-val" id="pick-qty-'+key+'" value="'+initQty+'" min="0" max="'+lq+'" inputmode="numeric" oninput="handleQtyInput('+key+')" onblur="blurQtyInput('+key+')" onchange="blurQtyInput('+key+')">'+
+          '<button class="adj-btn" onclick="adjQty('+key+',1)">+</button>'+
+          '<button class="pick-btn active" onclick="handlePick('+key+')">✓ Picked</button></div>'+pickedNote+'</div>';
+      }).join('') : '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:6px 0;">No warehouse location on file</div>';
+    }
+
+    var escalationBadge = isEscalation ? '<span class="escalation-badge">Out of Stock</span>' : '';
+    var bundleBadge = r.isBundle ? '<span class="pri-badge" style="background:#f1ebfd;color:#6d28d9">BUNDLE</span>' : '';
+    var unitLabel = r.isBundle
+      ? (' Bundle' + (qtyNeeded > 1 ? 's' : ''))
+      : (r.unit && r.unit !== 'Part' ? ' ' + r.unit + (qtyNeeded > 1 ? 's' : '') : '');
+    var elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'">'+fmtElapsed(r.submittedAt)+'</span>' : '';
+    var posHtml = r.queuePosition ? '<span class="req-queue-pos">#'+r.queuePosition+'</span>' : '';
+    var partDisplay = r.isBundle
+      ? esc(r.bundleName || r.partName || '')
+      : esc(r.partName || r.text || '');
+    var totalLabel = r.isBundle ? 'Total complete bundles' : 'Warehouse total';
+    var epicorBadge = (!r.isBundle && r.partNum)
+      ? '<span class="stock-info">Factory on-hand: <span>'+epicorLabel(r.partNum)+'</span></span>'
+      : '';
+    // SLA chip replaces the old priority badge: countdown to the request's
+    // time target (urgent 10m / standard 20m); negative = breached, card pulses.
+    var urgentBadge = (r.sla === 'urgent' || pri === 'high') ? '<span class="pri-badge high">URGENT</span>' : '';
+    return '<div class="req-card '+agingClass(r)+'">'+
+      '<div class="req-card-header">'+
+        posHtml+
+        '<span class="line-tag '+lineClass(r.line)+'">'+esc(r.line)+'</span>'+
+        (r.station ? '<span class="req-station">'+esc(r.station)+'</span>' : '')+
+        urgentBadge+
+        slaChipHtml(r)+
+        bundleBadge+
+        escalationBadge+
+        (r.auto ? '<span class="pri-badge" style="background:#e8f1fd;color:#1d4ed8;">AUTO</span>' : '')+
+        '<span class="req-time">'+r.time+'</span>'+
+        elapsedHtml+
+        '<button onclick="cancelWithReason('+r.id+')" title="Cancel request" style="border:1px solid #d3d8e0;background:#fff;color:#6b7280;border-radius:4px;font-size:12px;font-weight:800;padding:2px 9px;cursor:pointer;">✕</button>'+
+      '</div>'+
+      '<div class="req-body">'+
+        '<div class="req-part">'+partDisplay+'</div>'+
+        (!r.isBundle && r.partNum ? '<div class="req-partnum">'+esc(r.partNum)+'</div>' : '')+
+        '<div class="req-meta">'+
+          '<span class="qty-badge">Qty needed: '+qtyNeeded+unitLabel+'</span>'+
+          remainingHtml+
+          (locsLen ? '<span class="stock-info">'+totalLabel+': <span>'+totalQty+'</span></span>' : '')+
+          epicorBadge+
+        '</div>'+
+        '<div class="loc-section">'+locHtml+'</div>'+
+      '</div></div>';
+  }).join('');
+  queue.innerHTML = html;
+}
+
+// ── Recently completed picks ──────────────────────────────────
+function renderRecentPicks() {
+  var sec = document.getElementById('recent-picks-section');
+  var list = document.getElementById('recent-picks-list');
+  if (!recentPicks.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = recentPicks.map(function(p) {
+    return '<div class="recent-pick-card">'+
+      '<div class="recent-pick-part">'+esc(p.partNum)+' — '+esc(p.partName)+'</div>'+
+      '<div class="recent-pick-meta">'+
+        '<span>Qty: '+p.qty+'</span>'+
+        '<span class="recent-pick-loc">'+esc(p.location)+'</span>'+
+        '<span>'+esc(p.line)+'</span>'+
+        '<span>'+p.time+'</span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── Stow search ───────────────────────────────────────────────
+window.allStowParts = [];
+Promise.all([
+  fetch('/api/bom').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/locations').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/orphans').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/bundles').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+  fetch('/api/inventory').then(function(r){ return r.json(); }).catch(function(){ return {}; })
+]).then(function(results) {
+  var seen = {}, combined = [];
+  function addParts(arr) {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function(p) {
+      var pn = String(p.partNum || '').trim(), pa = String(p.partName || p.partDescription || '').trim();
+      var key = pn.toLowerCase();
+      if (!key || seen[key]) return;
+      seen[key] = true; combined.push({ partNum: pn, partName: pa });
+    });
+  }
+  addParts(results[0].bomList);
+  addParts(results[1].locations);
+  addParts(results[2].orphanParts);
+  addParts(results[4] && results[4].catalog);   // full Epicor part list + Uline boxes
+  combined.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
+
+  // Append bundles at the end. Bundle entries are identified by isBundle=true.
+  if (results[3] && Array.isArray(results[3].bundles)) {
+    results[3].bundles.forEach(function(b) {
+      combined.push({
+        partNum:  '',
+        partName: b.name,
+        isBundle: true,
+        bundleName: b.name,
+        bundleChildren: b.children,
+      });
+    });
+  }
+
+  window.allStowParts = combined;
+  // Line inventory + lines list for the transfer tab (line↔warehouse transfers)
+  window.lineInventoryData = (results[4] && results[4].lineInventory) || [];
+  window.allLinesData = (results[2] && results[2].allLines) || ['Apollo', 'XF/PRO', 'TITAN', 'VULCAN', 'XR', 'MR1', 'Shipping'];
+  console.log('Stow parts ready:', window.allStowParts.length, '| line-inv rows:', window.lineInventoryData.length);
+});
+
+document.getElementById('stow-search').addEventListener('input', function() {
+  var q = this.value.trim();
+  var resultsEl = document.getElementById('stow-results');
+  if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+  var results = (window.allStowParts || []).filter(function(i) {
+    return (i.partNum||'').toLowerCase().includes(q.toLowerCase()) || (i.partName||'').toLowerCase().includes(q.toLowerCase());
+  }).slice(0, 20);
+  if (!results.length) {
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#4b5563;text-align:center;">No parts found</div>';
+    return;
+  }
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = results.map(function(i) {
+    if (i.isBundle) {
+      return '<div class="stow-result-item" onclick="selectStowBundle(\''+esc(i.bundleName)+'\')">' +
+        '<div class="stow-result-pn" style="color:#6d28d9">BUNDLE</div><div class="stow-result-pa">'+esc(i.bundleName)+'</div></div>';
+    }
+    return '<div class="stow-result-item" onclick="selectStowPart(\''+esc(i.partNum)+'\',\''+esc(i.partName)+'\')">' +
+      '<div class="stow-result-pn">'+esc(i.partNum)+'</div><div class="stow-result-pa">'+esc(i.partName)+'</div></div>';
+  }).join('');
+});
+
+function selectStowPart(pn, pa) {
+  stowSelected = { partNum: pn, partName: pa, isBundle: false };
+  document.getElementById('stow-search').value = '';
+  document.getElementById('stow-results').style.display = 'none';
+  document.getElementById('stow-selected').style.display = 'block';
+  document.getElementById('stow-sel-pn').textContent = pn;
+  document.getElementById('stow-sel-pa').textContent = pa;
+
+  // Show existing locations for this part, with Factory on-hand banner above
+  var locs = locationsData.filter(function(l) { return l.partNum.toLowerCase() === pn.toLowerCase(); });
+  var existEl = document.getElementById('existing-locs');
+  var listEl  = document.getElementById('existing-locs-list');
+  var epicorBanner = '<div id="stow-epicor" style="font-size:11px;font-weight:600;color:#9ca3af;padding:4px 0 8px;letter-spacing:0.04em;">Factory on-hand: '+epicorLabel(pn)+'</div>';
+  if (locs.length) {
+    existEl.style.display = 'block';
+    listEl.innerHTML = epicorBanner + locs.map(function(l) {
+      return '<div class="existing-loc-row">'+
+        '<span class="existing-loc-code">'+esc(l.location)+'</span>'+
+        '<span class="existing-loc-qty">'+l.quantity+' in stock</span>'+
+      '</div>';
+    }).join('');
+  } else {
+    existEl.style.display = 'block';
+    listEl.innerHTML = epicorBanner + '<div style="font-size:12px;color:#4b5563;font-style:italic;padding:4px 0;">No existing locations on file</div>';
+  }
+}
+
+function selectStowBundle(bundleName) {
+  var b = (window.allStowParts || []).find(function(x){ return x.isBundle && x.bundleName === bundleName; });
+  if (!b) return;
+  stowSelected = {
+    partNum:  '',
+    partName: bundleName,
+    isBundle: true,
+    bundleName: bundleName,
+    bundleChildren: b.bundleChildren,
+  };
+  document.getElementById('stow-search').value = '';
+  document.getElementById('stow-results').style.display = 'none';
+  document.getElementById('stow-selected').style.display = 'block';
+  document.getElementById('stow-sel-pn').textContent = 'BUNDLE';
+  document.getElementById('stow-sel-pa').textContent = bundleName;
+
+  // Show what a single bundle contains as the "existing locations" area
+  var existEl = document.getElementById('existing-locs');
+  var listEl  = document.getElementById('existing-locs-list');
+  existEl.style.display = 'block';
+  var childRows = (b.bundleChildren || []).map(function(c) {
+    return '<div class="existing-loc-row">'+
+      '<span class="existing-loc-code">'+esc(c.partNum)+'</span>'+
+      '<span class="existing-loc-qty">×'+c.qty+' per bundle</span>'+
+    '</div>';
+  }).join('');
+  listEl.innerHTML = '<div style="font-size:10px;color:#6b7280;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Contents per bundle</div>' +
+    (childRows || '<div style="font-size:12px;color:#4b5563;font-style:italic;">No children defined</div>');
+}
+
+function clearStowPart() {
+  stowSelected = null;
+  document.getElementById('stow-selected').style.display = 'none';
+  document.getElementById('existing-locs').style.display = 'none';
+  document.getElementById('stow-search').value = '';
+}
+
+function changeQty(delta) {
+  var el = document.getElementById('qty-stow');
+  el.value = Math.max(1, (parseInt(el.value) || 1) + delta);
+}
+
+// One stow at a time: the button stays LOCKED until the server confirms (or a
+// 45s hard timeout). The sheet write can take 10–20s — re-enabling early with an
+// error is what caused operators to stow the same thing twice.
+var stowInFlight     = false;
+var lastStowPayload  = null;
+var stowSlowTimer    = null;
+var stowFailTimer    = null;
+
+function stowPart() {
+  if (stowInFlight) return;   // hard guard against double-taps
+  var location = document.getElementById('location-sel').value.trim().toUpperCase();
+  var qty      = Math.max(1, parseInt(document.getElementById('qty-stow').value) || 1);
+  if (!stowSelected) { showResult(false, 'Please search and select a part'); return; }
+  if (!location)     { showResult(false, 'Please enter a shelf location'); return; }
+  var payload = stowSelected.isBundle
+    ? { type: 'stow', location: location, bundleName: stowSelected.bundleName, qty: qty }
+    : { type: 'stow', location: location, partNum: stowSelected.partNum, partName: stowSelected.partName, qty: qty };
+  sendStow(payload);
+}
+
+function sendStow(payload) {
+  if (ws.readyState !== 1) { showResult(false, 'Connection lost — wait for the page to reconnect, then try again'); return; }
+  stowInFlight    = true;
+  payload.opId    = uid();   // fresh opId per attempt (server processes each exactly once)
+  lastStowPayload = payload;
+  var btn = document.getElementById('stow-btn');
+  btn.disabled = true; btn.textContent = 'Stowing... please wait';
+  ws.send(JSON.stringify(payload));
+  clearTimeout(stowSlowTimer); clearTimeout(stowFailTimer);
+  stowSlowTimer = setTimeout(function() {
+    if (stowInFlight) showResult('wait', 'Still stowing — the sheet is slow. Do NOT stow again.');
+  }, 8000);
+  stowFailTimer = setTimeout(function() {
+    if (stowInFlight) {
+      stowInFlight = false;
+      btn.disabled = false; btn.textContent = '📥 Stow Part';
+      showResult(false, 'No confirmation after 45s — check Recent Stows or the sheet BEFORE stowing again');
+    }
+  }, 45000);
+}
+
+function showStowDupConfirm(message) {
+  document.getElementById('stow-dup-text').textContent = message || 'An identical stow was just received and may have already gone through.';
+  document.getElementById('stow-dup-overlay').style.display = 'flex';
+}
+function hideStowDupConfirm() {
+  document.getElementById('stow-dup-overlay').style.display = 'none';
+}
+function confirmStowAnyway() {
+  hideStowDupConfirm();
+  if (!lastStowPayload) return;
+  var forced = {};
+  for (var k in lastStowPayload) forced[k] = lastStowPayload[k];
+  forced.force = true;
+  sendStow(forced);
+}
+
+// ── Epicor ceiling confirm: the stow would push tracked > Epicor on-hand.
+// Legit when parts were just received (BAQ refreshes hourly) — hence override.
+function showCeilingConfirm(message) {
+  document.getElementById('ceiling-text').textContent = message || '';
+  document.getElementById('ceiling-overlay').style.display = 'flex';
+}
+function hideCeilingConfirm() { document.getElementById('ceiling-overlay').style.display = 'none'; }
+function confirmCeilingAnyway() {
+  hideCeilingConfirm();
+  if (!lastStowPayload) return;
+  var forced = {};
+  for (var k in lastStowPayload) forced[k] = lastStowPayload[k];
+  forced.forceCeiling = true;
+  sendStow(forced);
+}
+
+function handleStowResult(msg) {
+  clearTimeout(stowSlowTimer); clearTimeout(stowFailTimer);
+  stowInFlight = false;
+  var btn = document.getElementById('stow-btn');
+  btn.disabled = false; btn.textContent = '📥 Stow Part';
+  if (msg.duplicate)      { showStowDupConfirm(msg.message); return; }
+  if (msg.epicorCeiling)  { showCeilingConfirm(msg.message); return; }
+  if (msg.success) {
+    var location = document.getElementById('location-sel').value;
+    var qty      = parseInt(document.getElementById('qty-stow').value) || 1;
+    showResult(true, msg.message || 'Stowed successfully');
+    sessionStows++;
+    var actEl = document.getElementById('act-stows'); if (actEl) actEl.textContent = sessionStows;
+    // 🥚 stowing to TEST never goes unnoticed
+    if (String(location).trim().toUpperCase() === 'TEST') setTimeout(function(){ showResult(true, '🧪 TEST stow logged. QA sees everything.'); }, 1200);
+    recentStows.unshift({ location: location, partNum: stowSelected ? stowSelected.partNum : '', partName: stowSelected ? stowSelected.partName : '', qty: qty, time: new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) });
+    if (recentStows.length > 10) recentStows.pop();
+    renderRecent();
+    clearStowPart();
+    document.getElementById('location-sel').value = '';
+    document.getElementById('qty-stow').value = '1';
+    loadLocations();
+  } else {
+    showResult(false, msg.message || 'Stow failed');
+  }
+}
+
+function showResult(success, message) {
+  var el = document.getElementById('result-flash');
+  var cls = success === true ? 'success' : (success === 'wait' ? 'wait' : 'error');
+  var icon = success === true ? '✓ ' : (success === 'wait' ? '⏳ ' : '✗ ');
+  el.className = 'result-flash ' + cls;
+  el.textContent = icon + message;
+  el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, success === 'wait' ? 8000 : 4000);
+}
+
+function renderRecent() {
+  var el = document.getElementById('recent-list');
+  if (!recentStows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = recentStows.map(function(s) {
+    return '<div class="recent-item"><div class="recent-part">'+esc(s.partNum)+' — '+esc(s.partName)+'</div>'+
+      '<div class="recent-meta">'+esc(s.location)+' · Qty: '+s.qty+' · '+s.time+'</div></div>';
+  }).join('');
+}
+
+// ── Transfer tab ──────────────────────────────────────────────
+var transferPart      = null;  // { partNum, partName }
+var transferFromLoc   = null;  // { location, quantity }  (for bundles, quantity = complete bundles)
+var transferBundle    = null;  // bundle entry from allStowParts when transferring a bundle
+
+function lineClassT(line) { return lineClass(line); }
+
+// Complete bundles available per location (mirrors the server's
+// computeBundleLocations): a location qualifies when it holds at least one
+// child part; complete bundles = min over children of floor(onHand / perBundle).
+function computeBundleLocsClient(bundle) {
+  var children = bundle.bundleChildren || [];
+  if (!children.length) return [];
+  var locSet = {};
+  children.forEach(function(c) {
+    locationsData.forEach(function(l) {
+      if (String(l.partNum||'').toLowerCase() === String(c.partNum||'').toLowerCase()) locSet[l.location] = true;
+    });
+  });
+  var out = Object.keys(locSet).map(function(loc) {
+    var maxB = Infinity;
+    children.forEach(function(c) {
+      var onHand = 0;
+      locationsData.forEach(function(l) {
+        if (l.location === loc && String(l.partNum||'').toLowerCase() === String(c.partNum||'').toLowerCase()) onHand += parseInt(l.quantity)||0;
+      });
+      var per = Math.max(1, parseInt(c.qty)||1);
+      var possible = Math.floor(onHand / per);
+      if (possible < maxB) maxB = possible;
+    });
+    if (maxB === Infinity) maxB = 0;
+    return { location: loc, completeBundles: maxB };
+  });
+  out.sort(function(a,b){ return b.completeBundles - a.completeBundles; });
+  return out;
+}
+
+function renderTransferResults(q) {
+  var container = document.getElementById('transfer-results');
+  if (!q) { container.innerHTML = '<div class="search-empty">— Search a part or bin location to transfer —</div>'; return; }
+  var ql = q.toLowerCase();
+  var seen = {}, matches = [];
+
+  // Location code search — check all location entries for matching bin codes
+  locationsData.forEach(function(l) {
+    var loc = String(l.location || '').toLowerCase();
+    if (!loc.includes(ql)) return;
+    var key = String(l.partNum || '').toLowerCase();
+    if (!key || seen[key]) return;
+    seen[key] = true;
+    matches.push({ partNum: l.partNum, partName: l.partName });
+  });
+
+  // Part # and description search
+  locationsData.forEach(function(l) {
+    var pn = String(l.partNum || '').trim(), pa = String(l.partName || '').trim(), key = pn.toLowerCase();
+    if (!key || seen[key]) return;
+    if (!key.includes(ql) && !pa.toLowerCase().includes(ql)) return;
+    seen[key] = true; matches.push({ partNum: pn, partName: pa });
+  });
+  (window.allStowParts || []).forEach(function(p) {
+    if (p.isBundle) return;  // bundles handled separately below
+    var key = (p.partNum||'').toLowerCase();
+    if (!key || seen[key]) return;
+    if (!key.includes(ql) && !(p.partName||'').toLowerCase().includes(ql)) return;
+    seen[key] = true; matches.push({ partNum: p.partNum, partName: p.partName });
+  });
+
+  // Bundle search — matched by name; transferred as their component parts
+  var bundleMatches = (window.allStowParts || []).filter(function(p) {
+    return p.isBundle && String(p.bundleName||'').toLowerCase().includes(ql);
+  });
+
+  matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
+  if (!matches.length && !bundleMatches.length) { container.innerHTML = '<div class="search-empty">— No parts found —</div>'; return; }
+
+  var bundleHtml = bundleMatches.slice(0, 5).map(function(b) {
+    // Only locations that can fill at least one complete bundle — zero rows are noise
+    var bLocs = computeBundleLocsClient(b).filter(function(l){ return l.completeBundles > 0; });
+    var locRows = bLocs.length ? bLocs.map(function(l) {
+      var avail = l.completeBundles;
+      var isSelected = transferBundle && transferBundle.bundleName === b.bundleName && transferFromLoc && transferFromLoc.location === l.location;
+      return '<div class="transfer-loc-row">'+
+        '<div class="transfer-loc-top">'+
+          '<span class="transfer-loc-code">'+esc(l.location)+'</span>'+
+          '<span class="transfer-loc-qty ok">'+avail+' complete bundle'+(avail===1?'':'s')+'</span>'+
+          '<button class="transfer-from-btn'+(isSelected?' selected':'')+'" onclick="selectTransferBundleFrom(\''+esc(b.bundleName)+'\',\''+esc(l.location)+'\','+avail+')">'+
+            (isSelected ? '✓ Selected' : 'Transfer From')+'</button>'+
+        '</div>'+
+      '</div>';
+    }).join('') : '<div class="transfer-loc-out">No complete bundle locations</div>';
+    return '<div class="transfer-result-card">'+
+      '<div class="transfer-result-header">'+
+        '<div class="transfer-result-pn" style="color:#6d28d9">BUNDLE</div>'+
+        '<div class="transfer-result-pa">'+esc(b.bundleName)+'</div>'+
+      '</div>'+
+      '<div class="transfer-result-body">'+
+        '<div style="font-size:11px;font-weight:600;color:#9ca3af;margin:0 0 8px;letter-spacing:0.04em;">Moves all component parts together — locations below can fill complete bundles</div>'+
+        locRows+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  container.innerHTML = bundleHtml + matches.slice(0, 20).map(function(m) {
+    var locs  = locationsData.filter(function(l) { return l.partNum.toLowerCase() === m.partNum.toLowerCase(); });
+    var total = locs.reduce(function(s,l){ return s+(parseInt(l.quantity)||0); }, 0);
+    var lineSet = {};
+    Object.keys(inventoryData).forEach(function(grp) {
+      (inventoryData[grp]||[]).forEach(function(item) {
+        if (item.partNum.toLowerCase() === m.partNum.toLowerCase()) lineSet[(item.line||grp).toUpperCase()] = item.line||grp;
+      });
+    });
+    if (orphanData && orphanData.orphanParts) {
+      orphanData.orphanParts.forEach(function(o) {
+        if (o.partNum.toLowerCase() !== m.partNum.toLowerCase()) return;
+        var lines = Array.isArray(o.assignedLines) ? o.assignedLines : (o.assignedLine ? [o.assignedLine] : []);
+        lines.forEach(function(l){ if (l) lineSet[l.toUpperCase()] = l; });
+      });
+    }
+    var lineKeys = Object.keys(lineSet);
+    var lineTags = lineKeys.length
+      ? lineKeys.map(function(k){ return '<span class="transfer-line-tag '+lineClassT(k)+'">'+esc(lineSet[k])+'</span>'; }).join('')
+      : '<span class="transfer-line-tag unassigned">Unassigned</span>';
+
+    var locRows = locs.length ? locs.map(function(l) {
+      var qty = parseInt(l.quantity) || 0;
+      var isSelected = transferFromLoc && (transferFromLoc.type||'warehouse') === 'warehouse' && transferFromLoc.location === l.location && transferPart && transferPart.partNum === m.partNum;
+      return '<div class="transfer-loc-row">'+
+        '<div class="transfer-loc-top">'+
+          '<span class="transfer-loc-code">'+esc(l.location)+'</span>'+
+          '<span class="transfer-loc-qty '+(qty>0?'ok':'low')+'">'+qty+' in stock</span>'+
+          (qty > 0 ? '<button class="transfer-from-btn'+(isSelected?' selected':'')+'" onclick="selectTransferFrom(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(l.location)+'\','+qty+')">'+
+            (isSelected ? '✓ Selected' : 'Transfer From')+'</button>' : '')+
+        '</div>'+
+      '</div>';
+    }).join('') : '<div class="transfer-loc-out">No warehouse locations on file</div>';
+
+    // On-line stock — every line tracking this part (qty > 0), transferable like a bin
+    var lineInvRows = (window.lineInventoryData || []).filter(function(e) {
+      return String(e.partNum||'').toLowerCase() === m.partNum.toLowerCase() && (parseFloat(e.onLineQty)||0) > 0;
+    }).map(function(e) {
+      var lq = Math.floor(parseFloat(e.onLineQty)||0);
+      var isSel = transferFromLoc && transferFromLoc.type === 'line' && transferFromLoc.location === e.line && transferPart && transferPart.partNum === m.partNum;
+      return '<div class="transfer-loc-row">'+
+        '<div class="transfer-loc-top">'+
+          '<span class="transfer-loc-code" style="color:#6d28d9">⚙ '+esc(e.line)+'</span>'+
+          '<span class="transfer-loc-qty ok">'+lq+' on line</span>'+
+          '<button class="transfer-from-btn'+(isSel?' selected':'')+'" onclick="selectTransferFromLine(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(e.line)+'\','+lq+')">'+
+            (isSel ? '✓ Selected' : 'Transfer From')+'</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+
+    return '<div class="transfer-result-card">'+
+      '<div class="transfer-result-header">'+
+        '<div class="transfer-result-pn">'+esc(m.partNum)+'</div>'+
+        '<div class="transfer-result-pa">'+esc(m.partName)+'</div>'+
+      '</div>'+
+      '<div class="transfer-result-body">'+
+        '<div class="transfer-lines">'+lineTags+'</div>'+
+        '<div style="font-size:11px;font-weight:600;color:#6b7280;margin:4px 0 6px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#16191f;font-weight:800">'+epicorLabel(m.partNum)+'</span></div>'+
+        locRows+
+        lineInvRows+
+        (locs.length > 1 ? '<div class="transfer-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('') + '<div id="transfer-form-anchor"></div>';
+
+  if ((transferPart || transferBundle) && transferFromLoc) renderTransferForm();
+}
+
+var transferDestType = 'warehouse';  // 'warehouse' | 'line' — destination kind
+
+function selectTransferFrom(pn, pa, location, qty) {
+  transferPart    = { partNum: pn, partName: pa };
+  transferBundle  = null;
+  transferFromLoc = { type: 'warehouse', location: location, quantity: qty };
+  transferDestType = 'warehouse';
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function selectTransferFromLine(pn, pa, line, qty) {
+  transferPart    = { partNum: pn, partName: pa };
+  transferBundle  = null;
+  transferFromLoc = { type: 'line', location: line, quantity: qty };
+  transferDestType = 'warehouse';  // most common: line → back to a warehouse bin
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function selectTransferBundleFrom(bundleName, location, avail) {
+  var b = (window.allStowParts || []).find(function(x){ return x.isBundle && x.bundleName === bundleName; });
+  if (!b) return;
+  transferBundle  = b;
+  transferPart    = null;
+  transferFromLoc = { type: 'warehouse', location: location, quantity: avail };
+  transferDestType = 'warehouse';  // bundles transfer warehouse→warehouse only
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function setTransferDestType(t) {
+  if (transferBundle && t === 'line') return;  // bundles: warehouse destinations only
+  var qtyEl = document.getElementById('transfer-qty');
+  var keepQty = qtyEl ? qtyEl.value : '';
+  transferDestType = t;
+  renderTransferForm();
+  var qEl = document.getElementById('transfer-qty');
+  if (qEl && keepQty !== '') qEl.value = keepQty;
+}
+
+function renderTransferForm() {
+  var anchor = document.getElementById('transfer-form-anchor');
+  if (!anchor) return;
+  var maxQty   = transferFromLoc.quantity;
+  var isBndl   = !!transferBundle;
+  var fromLine = transferFromLoc.type === 'line';
+  var title    = isBndl ? ('↔ Transfer — '+esc(transferBundle.bundleName)+' (BUNDLE)') : ('↔ Transfer — '+esc(transferPart.partNum));
+  var availTx  = isBndl ? (maxQty+' complete bundle'+(maxQty===1?'':'s')) : (maxQty+(fromLine?' on line':' available'));
+
+  // Destination: warehouse bin (free text) or production line (dropdown).
+  // Bundles are warehouse→warehouse only, so the toggle is hidden for them.
+  var toLine = transferDestType === 'line' && !isBndl;
+  var tabBase = 'flex:1;padding:9px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;';
+  var tabOn   = tabBase+'border:1.5px solid #C8102E;background:#fdecee;color:#C8102E;';
+  var tabOff  = tabBase+'border:1.5px solid #d3d8e0;background:#ffffff;color:#6b7280;';
+  var destToggle = isBndl ? '' :
+    '<div style="display:flex;gap:6px;margin-bottom:10px;">'+
+      '<button style="'+(toLine?tabOff:tabOn)+'" onclick="setTransferDestType(\'warehouse\')">Warehouse Bin</button>'+
+      '<button style="'+(toLine?tabOn:tabOff)+'" onclick="setTransferDestType(\'line\')">Production Line</button>'+
+    '</div>';
+  var destInput = toLine
+    ? '<select class="transfer-dest-input" id="transfer-dest-line">'+
+        '<option value="">— Select line —</option>'+
+        (window.allLinesData || []).filter(function(l){ return !(fromLine && l === transferFromLoc.location); })
+          .map(function(l){ return '<option value="'+esc(l)+'">'+esc(l)+'</option>'; }).join('')+
+      '</select>'
+    : '<input class="transfer-dest-input" type="text" id="transfer-dest" placeholder="e.g. 02-B3-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>';
+
+  anchor.innerHTML =
+    '<div class="transfer-form">'+
+      '<div class="transfer-form-title">'+title+'</div>'+
+      '<div class="transfer-from-info">'+
+        '<div>'+
+          '<div class="transfer-from-label">'+(fromLine ? 'From line' : 'From location')+'</div>'+
+          '<div class="transfer-from-loc">'+(fromLine ? '⚙ ' : '')+esc(transferFromLoc.location)+'</div>'+
+        '</div>'+
+        '<div class="transfer-from-avail">'+availTx+'</div>'+
+      '</div>'+
+      '<div class="transfer-qty-row">'+
+        '<span class="transfer-qty-label">'+(isBndl ? 'Bundles to move' : 'Qty to move')+'</span>'+
+        '<input class="transfer-qty-input" type="number" id="transfer-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="'+Math.min(maxQty,1)+'" oninput="clampTransferQty('+maxQty+')" onblur="blurTransferQty('+maxQty+')"/>'+
+      '</div>'+
+      '<div class="transfer-dest-label">Destination</div>'+
+      destToggle+
+      destInput+
+      '<button class="transfer-confirm-btn" id="transfer-confirm-btn" onclick="confirmTransfer()">↔ Confirm Transfer</button>'+
+      '<button style="width:100%;margin-top:8px;padding:10px;border-radius:6px;border:1px solid #d3d8e0;background:#f8f9fa;color:#6b7280;font-size:12px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;" onclick="cancelTransfer()">Cancel</button>'+
+    '</div>';
+}
+
+function clampTransferQty(max) {
+  // Fires on every keystroke — allow empty/mid-edit, only enforce the MAX here.
+  // Minimum is enforced on blur so the user can freely clear the field and retype.
+  var el = document.getElementById('transfer-qty');
+  if (!el) return;
+  if (el.value === '') return;                // let them clear and retype
+  var v = parseInt(el.value, 10);
+  if (isNaN(v)) return;                       // let them finish typing
+  if (v > max) el.value = max;
+}
+function blurTransferQty(max) {
+  // Runs when the user leaves the field — enforce both bounds here.
+  var el = document.getElementById('transfer-qty');
+  if (!el) return;
+  var v = parseInt(el.value, 10);
+  if (isNaN(v) || v < 1) el.value = 1;
+  else if (v > max) el.value = max;
+}
+
+function cancelTransfer() {
+  transferPart = null; transferFromLoc = null; transferBundle = null; transferDestType = 'warehouse';
+  renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+}
+
+function confirmTransfer() {
+  var qty    = parseInt(document.getElementById('transfer-qty').value) || 1;
+  var toLine = transferDestType === 'line' && !transferBundle;
+  var dest;
+  if (toLine) {
+    dest = document.getElementById('transfer-dest-line').value;
+    if (!dest) { showTransferFlash(false, 'Select a destination line'); return; }
+  } else {
+    dest = document.getElementById('transfer-dest').value.trim().toUpperCase();
+    if (!dest) { document.getElementById('transfer-dest').focus(); return; }
+  }
+  var fromType = transferFromLoc.type || 'warehouse';
+  var toType   = toLine ? 'line' : 'warehouse';
+  if (fromType === toType && dest.toLowerCase() === transferFromLoc.location.toLowerCase()) {
+    showTransferFlash(false, 'Destination must be different from the source'); return;
+  }
+  if (qty < 1 || qty > transferFromLoc.quantity) {
+    showTransferFlash(false, 'Quantity must be between 1 and '+transferFromLoc.quantity); return;
+  }
+  var btn = document.getElementById('transfer-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Transferring... please wait';
+  lastTransferPayload = {
+    type:        'transfer',
+    partNum:     transferBundle ? '' : transferPart.partNum,
+    partName:    transferBundle ? '' : transferPart.partName,
+    bundleName:  transferBundle ? transferBundle.bundleName : '',
+    fromType:    fromType,
+    toType:      toType,
+    fromLocation: transferFromLoc.location,
+    toLocation:  dest,
+    qty:         qty,
+    opId:        uid(),
+  };
+  ws.send(JSON.stringify(lastTransferPayload));
+  // Stay locked until the server answers (transfers can take 20-40s through
+  // the sheet). Hard timeout at 45s with a check-first warning — no early
+  // re-enable, that's what caused double-writes.
+  setTimeout(function() {
+    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '↔ Confirm Transfer'; showTransferFlash(false, 'No confirmation after 45s — check the part\'s locations BEFORE retrying'); }
+  }, 45000);
+}
+
+var lastTransferPayload = null;
+function confirmTransferAnyway() {
+  document.getElementById('transfer-dup-overlay').style.display = 'none';
+  if (!lastTransferPayload) return;
+  var forced = {};
+  for (var k in lastTransferPayload) forced[k] = lastTransferPayload[k];
+  forced.force = true; forced.opId = uid();
+  var btn = document.getElementById('transfer-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Transferring... please wait'; }
+  ws.send(JSON.stringify(forced));
+}
+function hideTransferDup() { document.getElementById('transfer-dup-overlay').style.display = 'none'; }
+
+function handleTransferResult(msg) {
+  var btn = document.getElementById('transfer-confirm-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '↔ Confirm Transfer'; }
+  if (msg.duplicate) {
+    document.getElementById('transfer-dup-text').textContent = msg.message || 'An identical transfer was just received.';
+    document.getElementById('transfer-dup-overlay').style.display = 'flex';
+    return;
+  }
+  if (msg.success) {
+    showTransferFlash(true, msg.message || 'Transfer complete');
+    transferPart = null; transferFromLoc = null; transferBundle = null; transferDestType = 'warehouse';
+    loadLocations();
+    // Refresh line inventory too — line transfers change on-line quantities
+    fetch('/api/inventory').then(function(r){ return r.json(); }).then(function(d) {
+      if (d && d.lineInventory) window.lineInventoryData = d.lineInventory;
+    }).catch(function(){});
+    setTimeout(function() {
+      renderTransferResults(document.getElementById('transfer-search-input').value.trim().toLowerCase());
+    }, 1500);
+  } else {
+    showTransferFlash(false, msg.message || 'Transfer failed');
+  }
+}
+
+function showTransferFlash(success, message) {
+  var el = document.getElementById('transfer-flash');
+  el.className = 'transfer-flash ' + (success ? 'success' : 'error');
+  el.textContent = (success ? '✓ ' : '✗ ') + message;
+  el.style.display = 'block';
+  setTimeout(function(){ el.style.display = 'none'; }, 4000);
+}
+
+document.getElementById('transfer-search-input').addEventListener('input', function() {
+  transferPart = null; transferFromLoc = null; transferBundle = null; transferDestType = 'warehouse';
+  renderTransferResults(this.value.trim().toLowerCase());
+});
+
+// ── Open-bin autocomplete ─────────────────────────────────────
+// As you type a location, suggest bins the system tracks as OPEN (generated
+// from the rack grammar minus occupied), plus in-use bins and named areas.
+var placesData = { open: [], occupied: [], areas: [] };
+function loadPlaces() {
+  fetch('/api/places').then(function(r){ return r.json(); }).then(function(d) {
+    if (d && d.success) placesData = d;
+  }).catch(function(){});
+}
+loadPlaces();
+setInterval(loadPlaces, 5 * 60 * 1000);
+
+function renderLocSuggest(q) {
+  var box = document.getElementById('loc-suggest');
+  if (!box) return;
+  q = String(q || '').trim().toUpperCase();
+  if (q.length < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  var rows = [];
+  (placesData.open || []).forEach(function(b)     { if (b.indexOf(q) !== -1 && rows.length < 14) rows.push({ p: b, tag: 'open',  lbl: 'Open' }); });
+  (placesData.occupied || []).forEach(function(b) { if (b.indexOf(q) !== -1 && rows.length < 18) rows.push({ p: b, tag: 'inuse', lbl: 'In use' }); });
+  (placesData.areas || []).forEach(function(a)    { if (a.indexOf(q) !== -1 && rows.length < 20) rows.push({ p: a, tag: 'area',  lbl: 'Area' }); });
+  if (!rows.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = rows.map(function(r) {
+    return '<div class="loc-suggest-item" onmousedown="pickLocSuggest(\'' + esc(r.p) + '\')">' +
+      '<span class="loc-suggest-code">' + esc(r.p) + '</span>' +
+      '<span class="loc-suggest-tag ' + r.tag + '">' + r.lbl + '</span></div>';
+  }).join('');
+  box.style.display = 'block';
+}
+function pickLocSuggest(place) {
+  var el = document.getElementById('location-sel');
+  el.value = place;
+  document.getElementById('loc-suggest').style.display = 'none';
+}
+(function() {
+  var el = document.getElementById('location-sel');
+  if (!el) return;
+  el.addEventListener('input', function(){ renderLocSuggest(this.value); });
+  el.addEventListener('blur', function(){ setTimeout(function(){ var b = document.getElementById('loc-suggest'); if (b) b.style.display = 'none'; }, 200); });
+  el.addEventListener('focus', function(){ if (this.value) renderLocSuggest(this.value); });
+})();
+
+// ── Activity tab ──────────────────────────────────────────────
+function renderActivity() {
+  document.getElementById('act-picks').textContent = sessionPicks;
+  document.getElementById('act-stows').textContent = sessionStows;
+  document.getElementById('act-open').textContent  = requests.length;
+  // Recently fulfilled (server-side, survives page reloads)
+  var rp = document.getElementById('act-recent-picks');
+  rp.innerHTML = recentPicks.length ? recentPicks.map(function(p) {
+    var name = p.isBundle ? (p.bundleName || p.partName) : (p.partNum ? p.partNum + ' — ' + (p.partName || '') : (p.text || ''));
+    return '<div class="recent-pick-card"><div class="recent-pick-part">' + esc(name) + '</div>' +
+      '<div class="recent-pick-meta"><span>' + esc(p.line || '') + '</span><span>Qty ' + esc(String(p.qtyFulfilled != null ? p.qtyFulfilled : p.qty || '')) + '</span>' +
+      (p.location ? '<span class="recent-pick-loc">' + esc(p.location) + '</span>' : '') + '</div></div>';
+  }).join('') : '<div class="empty" style="padding:20px 0">Nothing fulfilled recently</div>';
+  // Session stows
+  var rs = document.getElementById('act-recent-stows');
+  rs.innerHTML = recentStows.length ? recentStows.map(function(s) {
+    return '<div class="recent-item"><div class="recent-part">' + esc(s.partNum) + ' — ' + esc(s.partName) + '</div>' +
+      '<div class="recent-meta">' + esc(s.location) + ' · Qty: ' + s.qty + ' · ' + s.time + '</div></div>';
+  }).join('') : '<div class="empty" style="padding:20px 0">No stows yet this session</div>';
+  // Write health — failed background writes are never silent
+  fetch('/api/write-health').then(function(r){ return r.json(); }).then(function(d) {
+    var el = document.getElementById('act-health');
+    if (!d || !d.failed || !d.failed.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="health-card"><div style="font-weight:800;color:#b45309;margin-bottom:8px;">⚠ ' + d.failed.length +
+      ' background write' + (d.failed.length === 1 ? '' : 's') + ' failed — data may be missing from the sheet</div>' +
+      d.failed.map(function(f) {
+        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px;color:#374151;">' +
+          '<span style="flex:1">' + esc(f.label) + ' · ' + new Date(f.at).toLocaleTimeString() + '</span>' +
+          '<button onclick="retryWrite(' + f.id + ')" style="border:1px solid #b45309;background:#fff;color:#b45309;border-radius:4px;font-size:11px;font-weight:800;padding:3px 10px;cursor:pointer;">Retry</button></div>';
+      }).join('') + '</div>';
+  }).catch(function(){});
+}
+function retryWrite(id) {
+  fetch('/api/write-health/retry/' + id, { method: 'POST' }).then(function(r){ return r.json(); })
+    .then(function(d){ showResult(d.success === true, d.success ? 'Write retried successfully' : 'Retry failed — still queued'); renderActivity(); });
+}
+
+// ── Clock ─────────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateClock(); setInterval(updateClock, 1000);
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+<!-- Duplicate-stow confirmation — the server flagged an identical stow within the last minute -->
+<div id="stow-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideStowDupConfirm()">
+  <div style="background:#fff;border:1px solid #e8a13c;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:14px;color:#b45309;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
+    <div id="stow-dup-text" style="font-size:17px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+    <div style="display:flex;gap:12px;">
+      <button onclick="hideStowDupConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="confirmStowAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#b45309;color:#fff;cursor:pointer;">Stow Anyway</button>
+    </div>
+  </div>
+</div>
+<!-- Epicor ceiling — stow would push tracked total above Epicor on-hand -->
+<div id="ceiling-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCeilingConfirm()">
+  <div style="background:#fff;border:1px solid #C8102E;border-radius:12px;padding:24px;max-width:460px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:14px;color:#C8102E;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Exceeds Epicor On-Hand</div>
+    <div id="ceiling-text" style="font-size:16px;color:#16191f;line-height:1.55;margin-bottom:10px;"></div>
+    <div style="font-size:12.5px;color:#6b7280;margin-bottom:22px;">Only override if this material was received into Epicor within the last hour. The override is logged.</div>
+    <div style="display:flex;gap:12px;">
+      <button onclick="hideCeilingConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="confirmCeilingAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#C8102E;color:#fff;cursor:pointer;">Just Received — Stow</button>
+    </div>
+  </div>
+</div>
+<!-- Duplicate-transfer confirmation -->
+<div id="transfer-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideTransferDup()">
+  <div style="background:#fff;border:1px solid #e8a13c;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:14px;color:#b45309;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
+    <div id="transfer-dup-text" style="font-size:17px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+    <div style="display:flex;gap:12px;">
+      <button onclick="hideTransferDup()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="confirmTransferAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#b45309;color:#fff;cursor:pointer;">Transfer Anyway</button>
+    </div>
+  </div>
+</div>
+<!-- Cancel-reason chooser — one tap, lands in the Transaction Log -->
+<div id="cancel-reason-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCancelReason()">
+  <div style="background:#fff;border:1px solid #d3d8e0;border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:14px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;text-align:center;">Cancel request — why?</div>
+    <button class="reason-btn" onclick="sendCancelReason('already have')">✅ Line already has it / delivered outside the app</button>
+    <button class="reason-btn" onclick="sendCancelReason('wrong part')">🔄 Wrong part requested</button>
+    <button class="reason-btn" onclick="sendCancelReason('duplicate')">👯 Duplicate request</button>
+    <button class="reason-btn" onclick="sendCancelReason('not needed')">🚫 No longer needed</button>
+    <button class="reason-btn" onclick="sendCancelReason('out of stock')">📭 Out of stock everywhere</button>
+    <button onclick="hideCancelReason()" style="width:100%;padding:12px;margin-top:4px;border-radius:8px;border:none;background:none;color:#6b7280;font-size:13px;font-weight:700;cursor:pointer;">Keep the request</button>
+  </div>
+</div>
+<!-- Pick confirmation dialog — prevents accidental "Picked" taps from moving inventory -->
+<div id="pick-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hidePickConfirm()">
+  <div style="background:#fff;border:1px solid #d3d8e0;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:14px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">Confirm Pick</div>
+    <div id="pick-confirm-text" style="font-size:19px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+    <div style="display:flex;gap:12px;">
+      <button onclick="hidePickConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="confirmPickYes()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#15803d;color:#fff;cursor:pointer;">✓ Confirm Pick</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

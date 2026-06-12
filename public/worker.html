@@ -1,5 +1,728 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Redirecting…</title>
-<script>location.replace('/?role=station');</script></head>
-<body style="background:#0b0e13;color:#9ca3af;font-family:sans-serif;text-align:center;padding-top:60px">
-Moved — opening the PMS app… <a href="/?role=station" style="color:#f87171">tap here</a> if nothing happens.
-</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<title>Station</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; background: #f4f5f7; color: #16191f; }
+
+  /* ── Header ── */
+  .header { width: 100%; background: #ffffff; border-bottom: 3px solid #C8102E; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon { width: 32px; height: 32px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; color: #fff; flex-shrink: 0; }
+  .brand-text .top { font-size: 9px; font-weight: 700; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
+  .brand-text .btm { font-size: 15px; font-weight: 800; color: #16191f; letter-spacing: 0.06em; text-transform: uppercase; }
+  .station-badge { background: #f8f9fa; border: 1px solid #d3d8e0; border-radius: 4px; padding: 4px 12px; font-size: 12px; font-weight: 800; color: #16191f; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
+  .station-type-txt { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 1px; text-align: right; }
+  .station-select { background: #f8f9fa; border: 1.5px solid #C8102E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: 800; color: #16191f; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; cursor: pointer; outline: none; font-family: inherit; }
+  .station-select:focus { border-color: #EF9F27; }
+  .station-select optgroup { font-style: normal; color: #EF9F27; background: #ffffff; }
+  .station-select option { background: #f8f9fa; color: #16191f; font-weight: 700; }
+
+  /* ── Request form (ported from line.html) ── */
+  .search-input { width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; padding: 10px 14px; outline: none; margin-bottom: 8px; }
+  .search-input:focus { border-color: #C8102E; }
+  .search-input::placeholder { color: #9aa1ab; }
+  .parts-list { max-height: 240px; overflow-y: auto; border: 1.5px solid #d3d8e0; border-radius: 6px; background: #f8f9fa; margin-bottom: 12px; }
+  .part-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #eef0f3; font-size: 13px; color: #374151; }
+  .part-item:last-child { border-bottom: none; }
+  .part-item:hover { background: #f4f5f7; color: #16191f; }
+  .part-item .pn { font-weight: 800; color: #C8102E; font-size: 11px; letter-spacing: 0.06em; }
+  .part-item .pa { font-size: 12px; color: #6b7280; margin-top: 1px; }
+  .part-item .out-tag { font-size: 10px; color: #C8102E; font-weight: 700; letter-spacing: 0.06em; margin-top: 3px; }
+  .not-found { padding: 14px; text-align: center; }
+  .not-found-icon { font-size: 22px; margin-bottom: 6px; }
+  .not-found-msg  { font-size: 13px; font-weight: 700; color: #6b7280; }
+  .not-found-sub  { font-size: 11px; color: #9aa1ab; margin-top: 4px; }
+  .selected-bar { margin-bottom: 12px; padding: 10px 14px; background: #ffffff; border: 1.5px solid #C8102E; border-radius: 6px; }
+  .selected-bar-lbl  { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .selected-bar-text { font-size: 13px; font-weight: 700; color: #16191f; }
+  .selected-bar-clear { float: right; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+  .selected-bar-clear:hover { color: #C8102E; }
+  .stock-info { font-size: 13px; margin-bottom: 12px; padding: 10px 14px; border-radius: 6px; font-weight: 600; }
+  .qty-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .qty-label { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
+  .qty-input { flex: 1; width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; }
+  .qty-input:focus { border-color: #C8102E; }
+  .unit-select { background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 13px; font-weight: 700; padding: 9px 10px; outline: none; margin-left: 8px; cursor: pointer; }
+  .unit-select:focus { border-color: #C8102E; }
+  .pri-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; }
+  .pri-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .pri-btn { flex: 1; padding: 9px 4px; border-radius: 4px; border: 1.5px solid #d3d8e0; background: #f8f9fa; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
+  .pri-btn.sel-low    { background: #eef0f3; border-color: #6b7280; color: #16191f; }
+  .pri-btn.sel-medium { background: #fdf6e3; border-color: #e8a13c; color: #b45309; }
+  .pri-btn.sel-high   { background: #fdecee; border-color: #C8102E; color: #C8102E; }
+  .req-send-btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; margin-bottom: 8px; background: #C8102E; color: #fff; }
+  .req-send-btn:hover { background: #a00d24; }
+  .req-send-btn:disabled { opacity: 0.35; cursor: default; }
+  .flash { border-radius: 6px; padding: 11px; text-align: center; font-size: 13px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; display: none; }
+  .flash-green { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
+  .flash-red   { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; }
+  .req-queue-pos { font-size: 10px; font-weight: 800; color: #EF9F27; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+  .req-elapsed   { font-size: 11px; font-weight: 700; color: #6b7280; margin-left: 6px; }
+
+  .conn-status { display: none; width: 100%; background: #fdecee; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.08em; }
+  .break-banner { display: none; width: 100%; background: #0c1929; border-bottom: 2px solid #60a5fa; padding: 12px 24px; }
+  .break-banner.lunch   { background: #1a1200; border-color: #EF9F27; }
+  .break-banner.visible { display: block; }
+  .banner-title     { font-size: 15px; font-weight: 800; color: #16191f; text-transform: uppercase; letter-spacing: 0.06em; }
+  .banner-sub       { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .banner-countdown { font-size: 22px; font-weight: 900; color: #60a5fa; margin-top: 4px; }
+  .break-banner.lunch .banner-countdown { color: #EF9F27; }
+
+  /* ── Main content ── */
+  .content { flex: 1; width: 100%; max-width: 400px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
+
+  /* ── Big button ── */
+  .big-btn { width: 180px; height: 180px; border-radius: 50%; border: none; font-size: 18px; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; transition: transform 0.1s; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+  .big-btn:active { transform: scale(0.94); }
+  .big-btn.idle    { background: #f8f9fa; color: #9aa1ab; cursor: default; }
+  .big-btn.start   { background: #C8102E; color: #fff; }
+  .big-btn.done-btn { background: #f4f5f7; color: #16191f; border: 3px solid #EF9F27; }
+  .big-btn.done    { background: #052e16; color: #15803d; cursor: default; border: 3px solid #4ade80; }
+  .big-btn.paused  { background: #0c1929; color: #60a5fa; cursor: default; }
+  .big-btn.on-hold { background: #f8f9fa; color: #6b7280; cursor: default; }
+  .big-btn .sub    { font-size: 11px; font-weight: 600; opacity: 0.7; }
+
+  .timer       { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; }
+  .active-time { font-size: 12px; color: #6b7280; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .status-txt  { font-size: 13px; color: #6b7280; margin-bottom: 24px; text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ── Sections ── */
+  .section { width: 100%; margin-bottom: 20px; }
+  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: #e3e6eb; }
+
+  /* ── Status bar ── */
+  .status-bar { border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; }
+  .status-bar.active  { background: #1f1500; border: 1px solid #92400e; color: #EF9F27; }
+  .status-bar.on-hold { background: #f8f9fa; border: 1px solid #d3d8e0; color: #6b7280; }
+  .status-bar-label  { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+  .status-bar-reason { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+  .hold-reason-select { width: 100%; background: #f8f9fa; border: 1px solid #d3d8e0; border-radius: 6px; color: #6b7280; font-size: 13px; padding: 10px 12px; outline: none; margin-bottom: 8px; }
+  .hold-reason-select:focus { border-color: #C8102E; }
+
+  .status-btns { display: flex; gap: 8px; }
+  .status-btn  { flex: 1; padding: 12px 8px; border-radius: 4px; border: none; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: background 0.15s; }
+  .status-btn:active { transform: scale(0.97); }
+  .status-btn.start-station { background: #C8102E; color: #fff; }
+  .status-btn.start-station:hover { background: #a00d24; }
+  .status-btn.hold-station  { background: #f8f9fa; color: #6b7280; border: 1px solid #d3d8e0; }
+  .status-btn.hold-station:hover { background: #f4f5f7; color: #16191f; }
+  .status-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* ── Inventory ── */
+  .inv-loading { font-size: 12px; color: #6b7280; text-align: center; padding: 8px 0; text-transform: uppercase; letter-spacing: 0.08em; }
+  .inv-form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .inv-select { flex: 1; min-width: 0; background: #f8f9fa; border: 1px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 13px; padding: 10px 12px; outline: none; cursor: pointer; }
+  .inv-select:focus { border-color: #C8102E; }
+  .inv-select option { background: #f8f9fa; }
+  .inv-send-btn { background: #C8102E; border: none; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; padding: 10px 14px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
+  .inv-send-btn:hover { background: #a00d24; }
+  .text-input { width: 100%; background: #f8f9fa; border: 1px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 13px; padding: 10px 12px; outline: none; margin-bottom: 8px; }
+  .text-input:focus { border-color: #C8102E; }
+  .text-input::placeholder { color: #9aa1ab; }
+  .send-custom-btn { width: 100%; padding: 11px; border-radius: 6px; border: 1px solid #d3d8e0; background: #f8f9fa; color: #6b7280; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+  .send-custom-btn:hover { background: #f4f5f7; color: #16191f; }
+
+  /* ── Request list ── */
+  .req-item { background: #ffffff; border: 1px solid #e3e6eb; border-left: 3px solid #C8102E; border-radius: 4px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 8px; }
+  .req-content { flex: 1; }
+  .req-text { font-size: 13px; font-weight: 600; color: #16191f; word-break: break-word; }
+  .req-meta { font-size: 10px; color: #9aa1ab; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .req-cancel { background: none; border: 1px solid #d3d8e0; border-radius: 3px; color: #6b7280; cursor: pointer; font-size: 10px; font-weight: 700; padding: 3px 8px; flex-shrink: 0; text-transform: uppercase; }
+  .req-cancel:hover { border-color: #C8102E; color: #C8102E; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon">L</div>
+    <div class="brand-text">
+      <div class="top">Langmuir <span style="color:#C8102E">Systems</span></div>
+      <div class="btm">Production</div>
+    </div>
+  </div>
+  <div>
+    <select class="station-select" id="station-select" onchange="switchStation(this.value)">
+      <option value="">Loading...</option>
+    </select>
+    <div class="station-type-txt" id="st-type"></div>
+  </div>
+</div>
+
+<div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
+
+<div class="break-banner" id="break-banner">
+  <div class="banner-title" id="banner-title">Morning Break</div>
+  <div class="banner-sub">Timer paused — auto-resumes when break ends</div>
+  <div class="banner-countdown" id="banner-countdown"></div>
+</div>
+
+<div class="content">
+  <button class="big-btn idle" id="btn" onclick="handleMainBtn()">—</button>
+  <div class="timer"       id="timer"></div>
+  <div class="active-time" id="active-time"></div>
+  <div class="status-txt"  id="status">Waiting for takt to start...</div>
+
+  <!-- Station status -->
+  <div class="section">
+    <div class="section-label">Station Status</div>
+    <div id="current-status-bar"></div>
+    <div id="hold-reason-row" style="display:none">
+      <select class="hold-reason-select" id="hold-reason-sel">
+        <option>No operator assigned</option>
+        <option>No frame/material at station</option>
+        <option>Secured (end of day)</option>
+        <option>Waiting for previous station</option>
+      </select>
+    </div>
+    <div class="status-btns">
+      <button class="status-btn start-station" id="btn-start-station" onclick="startStation()">▶ Start Station</button>
+      <button class="status-btn hold-station"  id="btn-hold-station"  onclick="holdStation()">⏸ Put On Hold</button>
+    </div>
+  </div>
+
+  <!-- Inventory Request (full parity with line.html) -->
+  <div class="section">
+    <div class="section-label">Inventory Request</div>
+    <div id="inv-loading" class="inv-loading">Loading inventory...</div>
+    <div id="inv-form" style="display:none">
+      <input class="search-input" id="part-search" type="text" placeholder="Search part # or description..." autocomplete="off"/>
+      <div class="parts-list" id="parts-list"></div>
+      <div class="selected-bar" id="selected-bar" style="display:none">
+        <div class="selected-bar-lbl">Selected <button class="selected-bar-clear" onclick="clearSelected()">✕ Clear</button></div>
+        <div class="selected-bar-text" id="selected-bar-text"></div>
+      </div>
+      <div id="stock-info" style="display:none" class="stock-info"></div>
+      <div class="qty-row">
+        <span class="qty-label">Qty</span>
+        <input class="qty-input" id="qty-input" type="number" inputmode="numeric" min="1" value="1"/>
+        <select class="unit-select" id="unit-select">
+          <option value="Part" selected>Part</option>
+          <option value="Box">Box</option>
+          <option value="Pallet">Pallet</option>
+        </select>
+      </div>
+      <div class="pri-label">Priority</div>
+      <div class="pri-row" id="pri-row">
+        <button class="pri-btn sel-low" data-level="low">Standard · 20 min</button>
+        <button class="pri-btn" data-level="high">🚨 Line Blocked · 10 min</button>
+      </div>
+      <div class="flash flash-green" id="sent-flash">Request Sent!</div>
+      <button class="req-send-btn" id="send-btn" disabled onclick="sendRequest()">Send Request</button>
+    </div>
+    <div id="inv-list" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
+let state = null, taktSec = 10800, timerInt = null;
+let holdReasons = ['No operator assigned','No frame/material at station','Secured (end of day)','Waiting for previous station'];
+let lastPong = Date.now();
+
+// Full-line inventory (deduped across station groups), plus the full BOM so
+// we can include out-of-stock parts. Mirrors line.html's assembly logic.
+let allItems      = [];
+let locationsList = [];
+let selectedPart  = null;
+let priority      = 'low';
+let epicorOnHand  = {};      // {partNumLower: qty} from Epicor BAQ
+let epicorLastRefresh = null; // ISO timestamp
+
+ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
+ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
+ws.onerror = function() { document.getElementById('conn-status').style.display = 'flex'; };
+
+setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
+setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
+
+const BREAK_ENDS = { 'Morning Break':[10,45], 'Lunch':[13,30], 'Afternoon Break':[15,15] };
+
+const params = new URLSearchParams(location.search);
+let stationId = parseInt(params.get('id') || '1');
+
+// ── Inventory load (full Apollo line, mirrors line.html) ─────
+async function loadInventory() {
+  try {
+    const r = await fetch('/api/inventory');
+    const d = await r.json();
+    if (!d.success) { document.getElementById('inv-loading').textContent = 'Error: '+(d.error||'unknown'); return; }
+    locationsList = d.locations || [];
+    window._catalog = d.catalog || [];   // full Epicor part list + Uline boxes (request fallback)
+    epicorOnHand  = d.epicorOnHand || {};
+    epicorLastRefresh = d.epicorLastRefresh || null;
+    const inv = d.inventory || {};
+
+    // Find all inventory groups that belong to Apollo (Apollo splits by station)
+    const lineGroups = Object.keys(inv).filter(grp => {
+      const items = inv[grp] || [];
+      return items.length > 0 && String(items[0].line || '').toUpperCase() === 'APOLLO';
+    });
+
+    // Dedupe in-stock parts across all station groups
+    const inStock = {};
+    const inStockItems = [];
+    lineGroups.forEach(grp => {
+      (inv[grp] || []).forEach(item => {
+        const key = item.partNum.toLowerCase();
+        if (inStock[key]) return;
+        inStock[key] = true;
+        inStockItems.push(item);
+      });
+    });
+
+    // Collect every BOM part for the line, including parts with no locations
+    const bomForLine = {};
+    lineGroups.forEach(grp => {
+      (inv[grp] || []).forEach(item => {
+        const key = item.partNum.toLowerCase();
+        if (!bomForLine[key]) bomForLine[key] = { partNum: item.partNum, partName: item.partName };
+      });
+    });
+
+    // In-stock first, then out-of-stock BOM parts
+    allItems = inStockItems.slice();
+    Object.keys(bomForLine).forEach(pnKey => {
+      if (inStock[pnKey]) return;
+      const p = bomForLine[pnKey];
+      allItems.push({ partNum: p.partNum, partName: p.partName, outOfStock: true });
+    });
+
+    // Fetch bundles and append. A bundle appears in the dropdown with its
+    // human-readable name in the partName slot (partNum is blank — bundles
+    // are identified by name). Filtered server-side to bundles assigned to
+    // Apollo (or unassigned / available everywhere).
+    try {
+      const br = await fetch('/api/bundles?line=Apollo');
+      const bd = await br.json();
+      if (bd.success && Array.isArray(bd.bundles)) {
+        bd.bundles.forEach(b => {
+          allItems.push({
+            partNum:  '',
+            partName: b.name,
+            isBundle: true,
+            bundleName: b.name,
+            bundleChildren: b.children,
+          });
+        });
+      }
+    } catch(e) { /* bundles are optional — ignore fetch errors */ }
+
+    document.getElementById('inv-loading').style.display = 'none';
+    document.getElementById('inv-form').style.display    = '';
+  } catch(e) {
+    document.getElementById('inv-loading').textContent = 'Could not load inventory';
+  }
+}
+loadInventory();
+setInterval(loadInventory, 60000);
+
+// Independent 60s poll for Epicor on-hand only — cheaper than re-fetching the
+// full inventory. Updates epicorOnHand in place; a re-render on the user's
+// next interaction picks it up.
+async function pollEpicor() {
+  try {
+    const r = await fetch('/api/epicor-onhand');
+    const d = await r.json();
+    if (d.success) {
+      epicorOnHand = d.onHand || {};
+      epicorLastRefresh = d.lastRefresh || null;
+    }
+  } catch {}
+}
+setInterval(pollEpicor, 5 * 60 * 1000);
+
+// ── Epicor lookup helper ─────────────────────────────────────
+// Returns: { qty: number|null, label: 'XX' or '—' }
+// label is what to display directly; qty is the raw value (null = unknown).
+function epicorLookup(partNum) {
+  if (!partNum) return { qty: null, label: '—' };
+  const v = epicorOnHand[String(partNum).toLowerCase()];
+  if (v === undefined) return { qty: null, label: '—' };
+  // Quantities are usually integers but Epicor may return floats — show
+  // integer if whole, otherwise one decimal place.
+  const n = Number(v);
+  const label = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return { qty: n, label };
+}
+
+// ── Part search + selection (mirrors line.html) ──────────────
+function renderParts(q) {
+  const list = document.getElementById('parts-list');
+  if (selectedPart || !q) { list.innerHTML = ''; return; }
+  const ql = q.toLowerCase();
+  const filtered = allItems.filter(i =>
+    String(i.partNum||'').toLowerCase().includes(ql) ||
+    String(i.partName||'').toLowerCase().includes(ql)
+  );
+  // Fallback to the full Epicor catalog + Uline boxes so ANY part is requestable.
+  const _seen = {};
+  filtered.forEach(i => { if (i.partNum) _seen[String(i.partNum).toLowerCase()] = true; });
+  (window._catalog || []).forEach(c => {
+    const cpn = String(c.partNum||'').trim(); if (!cpn) return;
+    const ck = cpn.toLowerCase(); if (_seen[ck]) return;
+    if (ck.includes(ql) || String(c.partName||'').toLowerCase().includes(ql)) {
+      _seen[ck] = true;
+      filtered.push({ partNum: cpn, partName: String(c.partName||''), outOfStock: true });
+    }
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<div class="not-found"><div class="not-found-icon">🔍</div><div class="not-found-msg">Part not found</div><div class="not-found-sub">This part is not in the inventory tracker for Apollo</div></div>';
+    return;
+  }
+  list.innerHTML = filtered.slice(0,40).map(i => {
+    const pn = String(i.partNum||''), pa = String(i.partName||'');
+    let tag = '';
+    if (i.isBundle)      tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
+    else if (i.outOfStock) tag = '<div class="out-tag">OUT OF STOCK</div>';
+    const click = i.isBundle
+      ? 'selectBundle(\''+esc(pa)+'\')'
+      : 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')';
+    const primary = i.isBundle ? esc(pa) : esc(pn);
+    const secondary = i.isBundle ? 'Bundle — multiple parts' : esc(pa);
+    return '<div class="part-item" onclick="'+click+'">'
+      +'<div class="pn">'+primary+'</div><div class="pa">'+secondary+'</div>'+tag+'</div>';
+  }).join('');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const searchEl = document.getElementById('part-search');
+  if (searchEl) searchEl.addEventListener('input', function(){ renderParts(this.value); });
+});
+// Also wire it up directly in case DOMContentLoaded already fired
+setTimeout(() => {
+  const searchEl = document.getElementById('part-search');
+  if (searchEl && !searchEl._wired) {
+    searchEl._wired = true;
+    searchEl.addEventListener('input', function(){ renderParts(this.value); });
+  }
+}, 0);
+
+function selectPart(pn, pa, isOut) {
+  selectedPart = { partNum: pn, partName: pa, outOfStock: !!isOut, isBundle: false };
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+  document.getElementById('selected-bar').style.display = 'block';
+  document.getElementById('selected-bar-text').textContent = pn + ' — ' + pa;
+  document.getElementById('send-btn').disabled = false;
+  showStock();
+}
+function selectBundle(bundleName) {
+  // Find the bundle entry in allItems (it's there since loadInventory pushed it)
+  const b = allItems.find(i => i.isBundle && i.bundleName === bundleName);
+  selectedPart = {
+    partNum:  '',
+    partName: bundleName,
+    isBundle: true,
+    bundleName: bundleName,
+    bundleChildren: b ? b.bundleChildren : [],
+    outOfStock: false,
+  };
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+  document.getElementById('selected-bar').style.display = 'block';
+  document.getElementById('selected-bar-text').textContent = 'Bundle: ' + bundleName;
+  document.getElementById('send-btn').disabled = false;
+  showStock();
+}
+function clearSelected() {
+  selectedPart = null;
+  document.getElementById('selected-bar').style.display = 'none';
+  document.getElementById('stock-info').style.display   = 'none';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('part-search').value = '';
+  document.getElementById('parts-list').innerHTML = '';
+}
+function showStock() {
+  const sEl = document.getElementById('stock-info');
+  if (!selectedPart) { sEl.style.display='none'; return; }
+  if (selectedPart.isBundle) {
+    // For bundles we'd need to compute complete-bundle counts from locations.
+    // Quick approximation using locationsList + bundleChildren:
+    const children = selectedPart.bundleChildren || [];
+    if (!children.length) {
+      sEl.style.display='block';
+      sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+      sEl.textContent='⚠ Bundle has no children defined';
+      return;
+    }
+    const locSet = new Set();
+    children.forEach(c => {
+      locationsList.forEach(l => {
+        if (String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase()) locSet.add(l.location);
+      });
+    });
+    let total = 0;
+    for (const loc of locSet) {
+      let possible = Infinity;
+      for (const c of children) {
+        const r = locationsList.find(l => l.location === loc && String(l.partNum||'').toLowerCase() === String(c.partNum).toLowerCase());
+        const onHand = r ? (parseInt(r.quantity)||0) : 0;
+        const poss = Math.floor(onHand / c.qty);
+        if (poss < possible) possible = poss;
+      }
+      if (possible === Infinity) possible = 0;
+      total += possible;
+    }
+    sEl.style.display='block';
+    if (total === 0) {
+      sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+      sEl.textContent='⚠ No complete bundles — picker will see individual child parts';
+    } else {
+      sEl.style.background='#1e1535'; sEl.style.border='1px solid #6d28d9'; sEl.style.color='#a78bfa';
+      sEl.textContent='✓ ' + total + ' complete bundle' + (total===1?'':'s') + ' available';
+    }
+    return;
+  }
+  const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
+  const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
+  const epicor = epicorLookup(selectedPart.partNum);
+  const factoryLine = '<div style="font-size:11px;font-weight:600;color:#9ca3af;margin-top:4px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#fff">'+epicor.label+'</span></div>';
+  if (!locs.length || total === 0) {
+    sEl.style.display='block';
+    sEl.style.background='#2d0808'; sEl.style.border='1px solid #7f1d1d'; sEl.style.color='#f87171';
+    sEl.innerHTML = '<div>⚠ Out of stock — will send escalation</div>' + factoryLine;
+  } else {
+    sEl.style.display='block';
+    sEl.style.background='#052e16'; sEl.style.border='1px solid #166534'; sEl.style.color='#4ade80';
+    sEl.innerHTML = '<div>✓ In stock — total: '+total+'</div>' + factoryLine;
+  }
+}
+
+// Priority buttons — wired after DOM ready
+function wirePriorityButtons() {
+  document.querySelectorAll('#pri-row .pri-btn').forEach(btn => {
+    btn.onclick = function() {
+      priority = this.getAttribute('data-level');
+      document.querySelectorAll('#pri-row .pri-btn').forEach(b => {
+        b.className = 'pri-btn' + (b.getAttribute('data-level') === priority ? ' sel-' + priority : '');
+      });
+    };
+  });
+}
+setTimeout(wirePriorityButtons, 0);
+
+// Flash helper
+function showFlash(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (text) el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+// ── Station dropdown ─────────────────────────────────────────
+function populateStationSelect() {
+  if (!state || !state.stations) return;
+  const sel = document.getElementById('station-select');
+  if (!sel) return;
+  const main = state.stations.filter(s => s.type === 'main');
+  const sub  = state.stations.filter(s => s.type === 'sub');
+  let html = '';
+  if (main.length) {
+    html += '<optgroup label="Main Line">';
+    main.forEach(s => {
+      html += '<option value="'+s.id+'"'+(s.id===stationId?' selected':'')+'>'+esc(s.name)+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  if (sub.length) {
+    html += '<optgroup label="Subassembly">';
+    sub.forEach(s => {
+      html += '<option value="'+s.id+'"'+(s.id===stationId?' selected':'')+'>'+esc(s.name)+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+}
+function switchStation(newId) {
+  const n = parseInt(newId);
+  if (!n || n === stationId) return;
+  stationId = n;
+  // Update URL without reload so refresh preserves the station
+  const url = new URL(window.location);
+  url.searchParams.set('id', String(stationId));
+  window.history.replaceState({}, '', url);
+  // Clear any in-flight selection since it might not apply on the new station
+  clearSelected();
+  render();
+}
+
+ws.onmessage = e => {
+  lastPong = Date.now();
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'start') {
+    if (!state) return;
+    state.running=true; state.startTime=msg.startTime; state.paused=false;
+    state.pauseLabel=null; state.pauseStart=null; state.totalPausedMs=0;
+    taktSec=msg.taktSeconds;
+    if (msg.holdReasons) holdReasons=msg.holdReasons;
+    state.stations=msg.stations;
+    populateStationSelect();
+  }
+  if (msg.type === 'state') {
+    state=msg.state; taktSec=msg.taktSeconds;
+    if (msg.holdReasons) holdReasons=msg.holdReasons;
+    populateStationSelect();
+  }
+  render();
+};
+
+function handleMainBtn() { const st=state?.stations?.find(s=>s.id===stationId); if (!state?.running||st?.done||state.paused||st?.stationStatus!=='active') return; ws.send(JSON.stringify({type:'done',stationId})); }
+function startStation()  { ws.send(JSON.stringify({type:'station-start',stationId})); }
+function holdStation()   { const sel=document.getElementById('hold-reason-sel'); ws.send(JSON.stringify({type:'station-hold',stationId,reason:sel.value})); }
+
+function sendRequest() {
+  if (!selectedPart) return;
+  const stName = state?.stations?.find(s => s.id === stationId)?.name || '';
+
+  if (selectedPart.isBundle) {
+    const qty = Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
+    ws.send(JSON.stringify({
+      type:       'request',
+      stationId,
+      partNum:    '',
+      partName:   selectedPart.bundleName,
+      text:       'Bundle: ' + selectedPart.bundleName,
+      qty:        qty,
+      unit:       'Bundle',
+      priority:   priority,
+      sla:        priority === 'high' ? 'urgent' : 'standard',
+      line:       'Apollo',
+      station:    stName,
+      isBundle:   true,
+      bundleName: selectedPart.bundleName,
+    }));
+    clearSelected();
+    document.getElementById('qty-input').value = '1';
+    document.getElementById('unit-select').value = 'Part';
+    showFlash('sent-flash', null);
+    return;
+  }
+
+  const locs = locationsList.filter(l => String(l.partNum||'').toLowerCase() === selectedPart.partNum.toLowerCase());
+  const total = locs.reduce((s,l) => s + (parseInt(l.quantity)||0), 0);
+  const isOut = !locs.length || total === 0;
+  const qty   = isOut ? 0 : Math.max(1, parseInt(document.getElementById('qty-input').value) || 1);
+  const unit  = document.getElementById('unit-select').value || 'Part';
+  ws.send(JSON.stringify({
+    type:     'request',
+    stationId,
+    partNum:  selectedPart.partNum,
+    partName: selectedPart.partName,
+    text:     selectedPart.partNum + ' — ' + selectedPart.partName,
+    qty:      qty,
+    unit:     unit,
+    priority: isOut ? 'high' : priority,
+    sla:      (isOut || priority === 'high') ? 'urgent' : 'standard',
+    line:     'Apollo',
+    station:  stName,
+  }));
+  clearSelected();
+  document.getElementById('qty-input').value = '1';
+  document.getElementById('unit-select').value = 'Part';
+  showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
+}
+function cancelRequest(reqId) { ws.send(JSON.stringify({type:'dismiss',stationId,reqId})); }
+
+function liveActiveMs(st) { let ms=st.activeMs||0; if(st.stationStatus==='active'&&st.stationStartTime) ms+=Date.now()-st.stationStartTime; return ms; }
+
+function render() {
+  if (!state) return;
+  clearInterval(timerInt);
+  const st=state.stations.find(s=>s.id===stationId); if (!st) return;
+  // Station name now lives in the #station-select dropdown; keep it in sync
+  // in case a state update arrived without a repopulate (e.g. same stations list).
+  const stSel = document.getElementById('station-select');
+  if (stSel && stSel.value !== String(stationId)) stSel.value = String(stationId);
+  document.getElementById('st-type').textContent = st.type==='sub'?'Subassembly':'Main Line';
+  document.title = st.name;
+  const btn=document.getElementById('btn'),statusEl=document.getElementById('status'),timerEl=document.getElementById('timer'),activeEl=document.getElementById('active-time');
+  const globalPaused=state.paused,isActive=st.stationStatus==='active'&&!st.done,isHold=st.stationStatus==='hold'&&!st.done,isIdle=st.stationStatus==='idle'&&!st.done;
+  if (!state.running) { btn.className='big-btn idle';btn.innerHTML='—';statusEl.textContent='Waiting for takt...';timerEl.textContent='';activeEl.textContent=''; }
+  else if (globalPaused) { btn.className='big-btn paused';btn.innerHTML='⏸';statusEl.textContent=state.pauseLabel||'Paused';timerInt=setInterval(tick,500);tick(); }
+  else if (st.done) { btn.className='big-btn done';btn.innerHTML='Done<span class="sub">'+fmtSec(st.completedAt)+'</span>';statusEl.textContent='Complete';timerEl.textContent='';activeEl.textContent='Active time: '+fmtMs(liveActiveMs(st)); }
+  else if (isIdle) { btn.className='big-btn idle';btn.innerHTML='—';statusEl.textContent='Tap Start Station to begin';timerEl.textContent='';activeEl.textContent=''; }
+  else if (isHold) { btn.className='big-btn on-hold';btn.innerHTML='On Hold';statusEl.textContent=st.holdReason||'On Hold';timerInt=setInterval(tick,500);tick();activeEl.textContent='Active: '+fmtMs(liveActiveMs(st)); }
+  else { btn.className='big-btn done-btn';btn.innerHTML="I'm<br/>Done";statusEl.textContent=st.andon?'Timer paused (andon)':'Tap when complete';timerInt=setInterval(tick,500);tick();activeEl.textContent='Active: '+fmtMs(liveActiveMs(st)); }
+
+  const banner=document.getElementById('break-banner');
+  if (globalPaused&&state.pauseLabel&&state.pauseLabel!=='Paused') { const isLunch=state.pauseLabel==='Lunch'; banner.className='break-banner visible'+(isLunch?' lunch':''); document.getElementById('banner-title').textContent=state.pauseLabel; }
+  else { banner.className='break-banner'; document.getElementById('banner-countdown').textContent=''; }
+
+  const canStart=state.running&&!globalPaused&&!st.done&&(isHold||isIdle), canHold=state.running&&!st.done&&isActive;
+  document.getElementById('btn-start-station').disabled=!canStart;
+  document.getElementById('btn-hold-station').disabled=!canHold;
+  document.getElementById('hold-reason-row').style.display=isHold?'block':'none';
+  const csb=document.getElementById('current-status-bar');
+  if (state.running&&!st.done) {
+    if (isActive)      { csb.className='status-bar active';  csb.innerHTML='<div class="status-bar-label">Station Active</div>'; }
+    else if (isHold)   { csb.className='status-bar on-hold'; csb.innerHTML='<div class="status-bar-label">Station On Hold</div>'+(st.holdReason?'<div class="status-bar-reason">'+esc(st.holdReason)+'</div>':''); }
+    else               { csb.className='status-bar';         csb.innerHTML='<div class="status-bar-label">Station Idle</div>'; }
+  }
+  else { csb.innerHTML='';csb.className=''; }
+  const sel=document.getElementById('hold-reason-sel');
+  sel.innerHTML=holdReasons.map(r=>'<option value="'+esc(r)+'"'+(st.holdReason===r?' selected':'')+'>'+esc(r)+'</option>').join('');
+
+  const reqs=st.requests||[];
+  document.getElementById('inv-list').innerHTML=reqs.map(r=>{
+    const unit = r.unit && r.unit !== 'Part' ? ' ' + r.unit + ((r.qty||1) > 1 ? 's' : '') : '';
+    const qtyStr = (r.qty||1) + unit;
+    const elapsedHtml = r.submittedAt ? '<span class="req-elapsed" data-submitted="'+r.submittedAt+'"> · '+fmtElapsed(r.submittedAt)+'</span>' : '';
+    return '<div class="req-item"><div class="req-content"><div class="req-text">'+esc(r.text)+'</div><div class="req-meta">Qty: '+qtyStr+' · '+r.time+elapsedHtml+'</div></div><button class="req-cancel" onclick="cancelRequest('+r.id+')">Cancel</button></div>';
+  }).join('');
+}
+
+function fmtElapsed(submittedAt) {
+  if (!submittedAt) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - submittedAt) / 1000));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+setInterval(() => {
+  document.querySelectorAll('.req-elapsed[data-submitted]').forEach(el => {
+    const t = parseInt(el.getAttribute('data-submitted'), 10);
+    if (t) el.textContent = ' · ' + fmtElapsed(t);
+  });
+}, 1000);
+
+function tick() {
+  if (!state?.running) return;
+  const st=state.stations.find(s=>s.id===stationId),timer=document.getElementById('timer');
+  if (state.paused) {
+    const pausedSoFar=state.totalPausedMs+(state.pauseStart?Date.now()-state.pauseStart:0);
+    const remaining=taktSec-(Date.now()-state.startTime-pausedSoFar)/1000;
+    timer.textContent=remaining>=0?fmt(remaining):'-'+fmt(Math.abs(remaining)); timer.style.color='#60a5fa';
+    if (state.pauseLabel&&BREAK_ENDS[state.pauseLabel]) { const ends=BREAK_ENDS[state.pauseLabel],now=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Chicago'})),end=new Date(now); end.setHours(ends[0],ends[1],0,0); const left=Math.max(0,Math.round((end-now)/1000)); document.getElementById('banner-countdown').textContent=left>0?fmt(left):''; }
+    return;
+  }
+  const remaining=taktSec-(Date.now()-state.startTime-state.totalPausedMs)/1000;
+  timer.textContent=remaining>=0?fmt(remaining):'-'+fmt(Math.abs(remaining));
+  timer.style.color=remaining<0?'#C8102E':remaining<taktSec*0.1?'#EF9F27':'#fff';
+  if (st&&!st.done) document.getElementById('active-time').textContent='Active: '+fmtMs(liveActiveMs(st));
+}
+
+function fmt(s){s=Math.round(Math.abs(s));const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
+function fmtSec(s){if(!s&&s!==0)return'';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h?h+'h ':'')+( m?m+'m ':'')+sec+'s';}
+function fmtMs(ms){return fmtSec(Math.floor((ms||0)/1000));}
+function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+<div id="reason-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideReason()">
+  <div style="background:#fff;border:1px solid #d3d8e0;border-radius:12px;padding:22px;max-width:400px;width:100%;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+    <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:12px;text-align:center;">Cancel request — why?</div>
+    <button onclick="sendReason('already have')" style="display:block;width:100%;padding:13px;margin-bottom:8px;border-radius:8px;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">✅ Already have it / delivered</button>
+    <button onclick="sendReason('wrong part')" style="display:block;width:100%;padding:13px;margin-bottom:8px;border-radius:8px;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">🔄 Requested wrong part</button>
+    <button onclick="sendReason('duplicate')" style="display:block;width:100%;padding:13px;margin-bottom:8px;border-radius:8px;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">👯 Duplicate request</button>
+    <button onclick="sendReason('not needed')" style="display:block;width:100%;padding:13px;margin-bottom:8px;border-radius:8px;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">🚫 No longer needed</button>
+    <button onclick="hideReason()" style="width:100%;padding:11px;margin-top:2px;border-radius:8px;border:none;background:none;color:#6b7280;font-size:13px;font-weight:700;cursor:pointer;">Keep the request</button>
+  </div>
+</div>
+</body>
+</html>
