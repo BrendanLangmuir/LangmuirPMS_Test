@@ -1119,6 +1119,18 @@ function renderTransferResults(q) {
     return p.isBundle && String(p.bundleName||'').toLowerCase().includes(ql);
   });
 
+  // FIX "stuck on Selected": once a source is chosen, collapse the list to just
+  // that item so the transfer form renders directly beneath it. Previously the
+  // form was appended BELOW all (up to 20) result cards — off-screen on real
+  // searches, so tapping "Transfer From" looked like it did nothing.
+  if (transferPart) {
+    matches = matches.filter(function(m){ return m.partNum === transferPart.partNum; });
+    bundleMatches = [];
+  } else if (transferBundle) {
+    bundleMatches = bundleMatches.filter(function(b){ return b.bundleName === transferBundle.bundleName; });
+    matches = [];
+  }
+
   matches.sort(function(a, b) { return a.partNum.localeCompare(b.partNum, undefined, { numeric: true, sensitivity: 'base' }); });
   if (!matches.length && !bundleMatches.length) { container.innerHTML = '<div class="search-empty">— No parts found —</div>'; return; }
 
@@ -1214,7 +1226,11 @@ function renderTransferResults(q) {
     '</div>';
   }).join('') + '<div id="transfer-form-anchor"></div>';
 
-  if ((transferPart || transferBundle) && transferFromLoc) renderTransferForm();
+  if ((transferPart || transferBundle) && transferFromLoc) {
+    renderTransferForm();
+    var ffEl = document.querySelector('.transfer-form');
+    if (ffEl) ffEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 var transferDestType = 'warehouse';  // 'warehouse' | 'line' — destination kind
