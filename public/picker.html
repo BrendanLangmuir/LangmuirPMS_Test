@@ -12,225 +12,225 @@
      keep working. Production boards intentionally stay dark.
      ════════════════════════════════════════════════════════════ */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #f4f5f7; color: #16191f; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  body { background: #14171c; color: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
 
-  .header { background: #ffffff; border-bottom: 3px solid #C8102E; padding: 0 24px; display: flex; align-items: stretch; justify-content: space-between; min-height: 60px; box-shadow: 0 1px 6px rgba(22,25,31,0.08); }
+  .header { background: #1d2127; border-bottom: 3px solid #C8102E; padding: 0 24px; display: flex; align-items: stretch; justify-content: space-between; min-height: 60px; box-shadow: 0 1px 6px rgba(0,0,0,0.4); }
   .header-left { display: flex; align-items: center; gap: 12px; }
   .brand-icon { width: 36px; height: 36px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; color: #fff; flex-shrink: 0; }
   .brand-text .top { font-size: 9px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
-  .brand-text .top .lm { color: #16191f; } .brand-text .top .sy { color: #C8102E; }
-  .brand-text .btm { font-size: 16px; font-weight: 800; color: #16191f; letter-spacing: 0.06em; text-transform: uppercase; }
+  .brand-text .top .lm { color: #f1f5f9; } .brand-text .top .sy { color: #C8102E; }
+  .brand-text .btm { font-size: 16px; font-weight: 800; color: #f1f5f9; letter-spacing: 0.06em; text-transform: uppercase; }
   .clock { font-size: 15px; font-weight: 700; color: #6b7280; align-self: center; }
 
-  .conn-status { display: none; width: 100%; background: #fdecee; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.08em; }
+  .conn-status { display: none; width: 100%; background: #2d1015; border-bottom: 2px solid #C8102E; padding: 10px 24px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 0.08em; }
 
-  .tab-bar { display: flex; background: #ffffff; border-bottom: 1px solid #e3e6eb; }
+  .tab-bar { display: flex; background: #1d2127; border-bottom: 1px solid #2e3440; }
   .tab { flex: 1; padding: 14px 8px; font-size: 12px; font-weight: 800; cursor: pointer; color: #6b7280; border: none; background: none; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; text-align: center; }
-  .tab.active { color: #16191f; border-bottom-color: #C8102E; }
-  .tab:hover:not(.active) { color: #16191f; }
+  .tab.active { color: #f1f5f9; border-bottom-color: #C8102E; }
+  .tab:hover:not(.active) { color: #f1f5f9; }
 
   .page { padding: 20px 24px; max-width: 600px; margin: 0 auto; }
 
-  .summary-bar { background: #ffffff; border: 1px solid #e3e6eb; border-left: 4px solid #C8102E; border-radius: 6px; padding: 12px 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .summary-bar { background: #1d2127; border: 1px solid #2e3440; border-left: 4px solid #C8102E; border-radius: 6px; padding: 12px 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   .summary-num   { font-size: 32px; font-weight: 900; color: #C8102E; line-height: 1; }
   .summary-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
 
   .filter-bar { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
-  .filter-btn { padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #d3d8e0; background: #ffffff; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
+  .filter-btn { padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #3a4150; background: #1d2127; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s; }
   .filter-btn.active { background: #C8102E; border-color: #C8102E; color: #fff; }
-  .filter-btn:hover:not(.active) { border-color: #C8102E; color: #C8102E; }
+  .filter-btn:hover:not(.active) { border-color: #C8102E; color: #f87171; }
 
   .queue { display: flex; flex-direction: column; gap: 10px; }
-  .empty { text-align: center; color: #9aa1ab; font-size: 13px; padding: 60px 0; text-transform: uppercase; letter-spacing: 0.1em; }
+  .empty { text-align: center; color: #64748b; font-size: 13px; padding: 60px 0; text-transform: uppercase; letter-spacing: 0.1em; }
 
-  .req-card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .req-card { background: #1d2127; border: 1px solid #2e3440; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   /* SLA aging: border tells the story at a glance */
-  .req-card.aging-warn   { border-color: #e8a13c; }
+  .req-card.aging-warn   { border-color: #92610e; }
   .req-card.aging-breach { border-color: #C8102E; animation: breach-pulse 1.6s infinite; }
-  @keyframes breach-pulse { 0%,100% { box-shadow: 0 1px 4px rgba(22,25,31,0.05); } 50% { box-shadow: 0 0 0 4px rgba(200,16,46,0.18); } }
-  .req-card-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef0f3; flex-wrap: wrap; }
+  @keyframes breach-pulse { 0%,100% { box-shadow: 0 1px 4px rgba(0,0,0,0.3); } 50% { box-shadow: 0 0 0 4px rgba(200,16,46,0.18); } }
+  .req-card-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #2e3440; flex-wrap: wrap; }
   .line-tag { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; flex-shrink: 0; }
-  .line-tag.apollo { background: #e8f1fd; color: #1d4ed8; }
-  .line-tag.xf     { background: #f1ebfd; color: #6d28d9; }
-  .line-tag.titan  { background: #fdf0e3; color: #c2570b; }
-  .line-tag.vulcan { background: #fdecee; color: #C8102E; }
-  .line-tag.xr     { background: #e8f7ec; color: #15803d; }
-  .line-tag.mr1    { background: #fdf6e3; color: #a16207; }
-  .line-tag.shipping { background: #e3f7f6; color: #0f766e; }
+  .line-tag.apollo { background: #16263d; color: #60a5fa; }
+  .line-tag.xf     { background: #221836; color: #a78bfa; }
+  .line-tag.titan  { background: #2d1c0d; color: #fb923c; }
+  .line-tag.vulcan { background: #2d1015; color: #f87171; }
+  .line-tag.xr     { background: #0e2f1d; color: #4ade80; }
+  .line-tag.mr1    { background: #2d2310; color: #a16207; }
+  .line-tag.shipping { background: #0f2b29; color: #2dd4bf; }
   .req-station { font-size: 11px; color: #6b7280; }
-  .req-time    { font-size: 10px; color: #9aa1ab; margin-left: auto; }
-  .req-queue-pos { font-size: 11px; font-weight: 800; color: #b45309; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #e8a13c; border-radius: 3px; }
+  .req-time    { font-size: 10px; color: #64748b; margin-left: auto; }
+  .req-queue-pos { font-size: 11px; font-weight: 800; color: #fbbf24; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #92610e; border-radius: 3px; }
   .req-elapsed { font-size: 10px; font-weight: 700; color: #6b7280; }
 
   /* SLA countdown chip (replaces priority badges in the queue) */
   .sla-chip { font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 900; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
-  .sla-chip.ok     { background: #e8f7ec; color: #15803d; }
-  .sla-chip.warn   { background: #fdf6e3; color: #b45309; }
+  .sla-chip.ok     { background: #0e2f1d; color: #4ade80; }
+  .sla-chip.warn   { background: #2d2310; color: #fbbf24; }
   .sla-chip.breach { background: #C8102E; color: #fff; }
   .pri-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .pri-badge.low    { background: #eef0f3; color: #6b7280; }
-  .pri-badge.medium { background: #fdf6e3; color: #b45309; }
-  .pri-badge.high   { background: #fdecee; color: #C8102E; animation: flash-red 1s ease-in-out infinite; }
+  .pri-badge.low    { background: #2e3440; color: #6b7280; }
+  .pri-badge.medium { background: #2d2310; color: #fbbf24; }
+  .pri-badge.high   { background: #2d1015; color: #f87171; animation: flash-red 1s ease-in-out infinite; }
   @keyframes flash-red { 0%,100%{opacity:1}50%{opacity:0.5} }
 
   .req-body    { padding: 12px 14px; }
-  .req-part    { font-size: 15px; font-weight: 800; color: #16191f; margin-bottom: 2px; text-transform: uppercase; }
+  .req-part    { font-size: 15px; font-weight: 800; color: #f1f5f9; margin-bottom: 2px; text-transform: uppercase; }
   .req-partnum { font-size: 11px; color: #C8102E; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 8px; }
   .req-meta    { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-  .qty-badge   { background: #f4f5f7; border: 1px solid #d3d8e0; color: #374151; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 3px 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .qty-badge   { background: #262b33; border: 1px solid #3a4150; color: #cbd5e1; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 3px 10px; text-transform: uppercase; letter-spacing: 0.06em; }
   .remaining-badge { font-size: 11px; font-weight: 800; border-radius: 3px; padding: 3px 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .remaining-badge.partial { background: #fdf6e3; border: 1px solid #e8a13c; color: #b45309; }
-  .remaining-badge.done    { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
+  .remaining-badge.partial { background: #2d2310; border: 1px solid #92610e; color: #fbbf24; }
+  .remaining-badge.done    { background: #0e2f1d; border: 1px solid #1e6b3a; color: #4ade80; }
   .stock-info  { font-size: 11px; color: #6b7280; }
-  .stock-info span { color: #374151; font-weight: 600; }
+  .stock-info span { color: #cbd5e1; font-weight: 600; }
 
   .loc-section { display: flex; flex-direction: column; gap: 6px; }
-  .loc-row { background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 6px; padding: 10px 12px; }
+  .loc-row { background: #262b33; border: 1px solid #2e3440; border-radius: 6px; padding: 10px 12px; }
   .loc-row.exhausted { opacity: 0.5; }
   .loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .loc-code { font-size: 14px; font-weight: 800; color: #16191f; flex: 1; font-family: 'Courier New', monospace; letter-spacing: 0.06em; }
+  .loc-code { font-size: 14px; font-weight: 800; color: #f1f5f9; flex: 1; font-family: 'Courier New', monospace; letter-spacing: 0.06em; }
   .loc-qty-txt { font-size: 12px; font-weight: 700; }
-  .loc-qty-txt.ok  { color: #15803d; }
-  .loc-qty-txt.low { color: #C8102E; }
+  .loc-qty-txt.ok  { color: #4ade80; }
+  .loc-qty-txt.low { color: #f87171; }
   .loc-pick-row { display: flex; align-items: center; gap: 8px; }
   .pick-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
-  .adj-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #d3d8e0; background: #ffffff; color: #16191f; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .adj-btn:hover:not(:disabled) { background: #eef0f3; }
+  .adj-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #3a4150; background: #1d2127; color: #f1f5f9; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .adj-btn:hover:not(:disabled) { background: #2e3440; }
   .adj-btn:disabled { opacity: 0.3; cursor: default; }
-  .adj-val { font-size: 16px; font-weight: 900; width: 52px; text-align: center; background: #ffffff; border: 1px solid #d3d8e0; border-radius: 4px; color: #16191f; padding: 4px 6px; -moz-appearance: textfield; }
+  .adj-val { font-size: 16px; font-weight: 900; width: 52px; text-align: center; background: #1d2127; border: 1px solid #3a4150; border-radius: 4px; color: #f1f5f9; padding: 4px 6px; -moz-appearance: textfield; }
   .adj-val::-webkit-outer-spin-button, .adj-val::-webkit-inner-spin-button { -webkit-appearance: none; }
   .adj-val:focus { outline: none; border-color: #C8102E; }
   .pick-btn { border: none; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 800; padding: 8px 14px; cursor: pointer; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
   .pick-btn.active       { background: #C8102E; }
   .pick-btn.active:hover { background: #a00d24; }
-  .pick-btn.exhausted-btn { background: #d3d8e0; color: #6b7280; cursor: default; }
-  .picked-from-note { font-size: 10px; color: #15803d; margin-top: 6px; }
+  .pick-btn.exhausted-btn { background: #3a4150; color: #6b7280; cursor: default; }
+  .picked-from-note { font-size: 10px; color: #4ade80; margin-top: 6px; }
 
   /* ── Recently completed ── */
   .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
-  .section-label::after { content: ''; flex: 1; height: 1px; background: #e3e6eb; }
-  .recent-pick-card { background: #ffffff; border: 1px solid #e3e6eb; border-left: 3px solid #15803d; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
-  .recent-pick-part { font-size: 13px; font-weight: 800; color: #16191f; margin-bottom: 2px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: #2e3440; }
+  .recent-pick-card { background: #1d2127; border: 1px solid #2e3440; border-left: 3px solid #15803d; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+  .recent-pick-part { font-size: 13px; font-weight: 800; color: #f1f5f9; margin-bottom: 2px; }
   .recent-pick-meta { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; display: flex; gap: 10px; flex-wrap: wrap; }
-  .recent-pick-loc  { font-family: 'Courier New', monospace; color: #15803d; font-weight: 700; font-size: 11px; }
+  .recent-pick-loc  { font-family: 'Courier New', monospace; color: #4ade80; font-weight: 700; font-size: 11px; }
 
   /* ── Stow form ── */
-  .card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 18px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
+  .card { background: #1d2127; border: 1px solid #2e3440; border-radius: 8px; padding: 18px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
-  input[type="text"], input[type="number"] { width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; }
-  input:focus { border-color: #C8102E; background: #fff; }
-  input::placeholder { color: #9aa1ab; }
+  input[type="text"], input[type="number"] { width: 100%; background: #262b33; border: 1.5px solid #3a4150; border-radius: 6px; color: #f1f5f9; font-size: 14px; font-weight: 600; padding: 11px 14px; outline: none; }
+  input:focus { border-color: #C8102E; background: #2c323c; }
+  input::placeholder { color: #64748b; }
   .qty-row { display: flex; align-items: center; gap: 10px; }
-  .qty-btn { width: 40px; height: 40px; border-radius: 6px; border: 1.5px solid #d3d8e0; background: #ffffff; color: #16191f; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .qty-btn:hover { background: #eef0f3; }
+  .qty-btn { width: 40px; height: 40px; border-radius: 6px; border: 1.5px solid #3a4150; background: #1d2127; color: #f1f5f9; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .qty-btn:hover { background: #2e3440; }
   .qty-input { flex: 1; }
   .send-btn { width: 100%; padding: 14px; border-radius: 6px; border: none; font-size: 14px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; background: #C8102E; color: #fff; }
   .send-btn:hover { background: #a00d24; }
   .send-btn:disabled { opacity: 0.4; cursor: default; }
-  .stow-results { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 10px; display: none; }
-  .stow-result-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #eef0f3; }
+  .stow-results { background: #1d2127; border: 1.5px solid #3a4150; border-radius: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 10px; display: none; }
+  .stow-result-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #2e3440; }
   .stow-result-item:last-child { border-bottom: none; }
-  .stow-result-item:hover { background: #f4f5f7; }
+  .stow-result-item:hover { background: #262b33; }
   .stow-result-pn { font-size: 12px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
-  .stow-result-pa { font-size: 13px; color: #374151; margin-top: 2px; }
-  .stow-selected { background: #ffffff; border: 1.5px solid #C8102E; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: none; }
+  .stow-result-pa { font-size: 13px; color: #cbd5e1; margin-top: 2px; }
+  .stow-selected { background: #1d2127; border: 1.5px solid #C8102E; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: none; }
   .stow-selected-lbl { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
   .stow-selected-pn  { font-size: 12px; font-weight: 800; color: #C8102E; }
-  .stow-selected-pa  { font-size: 13px; color: #16191f; margin-top: 2px; }
+  .stow-selected-pa  { font-size: 13px; color: #f1f5f9; margin-top: 2px; }
   .stow-clear { float: right; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-  .stow-clear:hover { color: #C8102E; }
+  .stow-clear:hover { color: #f87171; }
 
   /* ── Open-bin autocomplete (under the location input) ── */
-  .loc-suggest { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; max-height: 220px; overflow-y: auto; margin-top: 6px; display: none; }
-  .loc-suggest-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; border-bottom: 1px solid #eef0f3; }
+  .loc-suggest { background: #1d2127; border: 1.5px solid #3a4150; border-radius: 6px; max-height: 220px; overflow-y: auto; margin-top: 6px; display: none; }
+  .loc-suggest-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; border-bottom: 1px solid #2e3440; }
   .loc-suggest-item:last-child { border-bottom: none; }
-  .loc-suggest-item:hover { background: #f4f5f7; }
-  .loc-suggest-code { font-family: 'Courier New', monospace; font-weight: 800; font-size: 13px; color: #16191f; flex: 1; }
+  .loc-suggest-item:hover { background: #262b33; }
+  .loc-suggest-code { font-family: 'Courier New', monospace; font-weight: 800; font-size: 13px; color: #f1f5f9; flex: 1; }
   .loc-suggest-tag { font-size: 9px; font-weight: 900; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.07em; }
-  .loc-suggest-tag.open  { background: #e8f7ec; color: #15803d; }
-  .loc-suggest-tag.inuse { background: #eef0f3; color: #6b7280; }
-  .loc-suggest-tag.area  { background: #e8f1fd; color: #1d4ed8; }
+  .loc-suggest-tag.open  { background: #0e2f1d; color: #4ade80; }
+  .loc-suggest-tag.inuse { background: #2e3440; color: #6b7280; }
+  .loc-suggest-tag.area  { background: #16263d; color: #60a5fa; }
 
   /* ── Existing locations for stow ── */
   .existing-locs { margin-bottom: 14px; }
   .existing-locs-title { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-  .existing-loc-row { display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 4px; padding: 8px 12px; margin-bottom: 4px; }
-  .existing-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #16191f; letter-spacing: 0.06em; }
-  .existing-loc-qty  { font-size: 12px; font-weight: 700; color: #15803d; }
+  .existing-loc-row { display: flex; align-items: center; justify-content: space-between; background: #262b33; border: 1px solid #2e3440; border-radius: 4px; padding: 8px 12px; margin-bottom: 4px; }
+  .existing-loc-code { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: #f1f5f9; letter-spacing: 0.06em; }
+  .existing-loc-qty  { font-size: 12px; font-weight: 700; color: #4ade80; }
 
   .result-flash { display: none; border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; }
-  .result-flash.success { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
-  .result-flash.error   { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; }
-  .result-flash.wait    { background: #fdf6e3; border: 1px solid #e8a13c; color: #b45309; }
-  .recent-item { background: #ffffff; border: 1px solid #e3e6eb; border-left: 3px solid #e8a13c; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; }
-  .recent-part { font-size: 13px; font-weight: 700; color: #16191f; }
+  .result-flash.success { background: #0e2f1d; border: 1px solid #1e6b3a; color: #4ade80; }
+  .result-flash.error   { background: #2d1015; border: 1px solid #7f1d2d; color: #f87171; }
+  .result-flash.wait    { background: #2d2310; border: 1px solid #92610e; color: #fbbf24; }
+  .recent-item { background: #1d2127; border: 1px solid #2e3440; border-left: 3px solid #92610e; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; }
+  .recent-part { font-size: 13px; font-weight: 700; color: #f1f5f9; }
   .recent-meta { font-size: 10px; color: #6b7280; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
 
   /* ── Transfer tab ── */
   .search-wrap { margin-bottom: 16px; }
-  .search-wrap input { width: 100%; background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; padding: 12px 14px; outline: none; }
+  .search-wrap input { width: 100%; background: #1d2127; border: 1.5px solid #3a4150; border-radius: 6px; color: #f1f5f9; font-size: 14px; padding: 12px 14px; outline: none; }
   .search-wrap input:focus { border-color: #C8102E; }
-  .search-wrap input::placeholder { color: #9aa1ab; }
-  .transfer-result-card { background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(22,25,31,0.05); }
-  .transfer-result-header { padding: 12px 14px; border-bottom: 1px solid #eef0f3; }
+  .search-wrap input::placeholder { color: #64748b; }
+  .transfer-result-card { background: #1d2127; border: 1px solid #2e3440; border-radius: 8px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .transfer-result-header { padding: 12px 14px; border-bottom: 1px solid #2e3440; }
   .transfer-result-pn { font-size: 13px; font-weight: 800; color: #C8102E; letter-spacing: 0.06em; }
-  .transfer-result-pa { font-size: 14px; font-weight: 700; color: #16191f; margin-top: 2px; }
+  .transfer-result-pa { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-top: 2px; }
   .transfer-result-body { padding: 12px 14px; }
   .transfer-lines { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
   .transfer-line-tag { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .transfer-line-tag.apollo { background: #e8f1fd; color: #1d4ed8; }
-  .transfer-line-tag.xf     { background: #f1ebfd; color: #6d28d9; }
-  .transfer-line-tag.titan  { background: #fdf0e3; color: #c2570b; }
-  .transfer-line-tag.vulcan { background: #fdecee; color: #C8102E; }
-  .transfer-line-tag.xr     { background: #e8f7ec; color: #15803d; }
-  .transfer-line-tag.mr1    { background: #fdf6e3; color: #a16207; }
-  .transfer-line-tag.shipping { background: #e3f7f6; color: #0f766e; }
-  .transfer-line-tag.unassigned { background: #f1ebfd; color: #6d28d9; }
-  .transfer-loc-row { background: #f8f9fa; border: 1px solid #e3e6eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
+  .transfer-line-tag.apollo { background: #16263d; color: #60a5fa; }
+  .transfer-line-tag.xf     { background: #221836; color: #a78bfa; }
+  .transfer-line-tag.titan  { background: #2d1c0d; color: #fb923c; }
+  .transfer-line-tag.vulcan { background: #2d1015; color: #f87171; }
+  .transfer-line-tag.xr     { background: #0e2f1d; color: #4ade80; }
+  .transfer-line-tag.mr1    { background: #2d2310; color: #a16207; }
+  .transfer-line-tag.shipping { background: #0f2b29; color: #2dd4bf; }
+  .transfer-line-tag.unassigned { background: #221836; color: #a78bfa; }
+  .transfer-loc-row { background: #262b33; border: 1px solid #2e3440; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
   .transfer-loc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
-  .transfer-loc-code { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: #16191f; flex: 1; }
+  .transfer-loc-code { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: #f1f5f9; flex: 1; }
   .transfer-loc-qty  { font-size: 12px; font-weight: 700; }
-  .transfer-loc-qty.ok  { color: #15803d; }
-  .transfer-loc-qty.low { color: #C8102E; }
-  .transfer-from-btn { background: #ffffff; border: 1.5px solid #d3d8e0; border-radius: 4px; color: #374151; font-size: 11px; font-weight: 800; padding: 6px 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
-  .transfer-from-btn:hover { border-color: #C8102E; color: #C8102E; }
-  .transfer-from-btn.selected { background: #fdecee; border-color: #C8102E; color: #C8102E; }
-  .transfer-form { background: #ffffff; border: 1.5px solid #C8102E; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .transfer-loc-qty.ok  { color: #4ade80; }
+  .transfer-loc-qty.low { color: #f87171; }
+  .transfer-from-btn { background: #1d2127; border: 1.5px solid #3a4150; border-radius: 4px; color: #cbd5e1; font-size: 11px; font-weight: 800; padding: 6px 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .transfer-from-btn:hover { border-color: #C8102E; color: #f87171; }
+  .transfer-from-btn.selected { background: #2d1015; border-color: #C8102E; color: #f87171; }
+  .transfer-form { background: #1d2127; border: 1.5px solid #C8102E; border-radius: 8px; padding: 16px; margin-top: 16px; }
   .transfer-form-title { font-size: 10px; font-weight: 700; color: #C8102E; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; }
-  .transfer-from-info { background: #f8f9fa; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .transfer-from-info { background: #262b33; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .transfer-from-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
-  .transfer-from-loc { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 800; color: #16191f; }
-  .transfer-from-avail { font-size: 11px; color: #15803d; font-weight: 700; }
+  .transfer-from-loc { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .transfer-from-avail { font-size: 11px; color: #4ade80; font-weight: 700; }
   .transfer-qty-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
   .transfer-qty-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
-  .transfer-qty-input { flex: 1; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; -moz-appearance: textfield; }
+  .transfer-qty-input { flex: 1; background: #262b33; border: 1.5px solid #3a4150; border-radius: 6px; color: #f1f5f9; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; -moz-appearance: textfield; }
   .transfer-qty-input::-webkit-outer-spin-button, .transfer-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; }
   .transfer-qty-input:focus { border-color: #C8102E; }
   .transfer-dest-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-  .transfer-dest-input { width: 100%; background: #f8f9fa; border: 1.5px solid #d3d8e0; border-radius: 6px; color: #16191f; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; margin-bottom: 14px; }
+  .transfer-dest-input { width: 100%; background: #262b33; border: 1.5px solid #3a4150; border-radius: 6px; color: #f1f5f9; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; margin-bottom: 14px; }
   .transfer-dest-input:focus { border-color: #C8102E; }
-  .transfer-dest-input::placeholder { color: #9aa1ab; }
+  .transfer-dest-input::placeholder { color: #64748b; }
   .transfer-confirm-btn { width: 100%; padding: 13px; border-radius: 6px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; background: #C8102E; color: #fff; }
   .transfer-confirm-btn:hover { background: #a00d24; }
   .transfer-confirm-btn:disabled { opacity: 0.4; cursor: default; }
   .transfer-flash { border-radius: 6px; padding: 11px; margin-bottom: 12px; font-size: 13px; font-weight: 800; text-align: center; display: none; }
-  .transfer-flash.success { background: #e8f7ec; border: 1px solid #86d59c; color: #15803d; }
-  .transfer-flash.error   { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; }
+  .transfer-flash.success { background: #0e2f1d; border: 1px solid #1e6b3a; color: #4ade80; }
+  .transfer-flash.error   { background: #2d1015; border: 1px solid #7f1d2d; color: #f87171; }
   .transfer-total { font-size: 11px; color: #6b7280; margin-top: 8px; text-align: right; }
-  .search-empty { text-align: center; color: #9aa1ab; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
-  .transfer-loc-out { background: #fdecee; border: 1px solid #f3aab5; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; font-size: 12px; color: #C8102E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-  .escalation-badge { background: #fdecee; border: 1px solid #f3aab5; color: #C8102E; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; animation: flash-red 1s ease-in-out infinite; }
+  .search-empty { text-align: center; color: #64748b; font-size: 13px; padding: 40px 0; text-transform: uppercase; letter-spacing: 0.1em; }
+  .transfer-loc-out { background: #2d1015; border: 1px solid #7f1d2d; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; font-size: 12px; color: #f87171; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .escalation-badge { background: #2d1015; border: 1px solid #7f1d2d; color: #f87171; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em; animation: flash-red 1s ease-in-out infinite; }
 
   /* ── Activity tab ── */
   .activity-stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
-  .activity-stat { flex: 1; background: #ffffff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 12px; text-align: center; }
-  .activity-stat .v { font-size: 26px; font-weight: 900; color: #C8102E; }
+  .activity-stat { flex: 1; background: #1d2127; border: 1px solid #2e3440; border-radius: 8px; padding: 12px; text-align: center; }
+  .activity-stat .v { font-size: 26px; font-weight: 900; color: #f87171; }
   .activity-stat .k { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
-  .health-card { background: #fdf6e3; border: 1px solid #e8a13c; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+  .health-card { background: #2d2310; border: 1px solid #92610e; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
 
   /* ── Reason chooser (cancel) ── */
-  .reason-btn { display: block; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 8px; border: 1.5px solid #d3d8e0; background: #f8f9fa; color: #16191f; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
+  .reason-btn { display: block; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 8px; border: 1.5px solid #3a4150; background: #262b33; color: #f1f5f9; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
   .reason-btn:hover { border-color: #C8102E; }
 
   /* ── Easter egg: queue-cleared celebration ── */
@@ -249,7 +249,7 @@
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <button id="user-chip" onclick="switchUser()" title="Switch user" style="display:none;border:1.5px solid #d3d8e0;background:#f8f9fa;color:#16191f;border-radius:99px;font-size:12px;font-weight:800;padding:6px 14px;cursor:pointer;"></button>
+    <button id="user-chip" onclick="switchUser()" title="Switch user" style="display:none;border:1.5px solid #3a4150;background:#262b33;color:#f1f5f9;border-radius:99px;font-size:12px;font-weight:800;padding:6px 14px;cursor:pointer;"></button>
     <div class="clock" id="clock"></div>
   </div>
 </div>
@@ -664,7 +664,7 @@ function renderQueue() {
       totalQty = bLocs.reduce(function(s,l){ return s + (parseInt(l.completeBundles||l.quantity)||0); }, 0);
       locsLen  = bLocs.length;
       if (!bLocs.length || totalQty === 0) {
-        locHtml = '<div style="background:#fdecee;border:1px solid #f3aab5;border-radius:6px;padding:12px 14px;font-size:13px;color:#C8102E;font-weight:700;">⚠ No complete bundles available — check individual parts</div>';
+        locHtml = '<div style="background:#2d1015;border:1px solid #7f1d2d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;">⚠ No complete bundles available — check individual parts</div>';
       } else {
         locHtml = bLocs.map(function(l) {
           var available = parseInt(l.completeBundles || l.quantity) || 0;
@@ -694,7 +694,7 @@ function renderQueue() {
       totalQty = locs.reduce(function(s,l){ return s + (parseInt(l.quantity)||0); }, 0);
       locsLen  = locs.length;
       locHtml = isEscalation
-        ? '<div style="background:#fdecee;border:1px solid #f3aab5;border-radius:6px;padding:12px 14px;font-size:13px;color:#C8102E;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
+        ? '<div style="background:#2d1015;border:1px solid #7f1d2d;border-radius:6px;padding:12px 14px;font-size:13px;color:#f87171;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">⚠ Out of Stock — No inventory available to fulfill this request</div>'
         : locs.length ? locs.map(function(l) {
         var lq = parseInt(l.quantity) || 0;
         var alreadyPicked = pickedLocs[l.location] || 0;
@@ -725,7 +725,7 @@ function renderQueue() {
     }
 
     var escalationBadge = isEscalation ? '<span class="escalation-badge">Out of Stock</span>' : '';
-    var bundleBadge = r.isBundle ? '<span class="pri-badge" style="background:#f1ebfd;color:#6d28d9">BUNDLE</span>' : '';
+    var bundleBadge = r.isBundle ? '<span class="pri-badge" style="background:#221836;color:#a78bfa">BUNDLE</span>' : '';
     var unitLabel = r.isBundle
       ? (' Bundle' + (qtyNeeded > 1 ? 's' : ''))
       : (r.unit && r.unit !== 'Part' ? ' ' + r.unit + (qtyNeeded > 1 ? 's' : '') : '');
@@ -750,10 +750,10 @@ function renderQueue() {
         slaChipHtml(r)+
         bundleBadge+
         escalationBadge+
-        (r.auto ? '<span class="pri-badge" style="background:#e8f1fd;color:#1d4ed8;">AUTO</span>' : '')+
+        (r.auto ? '<span class="pri-badge" style="background:#16263d;color:#60a5fa;">AUTO</span>' : '')+
         '<span class="req-time">'+r.time+'</span>'+
         elapsedHtml+
-        '<button onclick="cancelWithReason('+r.id+')" title="Cancel request" style="border:1px solid #d3d8e0;background:#fff;color:#6b7280;border-radius:4px;font-size:12px;font-weight:800;padding:2px 9px;cursor:pointer;">✕</button>'+
+        '<button onclick="cancelWithReason('+r.id+')" title="Cancel request" style="border:1px solid #3a4150;background:#1d2127;color:#6b7280;border-radius:4px;font-size:12px;font-weight:800;padding:2px 9px;cursor:pointer;">✕</button>'+
       '</div>'+
       '<div class="req-body">'+
         '<div class="req-part">'+partDisplay+'</div>'+
@@ -850,7 +850,7 @@ document.getElementById('stow-search').addEventListener('input', function() {
   resultsEl.innerHTML = results.map(function(i) {
     if (i.isBundle) {
       return '<div class="stow-result-item" onclick="selectStowBundle(\''+esc(i.bundleName)+'\')">' +
-        '<div class="stow-result-pn" style="color:#6d28d9">BUNDLE</div><div class="stow-result-pa">'+esc(i.bundleName)+'</div></div>';
+        '<div class="stow-result-pn" style="color:#a78bfa">BUNDLE</div><div class="stow-result-pa">'+esc(i.bundleName)+'</div></div>';
     }
     return '<div class="stow-result-item" onclick="selectStowPart(\''+esc(i.partNum)+'\',\''+esc(i.partName)+'\')">' +
       '<div class="stow-result-pn">'+esc(i.partNum)+'</div><div class="stow-result-pa">'+esc(i.partName)+'</div></div>';
@@ -1151,7 +1151,7 @@ function renderTransferResults(q) {
     }).join('') : '<div class="transfer-loc-out">No complete bundle locations</div>';
     return '<div class="transfer-result-card">'+
       '<div class="transfer-result-header">'+
-        '<div class="transfer-result-pn" style="color:#6d28d9">BUNDLE</div>'+
+        '<div class="transfer-result-pn" style="color:#a78bfa">BUNDLE</div>'+
         '<div class="transfer-result-pa">'+esc(b.bundleName)+'</div>'+
       '</div>'+
       '<div class="transfer-result-body">'+
@@ -1203,7 +1203,7 @@ function renderTransferResults(q) {
       var isSel = transferFromLoc && transferFromLoc.type === 'line' && transferFromLoc.location === e.line && transferPart && transferPart.partNum === m.partNum;
       return '<div class="transfer-loc-row">'+
         '<div class="transfer-loc-top">'+
-          '<span class="transfer-loc-code" style="color:#6d28d9">⚙ '+esc(e.line)+'</span>'+
+          '<span class="transfer-loc-code" style="color:#a78bfa">⚙ '+esc(e.line)+'</span>'+
           '<span class="transfer-loc-qty ok">'+lq+' on line</span>'+
           '<button class="transfer-from-btn'+(isSel?' selected':'')+'" onclick="selectTransferFromLine(\''+esc(m.partNum)+'\',\''+esc(m.partName)+'\',\''+esc(e.line)+'\','+lq+')">'+
             (isSel ? '✓ Selected' : 'Transfer From')+'</button>'+
@@ -1218,7 +1218,7 @@ function renderTransferResults(q) {
       '</div>'+
       '<div class="transfer-result-body">'+
         '<div class="transfer-lines">'+lineTags+'</div>'+
-        '<div style="font-size:11px;font-weight:600;color:#6b7280;margin:4px 0 6px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#16191f;font-weight:800">'+epicorLabel(m.partNum)+'</span></div>'+
+        '<div style="font-size:11px;font-weight:600;color:#6b7280;margin:4px 0 6px;letter-spacing:0.04em;">Factory on-hand: <span style="color:#f1f5f9;font-weight:800">'+epicorLabel(m.partNum)+'</span></div>'+
         locRows+
         lineInvRows+
         (locs.length > 1 ? '<div class="transfer-total">Total: '+total+' across '+locs.length+' locations</div>' : '')+
@@ -1284,8 +1284,8 @@ function renderTransferForm() {
   // Bundles are warehouse→warehouse only, so the toggle is hidden for them.
   var toLine = transferDestType === 'line' && !isBndl;
   var tabBase = 'flex:1;padding:9px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;';
-  var tabOn   = tabBase+'border:1.5px solid #C8102E;background:#fdecee;color:#C8102E;';
-  var tabOff  = tabBase+'border:1.5px solid #d3d8e0;background:#ffffff;color:#6b7280;';
+  var tabOn   = tabBase+'border:1.5px solid #C8102E;background:#2d1015;color:#f87171;';
+  var tabOff  = tabBase+'border:1.5px solid #3a4150;background:#262b33;color:#6b7280;';
   var destToggle = isBndl ? '' :
     '<div style="display:flex;gap:6px;margin-bottom:10px;">'+
       '<button style="'+(toLine?tabOff:tabOn)+'" onclick="setTransferDestType(\'warehouse\')">Warehouse Bin</button>'+
@@ -1317,7 +1317,7 @@ function renderTransferForm() {
       destToggle+
       destInput+
       '<button class="transfer-confirm-btn" id="transfer-confirm-btn" onclick="confirmTransfer()">↔ Confirm Transfer</button>'+
-      '<button style="width:100%;margin-top:8px;padding:10px;border-radius:6px;border:1px solid #d3d8e0;background:#f8f9fa;color:#6b7280;font-size:12px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;" onclick="cancelTransfer()">Cancel</button>'+
+      '<button style="width:100%;margin-top:8px;padding:10px;border-radius:6px;border:1px solid #3a4150;background:#262b33;color:#6b7280;font-size:12px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;" onclick="cancelTransfer()">Cancel</button>'+
     '</div>';
 }
 
@@ -1504,12 +1504,12 @@ function renderActivity() {
   fetch('/api/write-health').then(function(r){ return r.json(); }).then(function(d) {
     var el = document.getElementById('act-health');
     if (!d || !d.failed || !d.failed.length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div class="health-card"><div style="font-weight:800;color:#b45309;margin-bottom:8px;">⚠ ' + d.failed.length +
+    el.innerHTML = '<div class="health-card"><div style="font-weight:800;color:#fbbf24;margin-bottom:8px;">⚠ ' + d.failed.length +
       ' background write' + (d.failed.length === 1 ? '' : 's') + ' failed — data may be missing from the sheet</div>' +
       d.failed.map(function(f) {
-        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px;color:#374151;">' +
+        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px;color:#cbd5e1;">' +
           '<span style="flex:1">' + esc(f.label) + ' · ' + new Date(f.at).toLocaleTimeString() + '</span>' +
-          '<button onclick="retryWrite(' + f.id + ')" style="border:1px solid #b45309;background:#fff;color:#b45309;border-radius:4px;font-size:11px;font-weight:800;padding:3px 10px;cursor:pointer;">Retry</button></div>';
+          '<button onclick="retryWrite(' + f.id + ')" style="border:1px solid #b45309;background:#1d2127;color:#fbbf24;border-radius:4px;font-size:11px;font-weight:800;padding:3px 10px;cursor:pointer;">Retry</button></div>';
       }).join('') + '</div>';
   }).catch(function(){});
 }
@@ -1580,54 +1580,54 @@ function esc(str) {
 }
 </script>
 <!-- Picker login — first name + shared PIN (attribution, not security) -->
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.7);z-index:10000;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#fff;border-top:4px solid #C8102E;border-radius:12px;padding:28px;max-width:380px;width:100%;box-shadow:0 12px 48px rgba(22,25,31,0.35);text-align:center;">
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#1d2127;border-top:4px solid #C8102E;border-radius:12px;padding:28px;max-width:380px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.55);text-align:center;">
     <div style="font-size:10px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;">Langmuir <span style="color:#C8102E">Systems</span></div>
     <div style="font-size:19px;font-weight:900;margin-bottom:18px;">Warehouse Clock-In</div>
     <input type="text" id="login-name" placeholder="First name" autocomplete="off" autocapitalize="words" style="margin-bottom:10px;text-align:center;font-size:16px;" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"/>
     <input type="password" id="login-pin" placeholder="Team PIN" inputmode="numeric" autocomplete="off" style="margin-bottom:10px;text-align:center;font-size:16px;letter-spacing:0.3em;" onkeydown="if(event.key==='Enter')submitLogin()"/>
-    <div id="login-err" style="display:none;background:#fdecee;border:1px solid #f3aab5;color:#C8102E;border-radius:6px;padding:9px;font-size:12.5px;font-weight:700;margin-bottom:10px;"></div>
+    <div id="login-err" style="display:none;background:#2d1015;border:1px solid #7f1d2d;color:#f87171;border-radius:6px;padding:9px;font-size:12.5px;font-weight:700;margin-bottom:10px;"></div>
     <button id="login-btn" onclick="submitLogin()" style="width:100%;padding:15px;border-radius:8px;border:none;font-size:15px;font-weight:800;background:#C8102E;color:#fff;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;">Clock In</button>
-    <div style="font-size:11px;color:#9aa1ab;margin-top:12px;">Your name is recorded on every pick, stow, and transfer.</div>
+    <div style="font-size:11px;color:#64748b;margin-top:12px;">Your name is recorded on every pick, stow, and transfer.</div>
   </div>
 </div>
 <!-- Duplicate-stow confirmation — the server flagged an identical stow within the last minute -->
-<div id="stow-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideStowDupConfirm()">
-  <div style="background:#fff;border:1px solid #e8a13c;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
-    <div style="font-size:14px;color:#b45309;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
-    <div id="stow-dup-text" style="font-size:17px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+<div id="stow-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideStowDupConfirm()">
+  <div style="background:#1d2127;border:1px solid #92610e;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.55);">
+    <div style="font-size:14px;color:#fbbf24;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
+    <div id="stow-dup-text" style="font-size:17px;color:#f1f5f9;line-height:1.55;margin-bottom:24px;"></div>
     <div style="display:flex;gap:12px;">
-      <button onclick="hideStowDupConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="hideStowDupConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #3a4150;border-radius:9px;background:#262b33;color:#cbd5e1;cursor:pointer;">Cancel</button>
       <button onclick="confirmStowAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#b45309;color:#fff;cursor:pointer;">Stow Anyway</button>
     </div>
   </div>
 </div>
 <!-- Epicor ceiling — stow would push tracked total above Epicor on-hand -->
-<div id="ceiling-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCeilingConfirm()">
-  <div style="background:#fff;border:1px solid #C8102E;border-radius:12px;padding:24px;max-width:460px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
-    <div style="font-size:14px;color:#C8102E;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Exceeds Epicor On-Hand</div>
-    <div id="ceiling-text" style="font-size:16px;color:#16191f;line-height:1.55;margin-bottom:10px;"></div>
+<div id="ceiling-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCeilingConfirm()">
+  <div style="background:#1d2127;border:1px solid #C8102E;border-radius:12px;padding:24px;max-width:460px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.55);">
+    <div style="font-size:14px;color:#f87171;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Exceeds Epicor On-Hand</div>
+    <div id="ceiling-text" style="font-size:16px;color:#f1f5f9;line-height:1.55;margin-bottom:10px;"></div>
     <div style="font-size:12.5px;color:#6b7280;margin-bottom:22px;">Only override if this material was received into Epicor within the last hour. The override is logged.</div>
     <div style="display:flex;gap:12px;">
-      <button onclick="hideCeilingConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="hideCeilingConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #3a4150;border-radius:9px;background:#262b33;color:#cbd5e1;cursor:pointer;">Cancel</button>
       <button onclick="confirmCeilingAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#C8102E;color:#fff;cursor:pointer;">Just Received — Stow</button>
     </div>
   </div>
 </div>
 <!-- Duplicate-transfer confirmation -->
-<div id="transfer-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideTransferDup()">
-  <div style="background:#fff;border:1px solid #e8a13c;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
-    <div style="font-size:14px;color:#b45309;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
-    <div id="transfer-dup-text" style="font-size:17px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+<div id="transfer-dup-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideTransferDup()">
+  <div style="background:#1d2127;border:1px solid #92610e;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.55);">
+    <div style="font-size:14px;color:#fbbf24;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">⚠ Possible Duplicate</div>
+    <div id="transfer-dup-text" style="font-size:17px;color:#f1f5f9;line-height:1.55;margin-bottom:24px;"></div>
     <div style="display:flex;gap:12px;">
-      <button onclick="hideTransferDup()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="hideTransferDup()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #3a4150;border-radius:9px;background:#262b33;color:#cbd5e1;cursor:pointer;">Cancel</button>
       <button onclick="confirmTransferAnyway()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#b45309;color:#fff;cursor:pointer;">Transfer Anyway</button>
     </div>
   </div>
 </div>
 <!-- Cancel-reason chooser — one tap, lands in the Transaction Log -->
-<div id="cancel-reason-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCancelReason()">
-  <div style="background:#fff;border:1px solid #d3d8e0;border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+<div id="cancel-reason-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hideCancelReason()">
+  <div style="background:#1d2127;border:1px solid #3a4150;border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.55);">
     <div style="font-size:14px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;text-align:center;">Cancel request — why?</div>
     <button class="reason-btn" onclick="sendCancelReason('already have')">✅ Line already has it / delivered outside the app</button>
     <button class="reason-btn" onclick="sendCancelReason('wrong part')">🔄 Wrong part requested</button>
@@ -1638,12 +1638,12 @@ function esc(str) {
   </div>
 </div>
 <!-- Pick confirmation dialog — prevents accidental "Picked" taps from moving inventory -->
-<div id="pick-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(22,25,31,0.55);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hidePickConfirm()">
-  <div style="background:#fff;border:1px solid #d3d8e0;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(22,25,31,0.3);">
+<div id="pick-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)hidePickConfirm()">
+  <div style="background:#1d2127;border:1px solid #3a4150;border-radius:12px;padding:24px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.55);">
     <div style="font-size:14px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;margin-bottom:14px;">Confirm Pick</div>
-    <div id="pick-confirm-text" style="font-size:19px;color:#16191f;line-height:1.55;margin-bottom:24px;"></div>
+    <div id="pick-confirm-text" style="font-size:19px;color:#f1f5f9;line-height:1.55;margin-bottom:24px;"></div>
     <div style="display:flex;gap:12px;">
-      <button onclick="hidePickConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #d3d8e0;border-radius:9px;background:#f8f9fa;color:#374151;cursor:pointer;">Cancel</button>
+      <button onclick="hidePickConfirm()" style="flex:1;padding:18px;font-size:16px;font-weight:700;border:1.5px solid #3a4150;border-radius:9px;background:#262b33;color:#cbd5e1;cursor:pointer;">Cancel</button>
       <button onclick="confirmPickYes()" style="flex:1;padding:18px;font-size:16px;font-weight:800;border:none;border-radius:9px;background:#15803d;color:#fff;cursor:pointer;">✓ Confirm Pick</button>
     </div>
   </div>
