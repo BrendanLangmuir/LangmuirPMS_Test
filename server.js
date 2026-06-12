@@ -1,4 +1,3 @@
-// Managed via the centralized Langmuir Production Management workspace.
 const express = require('express');
 const http    = require('http');
 const { WebSocketServer } = require('ws');
@@ -454,15 +453,21 @@ const pickerClients = new Set();
 const titanClients  = new Set();
 
 function getActiveRequestsWithPositions() {
-  const priOrder = { high: 0, medium: 1, low: 2 };
+  // v2 (P3): the queue is sorted by time-to-breach, not priority buckets.
+  // breachAt = submittedAt + SLA target; lowest time-left first. Requests
+  // created by v1 clients (no sla field) map high→urgent, else standard.
+  const now = Date.now();
+  const breachAt = r => {
+    const targetMs = r.targetMs || ((r.sla === 'urgent' || r.priority === 'high') ? 10 : 20) * 60 * 1000;
+    return (r.submittedAt || now) + targetMs;
+  };
   return allRequests
     .filter(r => !r.fulfilled)
-    .sort((a, b) => {
-      const p = (priOrder[a.priority] ?? 2) - (priOrder[b.priority] ?? 2);
-      if (p !== 0) return p;
-      return (a.submittedAt || 0) - (b.submittedAt || 0);
-    })
-    .map((r, i) => Object.assign({}, r, { queuePosition: i + 1 }));
+    .sort((a, b) => breachAt(a) - breachAt(b))
+    .map((r, i) => Object.assign({}, r, {
+      queuePosition: i + 1,
+      slaLeftMs: breachAt(r) - now,   // negative = breached
+    }));
 }
 
 function broadcastApollo(msg) {
@@ -478,6 +483,8 @@ function broadcastApolloState() {
   });
 }
 function broadcastRequests() {
+  // Every request mutation flows through here — single hook for the journal (P4).
+  try { markJournalDirty(); } catch (_) {}
   const msg = JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() });
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
@@ -527,6 +534,169 @@ let orphanAssignCache = {};
 let bundlesCache      = [];   // [{name, children: [{partNum, qty}]}]
 let epicorCache       = {};   // { partNumLower: qtyOnHand } from Epicor BAQ
 let epicorLastRefresh = null; // ISO timestamp from Refresh_Log!B1
+let lineInventoryCache = [];  // [{line, partNum, partName, onLineQty, reorderPoint, replenishTo, autoReorder, status}]
+let replenishmentQueueCache = []; // [{queueId, line, partNum, partName, qtyNeeded, status, requestId}] (pending/open)
+const autoReqByQueueId = {};      // queueId -> live request id; lets restarts re-adopt 'open' rows once (no dup)
+
+// ── Duplicate-stow guard ─────────────────────────────────────
+// Apps Script stows can take 10–20s; operators who saw a timeout sometimes
+// re-stowed the same thing. An identical (part/bundle, location, qty) within
+// the window is bounced back with duplicate:true unless the client sends
+// force:true (after an explicit "Stow Anyway" confirm). The key is marked at
+// request START so an identical stow still in flight is also caught, and
+// cleared on failure so legitimate retries are never blocked.
+const recentStowKeys = new Map();   // dupKey -> timestamp of last attempt
+const STOW_DUP_WINDOW_MS = 60 * 1000;
+
+// ═══════════════════════════════════════════════════════════════
+// v2 — Write pipeline, SLA queue, place registry, request journal
+// See PMS_V2_DESIGN.md. All additive: a v1 client (no opId/sla/place
+// fields) gets exactly the old behavior.
+// ═══════════════════════════════════════════════════════════════
+
+// ── P3: SLA targets (minutes). Queue sorts by time-to-breach. ──
+const SLA_TARGETS_MIN = { urgent: 10, standard: 20 };
+function slaForRequest(msg) {
+  // v2 clients send msg.sla; v1 clients send priority (high → urgent).
+  const sla = msg.sla === 'urgent' || String(msg.priority || '') === 'high' ? 'urgent' : 'standard';
+  return { sla, targetMs: (SLA_TARGETS_MIN[sla] || 20) * 60 * 1000 };
+}
+
+// ── P1: op-id idempotency. Every mutating WS message may carry a
+// client-generated opId. First arrival is processed; any repeat
+// (retry after reconnect, double-tap that slipped through) replays
+// the stored result — or is dropped if the op is still in flight.
+const processedOps = new Map();   // opId -> { at, result|null }
+const OP_TTL_MS = 10 * 60 * 1000;
+const MUTATING_TYPES = new Set(['request', 'fulfill', 'dismiss', 'stow', 'transfer', 'assign-orphan']);
+function opGate(ws, msg) {       // true = duplicate, stop processing
+  const opId = String(msg.opId || '');
+  if (!opId) return false;
+  const seen = processedOps.get(opId);
+  if (seen) {
+    if (seen.result) ws.send(JSON.stringify(seen.result));
+    return true;
+  }
+  processedOps.set(opId, { at: Date.now(), result: null });
+  if (processedOps.size > 2000) {
+    const cutoff = Date.now() - OP_TTL_MS;
+    for (const [k, v] of processedOps) { if (v.at < cutoff) processedOps.delete(k); }
+  }
+  return false;
+}
+function opResult(opId, result) {
+  if (!opId) return;
+  const e = processedOps.get(String(opId));
+  if (e) e.result = result;
+}
+
+// ── P1: content-based duplicate guards beyond stow ──
+const recentTransferKeys = new Map();  // part|from|to|qty -> ts (30s window)
+const recentRequestKeys  = new Map();  // line|part|qty -> ts (20s window) — silent drop
+function contentDup(map, key, windowMs) {
+  const t = map.get(key);
+  map.set(key, Date.now());
+  if (map.size > 500) {
+    const cutoff = Date.now() - windowMs;
+    for (const [k, ts] of map) { if (ts < cutoff) map.delete(k); }
+  }
+  return !!(t && Date.now() - t < windowMs);
+}
+
+// ── P2: place registry. A place is a bin (NN-XN-X), a curated named
+// area, or a production line. Free text is normalized (unicode hyphens,
+// double spaces, case) and validated; unknown places need allowUnknownPlace.
+const NAMED_AREAS = ['RECEIVING', 'WEST BULK', 'MIDDLE BULK', 'INSPECTION AREA', 'PARKING LOT',
+  '04/05 ENDCAP', '06/07 ENDCAP', '08/09 ENDCAP', '10/11 ENDCAP', 'TEST'];
+const BIN_RE = /^\d{2}-[A-Z]\d-[A-Z]$/;
+function normalizePlace(s) {
+  return String(s || '')
+    .replace(/[‐‑‒–—−]/g, '-')  // unicode hyphens → '-'
+    .replace(/\s*-\s*/g, '-')                                  // '01 - B3 - C' → '01-B3-C'
+    .replace(/\s+/g, ' ')                                      // collapse runs of spaces
+    .trim().toUpperCase();
+}
+function validatePlace(raw) {
+  const p = normalizePlace(raw);
+  if (!p) return { ok: false, canonical: '', kind: null, reason: 'empty' };
+  if (BIN_RE.test(p)) {
+    const known = locationsCache.some(l => normalizePlace(l.location) === p);
+    return { ok: true, canonical: p, kind: 'bin', known };
+  }
+  // Single-digit rack like '3-C3-B' → pad to '03-C3-B'
+  const padded = p.replace(/^(\d)-/, '0$1-');
+  if (BIN_RE.test(padded)) return { ok: true, canonical: padded, kind: 'bin', known: locationsCache.some(l => normalizePlace(l.location) === padded) };
+  if (NAMED_AREAS.includes(p)) return { ok: true, canonical: p, kind: 'area', known: true };
+  if (ALL_LINES.some(l => l.toUpperCase() === p)) return { ok: true, canonical: ALL_LINES.find(l => l.toUpperCase() === p), kind: 'line', known: true };
+  return { ok: false, canonical: p, kind: null, reason: 'unknown place' };
+}
+
+// ── P5: write health. Fire-and-forget Apps Script writes that exhaust
+// retries land here (visible + retryable on the warehouse screen) instead
+// of vanishing into a console.
+const failedWrites = [];   // { id, at, label, body, error }
+let nextFailId = 1;
+function recordFailedWrite(label, body, error) {
+  failedWrites.push({ id: nextFailId++, at: Date.now(), label, body, error: String(error).slice(0, 300) });
+  if (failedWrites.length > 100) failedWrites.shift();
+  console.error('WRITE FAILED [' + label + ']:', error);
+}
+async function postFireAndForget(body, label) {
+  if (!LOCATIONS_URL) return;
+  const d = await fetchWithRetry(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    redirect: 'follow',
+  });
+  if (!d || d.success === false) recordFailedWrite(label, body, (d && d.error) || 'no response after retries');
+  return d;
+}
+
+// ── P4: request journal. Open requests survive restarts: every request
+// mutation marks the journal dirty; a 20s write-behind posts the open set
+// to the Apps Script 'journalRequests' action (additive — if the deployed
+// script doesn't know it yet, v2 logs once and runs in-memory like v1).
+// Restore happens in fetchInventory() from doGet's requestJournal field.
+let journalDirty = false;
+let journalSupported = true;
+let journalRestored = false;
+function markJournalDirty() { journalDirty = true; }
+async function flushJournal() {
+  if (!journalDirty || !journalSupported || !LOCATIONS_URL) return;
+  journalDirty = false;
+  const open = allRequests.filter(r => !r.fulfilled);
+  const blob = JSON.stringify({ nextReqId, savedAt: Date.now(), requests: open });
+  const d = await fetchWithRetry(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'journalRequests', json: blob }),
+    redirect: 'follow',
+  }, 1, 2000);
+  if (d && d.success === false && /unknown action/i.test(String(d.error || ''))) {
+    journalSupported = false;
+    console.log('Request journal: Apps Script action not deployed — running in-memory only');
+  } else if (!d) {
+    journalDirty = true;   // retry next tick
+  }
+}
+setInterval(flushJournal, 20 * 1000);
+function restoreJournal(blobStr) {
+  if (journalRestored) return;
+  journalRestored = true;
+  if (!blobStr) return;
+  try {
+    const blob = typeof blobStr === 'string' ? JSON.parse(blobStr) : blobStr;
+    if (!blob || !Array.isArray(blob.requests)) return;
+    if (allRequests.length) return;   // never clobber live state
+    const ageMs = Date.now() - (blob.savedAt || 0);
+    if (ageMs > 18 * 60 * 60 * 1000) { console.log('Request journal: stale (' + Math.round(ageMs / 3600000) + 'h) — skipped'); return; }
+    allRequests = blob.requests;
+    nextReqId = Math.max(blob.nextReqId || 1, ...allRequests.map(r => (r.id || 0) + 1), 1);
+    console.log('Request journal: restored', allRequests.length, 'open requests (saved ' + Math.round(ageMs / 60000) + 'm ago)');
+    broadcastRequests();
+  } catch (e) { console.error('Request journal restore failed:', e.message); }
+}
 
 async function fetchInventory() {
   if (!LOCATIONS_URL) return;
@@ -538,9 +708,14 @@ async function fetchInventory() {
     bundlesCache      = d.bundles           || [];
     epicorCache       = d.epicorOnHand      || {};
     epicorLastRefresh = d.epicorLastRefresh || null;
+    lineInventoryCache = d.lineInventory    || [];
+    replenishmentQueueCache = d.replenishmentQueue || [];
+    restoreJournal(d.requestJournal);   // P4: restore open requests after a restart (no-op if absent)
     console.log('Inventory cached:', Object.keys(d.inventory || {}).length, 'groups,',
       (d.bomList || []).length, 'BOM parts,', orphanPartsCache.length, 'orphans,',
-      bundlesCache.length, 'bundles,', Object.keys(epicorCache).length, 'Epicor parts');
+      bundlesCache.length, 'bundles,', Object.keys(epicorCache).length, 'Epicor parts,',
+      lineInventoryCache.length, 'line-inv rows,', replenishmentQueueCache.length, 'replenish rows');
+    ingestReplenishments();
   } else if (!d) {
     console.error('Inventory fetch failed after retries');
   }
@@ -548,9 +723,10 @@ async function fetchInventory() {
 fetchInventory();
 setInterval(fetchInventory, 10 * 60 * 1000);
 
-// Epicor on-hand refreshes every minute (separate lightweight endpoint).
-// Apps Script's doGet?epicorOnly=1 just reads BAQ_Data, skipping the heavier
-// Locations/BOM/Bundles work. Keeps execution-time cost minimal.
+// Epicor on-hand refreshes every 5 minutes (separate lightweight endpoint).
+// BAQ_Data on the Apps Script side refreshes hourly, so polling more
+// aggressively just costs Apps Script execution time without giving fresher
+// data. 5 min keeps display lag bounded without burning quota.
 async function fetchEpicorOnly() {
   if (!LOCATIONS_URL) return;
   // Apps Script web apps don't easily route by query param without server code,
@@ -573,7 +749,7 @@ async function fetchEpicorOnly() {
     }
   }
 }
-setInterval(fetchEpicorOnly, 60 * 1000);
+setInterval(fetchEpicorOnly, 5 * 60 * 1000);
 
 // ── Bundle lookup ────────────────────────────────────────────
 // Find a bundle by name (case-insensitive). Returns definition or null.
@@ -643,6 +819,88 @@ function lookupLocation(partNum) {
     partNum:      matches[0].partNum,
     partName:     matches[0].partName,
   };
+}
+
+// ── Line inventory lookup (Phase 2) ──────────────────────────
+// On-line balance for a (line, part). Returns the cached entry or null.
+function lookupLineInventory(line, partNum) {
+  if (!line || !partNum) return null;
+  const ln = String(line).toLowerCase();
+  const pn = String(partNum).toLowerCase();
+  return lineInventoryCache.find(e =>
+    String(e.line).toLowerCase() === ln && String(e.partNum).toLowerCase() === pn
+  ) || null;
+}
+
+// ── Phase 4: auto-replenishment ingest ───────────────────────
+// The nightly Apps Script job enqueues 'pending' replenishments when a line
+// drops below its reorder point. The server turns each into a normal pick
+// request (flagged as automated) so the warehouse fulfils it, marking the queue
+// row open → fulfilled/cancelled. 'open' rows are re-adopted after a restart so
+// an in-flight auto-pick is never lost.
+function postReplenishmentUpdate(queueId, status, requestId) {
+  if (!LOCATIONS_URL || !queueId) return;
+  fetch(LOCATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'updateReplenishment', queueId: queueId, status: status, requestId: requestId || '' }),
+    redirect: 'follow',
+  }).then(r => r.json())
+    .then(d => console.log('Replenishment', queueId, '->', status, JSON.stringify(d)))
+    .catch(e => console.error('updateReplenishment failed:', e.message));
+}
+
+function createAutoReorderRequest(q) {
+  const loc = lookupLocation(q.partNum || '');
+  const li  = lookupLineInventory(q.line, q.partNum);
+  const req = {
+    id:              nextReqId++,
+    line:            q.line || 'Apollo',
+    station:         null,
+    partNum:         q.partNum || '',
+    partName:        q.partName || loc.partName || '',
+    text:            '',
+    qty:             Number(q.qtyNeeded) || 1,
+    unit:            'Part',
+    qtyFulfilled:    0,
+    pickedLocations: {},
+    priority:        (li && li.status === 'OUT') ? 'high' : 'low',
+    escalation:      false,
+    totalQty:        loc.totalQty,
+    allLocations:    loc.allLocations,
+    location:        loc.location,
+    stockQty:        loc.quantity,
+    onLineQty:       li ? li.onLineQty : null,
+    reorderPoint:    (li && li.reorderPoint !== '') ? li.reorderPoint : null,
+    lineStatus:      li ? li.status : null,
+    submittedAt:     Date.now(),
+    time:            new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
+    fulfilled:       false,
+    isBundle:        false,
+    bundleName:      null,
+    bundleChildren:  null,
+    source:          'auto-reorder',   // flags a system-generated replenishment
+    auto:            true,
+    queueId:         q.queueId,
+  };
+  allRequests.push(req);
+  return req.id;
+}
+
+function ingestReplenishments() {
+  if (!replenishmentQueueCache.length) return;
+  if (!locationsCache.length) return;   // wait until warehouse locations are known
+  let created = 0;
+  for (const q of replenishmentQueueCache) {
+    if (!q.queueId || !q.partNum) continue;
+    if (q.status !== 'pending' && q.status !== 'open') continue;
+    if (autoReqByQueueId[q.queueId]) continue;   // already have a live request for it
+    const reqId = createAutoReorderRequest(q);
+    autoReqByQueueId[q.queueId] = reqId;
+    created++;
+    if (q.status === 'pending') postReplenishmentUpdate(q.queueId, 'open', String(reqId));
+  }
+  if (created) { console.log('Auto-reorder: created', created, 'pick request(s)'); broadcastRequests(); }
 }
 
 // ── Sheets post ──────────────────────────────────────────────
@@ -776,28 +1034,23 @@ function logRequestCompletion(req, outcome) {
   const submittedAtStr = new Date(submittedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
   const completedAtStr = new Date(completedAtMs).toLocaleString('en-US', { timeZone: 'America/Chicago' });
 
-  fetch(LOCATIONS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action:       'logRequest',
-      partNum:      req.partNum  || '',
-      partName:     req.partName || '',
-      qty:          req.qty      || 0,
-      qtyFulfilled: req.qtyFulfilled || 0,
-      unit:         req.unit     || 'Part',
-      priority:     req.priority || 'low',
-      line:         req.line     || '',
-      station:      req.station  || '',
-      outcome:      outcome,
-      submittedAt:  submittedAtStr,
-      completedAt:  completedAtStr,
-      totalTime:    totalTime,
-    }),
-    redirect: 'follow',
-  }).then(r => r.json())
-    .then(d => console.log('Request log:', d))
-    .catch(e => console.error('Request log failed:', e.message));
+  // v2 (P5): routed through the write-health pipeline — a failed log is
+  // visible and retryable instead of vanishing into the console.
+  postFireAndForget({
+    action:       'logRequest',
+    partNum:      req.partNum  || '',
+    partName:     req.partName || '',
+    qty:          req.qty      || 0,
+    qtyFulfilled: req.qtyFulfilled || 0,
+    unit:         req.unit     || 'Part',
+    priority:     req.priority || 'low',
+    line:         req.line     || '',
+    station:      req.station  || '',
+    outcome:      outcome,
+    submittedAt:  submittedAtStr,
+    completedAt:  completedAtStr,
+    totalTime:    totalTime,
+  }, 'logRequest ' + (req.partNum || req.text || ''));
 }
 
 // ── Orphan assignment post ───────────────────────────────────
@@ -834,6 +1087,20 @@ app.get('/api/bom', (req, res) => {
   res.json({ success: false, error: 'BOM not yet loaded' });
 });
 app.get('/api/locations',  (req, res) => res.json({ success: true, locations: locationsCache }));
+// v2 (P2): the place registry — everything a stow/transfer destination can be.
+app.get('/api/places', (req, res) => {
+  const bins = [...new Set(locationsCache.map(l => normalizePlace(l.location)).filter(p => BIN_RE.test(p)))].sort();
+  res.json({ success: true, bins, areas: NAMED_AREAS, lines: ALL_LINES, binFormat: 'NN-XN-X' });
+});
+// v2 (P5): failed fire-and-forget writes — visible and retryable, never silent.
+app.get('/api/write-health', (req, res) => res.json({ success: true, failed: failedWrites, journalSupported, journalDirty }));
+app.post('/api/write-health/retry/:id', async (req, res) => {
+  const i = failedWrites.findIndex(f => f.id === parseInt(req.params.id));
+  if (i === -1) return res.json({ success: false, error: 'not found' });
+  const [f] = failedWrites.splice(i, 1);
+  const d = await postFireAndForget(f.body, f.label + ' (retry)');
+  res.json({ success: !!(d && d.success !== false) });
+});
 app.get('/api/lines',      (req, res) => res.json({ lines: OTHER_LINES }));
 app.get('/api/recent-picks', (req, res) => {
   res.json({ success: true, recentPicks: recentlyFulfilled });
@@ -900,6 +1167,10 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', async raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
+
+    // v2 (P1): exactly-once gate for mutating ops. Duplicates (reconnect
+    // retries, double-taps) replay the stored result or are dropped.
+    if (MUTATING_TYPES.has(msg.type) && opGate(ws, msg)) return;
 
     // ── Ping ─────────────────────────────────────────────────
     if (msg.type === 'ping') {
@@ -1079,7 +1350,13 @@ wss.on('connection', (ws, req) => {
 
     // ── Inventory request ────────────────────────────────────
     if (msg.type === 'request') {
-      console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority);
+      // v2 (P1): silent dedupe — identical line+part+qty within 20s is a double-tap.
+      const reqKey = String(msg.line || '') + '|' + String(msg.partNum || msg.text || '').toLowerCase() + '|' + String(msg.qty ?? 1);
+      if (contentDup(recentRequestKeys, reqKey, 20 * 1000)) {
+        console.log('Request dropped as duplicate:', reqKey);
+        return;
+      }
+      console.log('Request received:', msg.line, msg.partNum || msg.text, 'priority:', msg.priority, 'sla:', msg.sla);
       const s      = states.apollo;
       const stName = msg.station || (msg.stationId ? (s.stations.find(x => x.id === msg.stationId)?.name || null) : null);
 
@@ -1116,6 +1393,8 @@ wss.on('connection', (ws, req) => {
       }
 
       const nowMs  = Date.now();
+      // Phase 2: attach the line's on-hand + reorder point for display (UI = Phase 5).
+      const lineInv = isBundle ? null : lookupLineInventory(msg.line || 'Apollo', msg.partNum || '');
       const req = {
         id:              nextReqId++,
         line:            msg.line     || 'Apollo',
@@ -1127,14 +1406,21 @@ wss.on('connection', (ws, req) => {
         unit:            String(msg.unit || 'Part'),
         qtyFulfilled:    0,
         pickedLocations: {},
-        priority:        String(msg.priority || 'low'),
+        // v2 (P3): SLA fields. priority is kept (urgent→high) so the Sheet's
+        // Transaction Log and existing reports keep their vocabulary.
+        sla:             slaForRequest(msg).sla,
+        targetMs:        slaForRequest(msg).targetMs,
+        priority:        slaForRequest(msg).sla === 'urgent' ? 'high' : String(msg.priority || 'low'),
         escalation:      msg.qty === 0,
         totalQty:        loc.totalQty,
         allLocations:    loc.allLocations,
         location:        loc.location,
         stockQty:        loc.quantity,
+        onLineQty:       lineInv ? lineInv.onLineQty : null,
+        reorderPoint:    (lineInv && lineInv.reorderPoint !== '') ? lineInv.reorderPoint : null,
+        lineStatus:      lineInv ? lineInv.status : null,
         submittedAt:     nowMs,
-        time:            new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        time:            new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
         fulfilled:       false,
         // Bundle fields — only set if this is a bundle request.
         isBundle:        isBundle,
@@ -1171,7 +1457,14 @@ wss.on('connection', (ws, req) => {
       const req = allRequests.find(r => r.id === msg.reqId);
       if (req && !req.fulfilled) {
         req.fulfilled = true;
-        logRequestCompletion(req, 'dismissed');
+        if (req.source === 'auto-reorder' && req.queueId) {
+          postReplenishmentUpdate(req.queueId, 'cancelled', String(req.id));
+          delete autoReqByQueueId[req.queueId];
+        }
+        // v2 (P5): one-tap cancel reason rides along in the outcome label so it
+        // lands in the Transaction Log with zero schema change.
+        const reason = String(msg.reason || '').slice(0, 60);
+        logRequestCompletion(req, reason ? ('dismissed: ' + reason) : 'dismissed');
         broadcastRequests();
       }
     }
@@ -1182,7 +1475,7 @@ wss.on('connection', (ws, req) => {
       const st = s.stations.find(x => x.id === msg.stationId);
       if (st && (msg.level === 'line-lead' || msg.level === 'floor-manager')) {
         st.andon     = msg.level;
-        st.andonTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        st.andonTime = new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' });
         st.andonPauseStart = Date.now();
         // Andon suspends the active timer but keeps stationStatus='active'.
         // Matches pre-5a: operator is still assigned, just blocked. Andon time
@@ -1225,6 +1518,10 @@ wss.on('connection', (ws, req) => {
       // qty 0 + no location = cancel button, close immediately without subtracting
       if (pickedQty === 0 && !location) {
         req.fulfilled = true;
+        if (req.source === 'auto-reorder' && req.queueId) {
+          postReplenishmentUpdate(req.queueId, 'cancelled', String(req.id));
+          delete autoReqByQueueId[req.queueId];
+        }
         logRequestCompletion(req, 'cancelled');
         s.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== req.id);
@@ -1334,13 +1631,17 @@ wss.on('connection', (ws, req) => {
 
       if (qtyRemaining <= 0) {
         req.fulfilled = true;
+        if (req.source === 'auto-reorder' && req.queueId) {
+          postReplenishmentUpdate(req.queueId, 'fulfilled', String(req.id));
+          delete autoReqByQueueId[req.queueId];
+        }
         recentlyFulfilled.unshift({
           partNum:  req.isBundle ? '' : (req.partNum || ''),
           partName: req.isBundle ? req.bundleName : (req.partName || ''),
           qty:      req.qty      || 1,
           location: location,
           line:     req.line     || '',
-          time:     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          time:     new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
           isBundle: !!req.isBundle,
         });
         if (recentlyFulfilled.length > 2) recentlyFulfilled.pop();
@@ -1367,6 +1668,42 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'stow') {
       if (!LOCATIONS_URL) return;
 
+      // v2 (P2): place validation. Normalizes unicode hyphens / spacing / case,
+      // pads single-digit racks, then requires a known bin, named area, or line.
+      // Unknown places bounce with badPlace:true unless allowUnknownPlace
+      // (explicit confirm in the UI, and the canonical string is what's written).
+      const pv = validatePlace(msg.location);
+      if (!pv.ok && !msg.allowUnknownPlace) {
+        const r = { type: 'stow-result', success: false, badPlace: true, canonical: pv.canonical, message: 'Unknown location "' + (msg.location || '') + '" — pick a bin, named area, or line' };
+        opResult(msg.opId, r); ws.send(JSON.stringify(r));
+        return;
+      }
+      msg.location = pv.ok ? pv.canonical : normalizePlace(msg.location);
+      if (pv.ok && pv.kind === 'bin' && !pv.known && !msg.allowNewBin && !msg.force) {
+        const r = { type: 'stow-result', success: false, newBin: true, canonical: pv.canonical, message: pv.canonical + ' is a valid bin format but doesn\'t exist yet — create it?' };
+        opResult(msg.opId, r); ws.send(JSON.stringify(r));
+        return;
+      }
+
+      // Duplicate guard (see recentStowKeys above)
+      const dupKey = String(msg.bundleName || msg.partNum || '').trim().toLowerCase()
+        + '|' + String(msg.location || '').trim().toLowerCase()
+        + '|' + (parseInt(msg.qty) || 1);
+      const lastAttempt = recentStowKeys.get(dupKey);
+      if (!msg.force && lastAttempt && (Date.now() - lastAttempt) < STOW_DUP_WINDOW_MS) {
+        const ago = Math.max(1, Math.round((Date.now() - lastAttempt) / 1000));
+        ws.send(JSON.stringify({
+          type: 'stow-result', success: false, duplicate: true,
+          message: 'An identical stow was received ' + ago + 's ago and may have already gone through — check Recent Stows or the location.',
+        }));
+        return;
+      }
+      recentStowKeys.set(dupKey, Date.now());
+      if (recentStowKeys.size > 500) {
+        const cutoff = Date.now() - STOW_DUP_WINDOW_MS;
+        for (const [k, t] of recentStowKeys) { if (t < cutoff) recentStowKeys.delete(k); }
+      }
+
       const stowOne = (partNum, partName, qty, bundleName) => fetch(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1388,11 +1725,13 @@ wss.on('connection', (ws, req) => {
           if (msg.bundleName) {
             const bundle = lookupBundle(msg.bundleName);
             if (!bundle) {
+              recentStowKeys.delete(dupKey);
               ws.send(JSON.stringify({ type: 'stow-result', success: false, message: 'Bundle not found: ' + msg.bundleName }));
               return;
             }
             const bundleQty = parseInt(msg.qty) || 1;
             if (bundleQty < 1) {
+              recentStowKeys.delete(dupKey);
               ws.send(JSON.stringify({ type: 'stow-result', success: false, message: 'Bundle stow qty must be a positive integer' }));
               return;
             }
@@ -1406,6 +1745,7 @@ wss.on('connection', (ws, req) => {
             }
             const allOk = results.every(d => d.success);
             if (allOk) { fetchLocations(); fetchInventory(); }
+            else recentStowKeys.delete(dupKey);   // failed — let them retry without the dup prompt
             ws.send(JSON.stringify({
               type:    'stow-result',
               success: allOk,
@@ -1417,23 +1757,52 @@ wss.on('connection', (ws, req) => {
             const d = await stowOne(msg.partNum || '', msg.partName || '', msg.qty || 1, null);
             console.log('Stow response:', d);
             if (d.success) { fetchLocations(); fetchInventory(); }
+            else recentStowKeys.delete(dupKey);   // failed — let them retry without the dup prompt
             ws.send(JSON.stringify({ type: 'stow-result', success: d.success, message: d.message || d.error }));
           }
         } catch(e) {
+          recentStowKeys.delete(dupKey);
           ws.send(JSON.stringify({ type: 'stow-result', success: false, message: e.message }));
         }
       })();
     }
 
-    // ── Transfer (bundle-aware) ──────────────────────────────
-    // Regular: subtract from fromLocation, stow at toLocation (N units of partNum).
-    // Bundle:  subtract each child × bundleQty from fromLocation, stow each child ×
-    //          bundleQty at toLocation. Sequential: on first failure, reports a
-    //          partial-transfer message and stops. Same Transaction Log tagging
-    //          as bundle pick/stow.
+    // ── Transfer (bundle- and line-aware) ────────────────────
+    // Regular: move N units of partNum between any two places. A place is a
+    //          warehouse location (default) or a production line — msg.fromType /
+    //          msg.toType = 'line' selects line mode for that end. Warehouse ends
+    //          use subtract/stow (logged 'Transfer Out'/'Transfer In'); line ends
+    //          use bumpLine (logged 'Transfer Out (Line)'/'Transfer In (Line)').
+    // Bundle:  warehouse→warehouse only — subtract each child × bundleQty from
+    //          fromLocation, stow each child × bundleQty at toLocation.
+    // Sequential: on first failure, reports a partial-transfer message and stops.
     if (msg.type === 'transfer') {
       if (!LOCATIONS_URL) return;
+
+      // v2 (P2): destination must be a valid place (source comes from the UI's
+      // own location list, so it's already canonical).
+      if ((msg.toType || 'warehouse') !== 'line') {
+        const pv = validatePlace(msg.toLocation);
+        if (!pv.ok && !msg.allowUnknownPlace) {
+          const r = { type: 'transfer-result', success: false, badPlace: true, canonical: pv.canonical, message: 'Unknown destination "' + (msg.toLocation || '') + '" — pick a bin, named area, or line' };
+          opResult(msg.opId, r); ws.send(JSON.stringify(r));
+          return;
+        }
+        if (pv.ok) msg.toLocation = pv.canonical;
+      }
+      // v2 (P1): content duplicate guard — identical move within 30s needs force.
+      const tKey = String(msg.bundleName || msg.partNum || '').toLowerCase() + '|' + String(msg.fromLocation || '').toLowerCase() + '|' + String(msg.toLocation || '').toLowerCase() + '|' + (parseInt(msg.qty) || 1);
+      if (!msg.force && contentDup(recentTransferKeys, tKey, 30 * 1000)) {
+        const r = { type: 'transfer-result', success: false, duplicate: true, message: 'An identical transfer was received seconds ago and may have already gone through — check the part\'s locations.' };
+        opResult(msg.opId, r); ws.send(JSON.stringify(r));
+        return;
+      }
+
       const { partNum, partName, fromLocation, toLocation, qty, bundleName } = msg;
+      const fromType  = msg.fromType === 'line' ? 'line' : 'warehouse';
+      const toType    = msg.toType   === 'line' ? 'line' : 'warehouse';
+      const fromLabel = fromType === 'line' ? fromLocation + ' (line)' : fromLocation;
+      const toLabel   = toType   === 'line' ? toLocation   + ' (line)' : toLocation;
 
       if (bundleName) {
         const bundle = lookupBundle(bundleName);
@@ -1487,34 +1856,44 @@ wss.on('connection', (ws, req) => {
       }
 
       // ── Regular (non-bundle) transfer ─────────────────────
-      console.log('Transfer:', partNum, fromLocation, '→', toLocation, 'qty:', qty);
+      console.log('Transfer:', partNum, fromType + ':' + fromLocation, '→', toType + ':' + toLocation, 'qty:', qty);
 
+      // Step 1 — remove from the source place
+      const subtractBody = fromType === 'line'
+        ? { action: 'bumpLine', line: fromLocation, partNum, partName, qty: -(parseInt(qty) || 1), txTypeOverride: 'Transfer Out (Line)' }
+        : { action: 'subtract', partNum, partName, location: fromLocation, qty, line: '', station: '', txTypeOverride: 'Transfer Out' };
       const subtractRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'subtract', partNum, partName, location: fromLocation, qty, line: '', station: '' }),
+        body: JSON.stringify(subtractBody),
         redirect: 'follow',
       });
 
       if (!subtractRes || !subtractRes.success) {
-        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: subtractRes?.error || 'Failed to subtract from source location' }));
+        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: subtractRes?.error || ('Failed to remove from ' + fromLabel) }));
         return;
       }
 
+      // Step 2 — add to the destination place
+      const stowBody = toType === 'line'
+        ? { action: 'bumpLine', line: toLocation, partNum, partName, qty: parseInt(qty) || 1, txTypeOverride: 'Transfer In (Line)' }
+        : { action: 'stow', partNum, partName, location: toLocation, qty, line: '', station: '', txTypeOverride: 'Transfer In' };
       const stowRes = await fetchWithRetry(LOCATIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'stow', partNum, partName, location: toLocation, qty, line: '', station: '' }),
+        body: JSON.stringify(stowBody),
         redirect: 'follow',
       });
 
       if (!stowRes || !stowRes.success) {
-        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Subtracted from source but failed to add to destination — check sheet manually' }));
+        ws.send(JSON.stringify({ type: 'transfer-result', success: false, message: 'Removed from ' + fromLabel + ' but failed to add to ' + toLabel + ' — check sheet manually' }));
         return;
       }
 
-      const srcLoc = locationsCache.find(l => l.partNum.toLowerCase() === partNum.toLowerCase() && l.location.toLowerCase() === fromLocation.toLowerCase());
-      if (srcLoc) srcLoc.quantity = String(subtractRes.newQty);
+      if (fromType === 'warehouse') {
+        const srcLoc = locationsCache.find(l => l.partNum.toLowerCase() === partNum.toLowerCase() && l.location.toLowerCase() === fromLocation.toLowerCase());
+        if (srcLoc) srcLoc.quantity = String(subtractRes.newQty);
+      }
 
       await fetchLocations();
 
@@ -1522,7 +1901,7 @@ wss.on('connection', (ws, req) => {
         if (c.readyState === 1) c.send(JSON.stringify({ type: 'locations', locations: locationsCache }));
       });
 
-      ws.send(JSON.stringify({ type: 'transfer-result', success: true, message: 'Transferred ' + qty + ' of ' + partNum + ' from ' + fromLocation + ' to ' + toLocation }));
+      ws.send(JSON.stringify({ type: 'transfer-result', success: true, message: 'Transferred ' + qty + ' of ' + partNum + ' from ' + fromLabel + ' to ' + toLabel }));
       return;
     }
 

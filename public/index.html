@@ -1,456 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>APOLLO Production Board</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #1a1e24; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
-
-  /* ── Header ── */
-  .header { background: #12151a; border-bottom: 3px solid #C8102E; padding: 0 28px; display: flex; align-items: stretch; justify-content: space-between; min-height: 64px; }
-  .header-left  { display: flex; align-items: center; gap: 14px; }
-  .header-right { display: flex; align-items: center; gap: 20px; }
-  .brand-icon   { width: 38px; height: 38px; background: #C8102E; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17px; color: #fff; flex-shrink: 0; }
-  .brand-text .top { font-size: 10px; font-weight: 700; color: #C8102E; letter-spacing: 0.15em; text-transform: uppercase; }
-  .brand-text .btm { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
-
-  .datetime .date  { font-size: 11px; color: #6b7280; text-align: right; }
-  .datetime .clock { font-size: 17px; font-weight: 700; color: #fff; text-align: right; }
-
-  /* ── Takt hero band (wall-visible) ── */
-  .takt-hero { background: #0d1014; border-bottom: 2px solid #2d3340; padding: 32px 28px 40px; text-align: center; }
-  .takt-hero .takt-label { font-size: 18px; font-weight: 700; color: #6b7280; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 14px; }
-  .takt-hero .takt-time  { font-size: 260px; font-weight: 900; letter-spacing: -12px; color: #C8102E; line-height: 0.95; transition: color 0.3s; font-variant-numeric: tabular-nums; }
-  .takt-hero .takt-time.warning { color: #f97316; }
-  .takt-hero .takt-time.over    { color: #ef4444; animation: flash-over 0.8s ease-in-out infinite; }
-  .takt-hero .takt-time.paused  { color: #60a5fa; }
-  @media (max-width: 1200px) { .takt-hero .takt-time { font-size: 200px; letter-spacing: -9px; } }
-  @media (max-width: 860px)  { .takt-hero .takt-time { font-size: 120px; letter-spacing: -5px; } .takt-hero .takt-label { font-size: 13px; } }
-  @keyframes flash-over { 0%,100%{opacity:1} 50%{opacity:0.5} }
-
-  /* ── Connection / break banners ── */
-  .conn-status { display: none; width: 100%; background: #7f1d1d; border-bottom: 2px solid #C8102E; padding: 8px 28px; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.08em; }
-  .break-banner { display: none; background: #12151a; border-bottom: 2px solid #60a5fa; padding: 12px 28px; align-items: center; gap: 16px; }
-  .break-banner.lunch   { border-color: #EF9F27; }
-  .break-banner.visible { display: flex; }
-  .banner-icon  { font-size: 22px; }
-  .banner-title { font-size: 16px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; }
-  .banner-sub   { font-size: 12px; color: #6b7280; margin-top: 1px; }
-  .banner-timer { font-size: 22px; font-weight: 900; color: #60a5fa; margin-left: auto; }
-  .break-banner.lunch .banner-timer { color: #EF9F27; }
-
-  /* ── Controls ── */
-  .controls { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid #2d3340; flex-wrap: wrap; gap: 10px; }
-  .ctrl-left  { display: flex; gap: 8px; align-items: center; }
-  .ctrl-right { display: flex; gap: 8px; align-items: center; }
-  .btn { padding: 10px 24px; border-radius: 4px; font-size: 13px; font-weight: 800; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.15s; }
-  .btn-start  { background: #C8102E; color: #fff; } .btn-start:hover  { background: #a00d24; }
-  .btn-end    { background: #374151; color: #fff; } .btn-end:hover    { background: #4b5563; }
-  .btn-pause  { background: transparent; color: #9ca3af; border: 1px solid #374151; }
-  .btn-pause:hover  { border-color: #9ca3af; color: #fff; }
-  .btn-resume { background: transparent; color: #60a5fa; border: 1px solid #374151; }
-  .btn-resume:hover { border-color: #60a5fa; color: #60a5fa; }
-  .btn-unit   { background: #15803d; color: #fff; padding: 14px 32px; font-size: 15px; }
-  .btn-unit:hover { background: #166534; }
-  .btn:disabled { opacity: 0.35; cursor: default; }
-
-  .status-pill { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
-  .status-pill.running  { background: #15803d; color: #fff; }
-  .status-pill.paused   { background: #1e3a5f; color: #60a5fa; }
-  .status-pill.stopped  { background: #374151; color: #9ca3af; }
-
-  /* ── Tabs ── */
-  .tab-bar { display: flex; gap: 0; padding: 0 28px; border-bottom: 1px solid #2d3340; background: #12151a; }
-  .tab { padding: 12px 20px; font-size: 12px; font-weight: 700; cursor: pointer; color: #6b7280; border: none; background: none; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
-  .tab.active { color: #fff; border-bottom-color: #C8102E; }
-  .tab:hover:not(.active) { color: #9ca3af; }
-
-  /* ── Page body ── */
-  .page { padding: 28px; }
-
-  /* ── Board hero panels (mirrors Titan) ── */
-  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1400px; margin: 0 auto; }
-  @media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
-  .panel { background: #12151a; border: 1px solid #2d3340; border-radius: 8px; padding: 24px; }
-  .panel.alerts-panel { border-top: 3px solid #C8102E; }
-  .panel-label { font-size: 10px; font-weight: 700; color: #6b7280; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-  .panel-badge { background: #C8102E; color: #fff; font-size: 10px; font-weight: 800; border-radius: 3px; padding: 2px 8px; min-width: 22px; text-align: center; letter-spacing: 0; }
-
-  .cycle-big { font-size: 180px; font-weight: 900; line-height: 1; color: #C8102E; letter-spacing: -7px; font-variant-numeric: tabular-nums; text-align: center; }
-  .cycle-sub { font-size: 16px; font-weight: 700; color: #9ca3af; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; }
-  .cycle-last-time { font-size: 14px; color: #6b7280; margin-top: 18px; text-align: center; }
-  @media (max-width: 860px) { .cycle-big { font-size: 120px; letter-spacing: -5px; } }
-
-  /* ── Alerts feed (Board tab) ── */
-  .feed-empty  { font-size: 13px; color: #4b5563; text-align: center; padding: 30px 0; font-style: italic; }
-  .feed-section-title { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #4b5563; margin: 10px 0 6px; }
-  .feed-section-title:first-child { margin-top: 0; }
-  .feed-item { border-radius: 4px; padding: 8px 10px; margin-bottom: 6px; }
-  .feed-item.inv     { background: #1e1535; border: 1px solid #4c1d95; }
-  .feed-item.andon-l { background: #1f1500; border: 1px solid #92400e; }
-  .feed-item.andon-m { background: #1a0505; border: 1px solid #7f1d1d; }
-  .feed-item.hold    { background: #111827; border: 1px solid #374151; }
-  .feed-item-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
-  .feed-station { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-  .feed-station.inv     { color: #a78bfa; }
-  .feed-station.andon-l { color: #EF9F27; }
-  .feed-station.andon-m { color: #f87171; }
-  .feed-station.hold    { color: #6b7280; }
-  .feed-time    { font-size: 9px; color: #4b5563; }
-  .feed-msg     { font-size: 12px; color: #d1d5db; word-break: break-word; }
-
-  /* ── Stations tab (formerly Management) ── */
-  .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b7280; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-  .section-label::after { content: ''; flex: 1; height: 1px; background: #2d3340; }
-
-  .mgmt-grid  { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
-  @media (min-width: 1400px) { .mgmt-grid { grid-template-columns: repeat(3, 1fr); } }
-  .mgmt-card  { background: #12151a; border: 1px solid #2d3340; border-radius: 6px; padding: 14px; transition: border-color 0.2s; }
-  .mgmt-card.active  { border-top: 3px solid #4ade80; }
-  .mgmt-card.on-hold { border-top: 3px solid #374151; }
-  .mgmt-card.idle    { border-top: 3px solid #2d3340; }
-  .mgmt-card.done-flash { border-top: 3px solid #4ade80; background: #051a05; }
-  .mgmt-top   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
-  .mgmt-name  { font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }
-  .mgmt-badge { font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
-  .mgmt-badge.active  { background: #052e16; color: #4ade80; }
-  .mgmt-badge.on-hold { background: #1f2937; color: #6b7280; }
-  .mgmt-badge.idle    { background: #1f2937; color: #6b7280; }
-  .mgmt-badge.done    { background: #052e16; color: #4ade80; }
-  .mgmt-meta { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #4b5563; margin-bottom: 8px; }
-  .mgmt-active-time span { color: #4ade80; font-weight: 700; }
-  .mgmt-cycle-count span { color: #fff; font-weight: 700; }
-  .mgmt-hold-reason  { font-size: 11px; color: #6b7280; margin-bottom: 8px; font-style: italic; }
-  .mgmt-actions { display: flex; flex-direction: column; gap: 5px; }
-  .mgmt-btn { padding: 7px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; cursor: pointer; border: none; width: 100%; text-transform: uppercase; letter-spacing: 0.06em; }
-  .mgmt-btn-activate { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .mgmt-btn-activate:hover:not(:disabled) { background: #0a3d1f; }
-  .mgmt-btn-hold     { background: #1f2937; color: #9ca3af; border: 1px solid #374151; }
-  .mgmt-btn-hold:hover:not(:disabled)    { background: #374151; color: #fff; }
-  .mgmt-btn-done     { background: #EF9F27; color: #0d1014; border: 1px solid #EF9F27; }
-  .mgmt-btn-done:hover:not(:disabled)    { background: #fbbf24; }
-  .mgmt-btn:disabled { opacity: 0.3; cursor: default; }
-  .hold-reason-select { width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 4px; color: #9ca3af; font-size: 11px; padding: 6px 8px; margin-bottom: 5px; outline: none; }
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Langmuir PMS</title>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
-
-<!-- Header -->
-<div class="header">
-  <div class="header-left">
-    <div class="brand-icon">A</div>
-    <div class="brand-text">
-      <div class="top">Langmuir Systems</div>
-      <div class="btm">Apollo Production</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="datetime">
-      <div class="date"  id="date-display"></div>
-      <div class="clock" id="clock-display"></div>
-    </div>
-  </div>
+<!-- ════════════════════════════════════════════════════════════
+     PMS v2 — unified app shell. One page, role-based screens:
+     Board (Apollo/Titan) · Station · Warehouse · Line Request.
+     Role is remembered per device; ?role=… deep-links for kiosks.
+     See PMS_V2_DESIGN.md for the architecture.
+     ════════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <span class="brand">LANGMUIR PMS</span>
+  <span class="screen-title">Choose role</span>
+  <span class="clock"></span>
+  <button class="home-btn" id="home-btn">⌂ Roles</button>
 </div>
+<div class="conn-banner" id="conn-banner"></div>
+<div id="screen-root"></div>
+<div class="modal-overlay" id="modal-root"></div>
+<div id="toast-wrap"></div>
 
-<!-- Takt hero -->
-<div class="takt-hero">
-  <div class="takt-label">Current Cycle Takt</div>
-  <div class="takt-time" id="timer">3:00:00</div>
-</div>
-
-<div class="conn-status" id="conn-status">⚠ Connection lost — reconnecting...</div>
-
-<!-- Break banner -->
-<div class="break-banner" id="break-banner">
-  <div class="banner-icon" id="banner-icon">☕</div>
-  <div>
-    <div class="banner-title" id="banner-title">Morning Break</div>
-    <div class="banner-sub"   id="banner-sub">Timer paused — auto-resumes when break ends</div>
-  </div>
-  <div class="banner-timer" id="banner-timer"></div>
-</div>
-
-<!-- Controls -->
-<div class="controls">
-  <div class="ctrl-left">
-    <button class="btn btn-start"  id="btn-start"  onclick="startLine()">▶ Start Takt</button>
-    <button class="btn btn-pause"  id="btn-pause"  onclick="pauseLine()"  style="display:none">⏸ Pause</button>
-    <button class="btn btn-resume" id="btn-resume" onclick="resumeLine()" style="display:none">▶ Resume</button>
-    <button class="btn btn-end"    id="btn-end"    onclick="endLine()"    style="display:none">■ End Line</button>
-    <span class="status-pill stopped" id="status-pill">Stopped</span>
-  </div>
-  <div class="ctrl-right">
-    <button class="btn btn-unit" id="btn-unit" onclick="unitComplete()" disabled>✓ Unit Complete</button>
-  </div>
-</div>
-
-<!-- Tabs -->
-<div class="tab-bar">
-  <button class="tab active" onclick="showTab('board')">Production Board</button>
-  <button class="tab"        onclick="showTab('mgmt')">Stations</button>
-</div>
-
-<!-- Board view -->
-<div class="page" id="tab-board">
-  <div class="panels">
-    <div class="panel">
-      <div class="panel-label">Units Completed Today</div>
-      <div class="cycle-big" id="cycle-count">0</div>
-      <div class="cycle-sub">Machines off the line</div>
-      <div class="cycle-last-time" id="last-cycle-time"></div>
-    </div>
-    <div class="panel alerts-panel">
-      <div class="panel-label">
-        <span>Live Alerts</span>
-        <span class="panel-badge" id="feed-badge">0</span>
-      </div>
-      <div id="feed-list"><div class="feed-empty">— Clear —</div></div>
-    </div>
-  </div>
-</div>
-
-<!-- Stations view (formerly Management) -->
-<div class="page" id="tab-mgmt" style="display:none">
-  <div class="section-label">Main Line</div>
-  <div class="mgmt-grid" id="mgmt-main"></div>
-  <div class="section-label">Subassembly</div>
-  <div class="mgmt-grid" id="mgmt-sub"></div>
-</div>
-
+<script src="/js/core.js"></script>
+<script src="/js/board.js"></script>
+<script src="/js/station.js"></script>
+<script src="/js/warehouse.js"></script>
 <script>
-let state = null, taktSec = 10800, timerInt = null;
-let holdReasons = ['No operator assigned','No frame/material at station','Secured (end of day)','Waiting for previous station'];
-let activeRequests = [];   // Line-level + station-level active requests for Live Alerts
-let lastPong = Date.now();
+'use strict';
+var ROLES = [
+  { id: 'board-apollo', icon: '📊', name: 'Apollo Board',  desc: 'Takt, stations, holds, andon', ws: '?board=1&line=Apollo' },
+  { id: 'board-titan',  icon: '📊', name: 'TITAN Board',   desc: 'Single-unit cycle board',      ws: '?board=1&line=Titan' },
+  { id: 'station',      icon: '🛠', name: 'Station',       desc: 'My timer + part requests',     ws: '?board=1&line=Apollo' },
+  { id: 'warehouse',    icon: '📦', name: 'Warehouse',     desc: 'Pick queue · stow · transfer', ws: '?picker=1' },
+  { id: 'line',         icon: '⚙️', name: 'Line Request',  desc: 'Request parts for any line',   ws: '?line=1' },
+];
 
-const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
-ws.onopen  = function() { document.getElementById('conn-status').style.display = 'none'; };
-ws.onclose = function() { document.getElementById('conn-status').style.display = 'flex'; setTimeout(function(){ location.reload(); }, 3000); };
-ws.onerror = function() { document.getElementById('conn-status').style.display = 'flex'; };
-ws.onmessage = e => { lastPong = Date.now(); applyMsg(JSON.parse(e.data)); };
+var root = document.getElementById('screen-root');
+var booted = false;
 
-setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
-setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
-
-setInterval(async () => {
-  try { const d = await (await fetch('/api/state')).json(); state = d.state; taktSec = d.taktSeconds; if (d.holdReasons) holdReasons = d.holdReasons; render(); } catch {}
-}, 2000);
-
-setInterval(async () => {
-  try { const d = await (await fetch('/api/requests')).json(); activeRequests = d.requests || []; render(); } catch {}
-}, 3000);
-
-function applyMsg(msg) {
-  if (msg.type === 'start') { state = { running: true, startTime: msg.startTime, cycleCount: msg.cycleCount, lineCycleCount: msg.cycleCount, stations: msg.stations, paused: false, pauseLabel: null, pauseStart: null, totalPausedMs: 0 }; taktSec = msg.taktSeconds; if (msg.holdReasons) holdReasons = msg.holdReasons; }
-  if (msg.type === 'state') { state = msg.state; taktSec = msg.taktSeconds; if (msg.holdReasons) holdReasons = msg.holdReasons; }
-  if (msg.type === 'requests') { activeRequests = msg.requests || []; }
-  render();
+function showRolePicker() {
+  setScreenTitle('Choose role');
+  localStorage.removeItem('pms-role');
+  root.innerHTML = '<div class="page"><div class="role-grid">' +
+    ROLES.map(function(r) {
+      return '<div class="role-card" data-r="' + r.id + '"><div class="icon">' + r.icon + '</div>' +
+        '<div class="name">' + r.name + '</div><div class="desc">' + r.desc + '</div></div>';
+    }).join('') + '</div></div>';
+  root.querySelectorAll('.role-card').forEach(function(c) {
+    c.onclick = function(){ enterRole(c.dataset.r, true); };
+  });
 }
 
-function updateClock() {
-  const now = new Date();
-  document.getElementById('date-display').textContent = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-  document.getElementById('clock-display').textContent = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-}
-updateClock(); setInterval(updateClock, 1000);
-
-function showTab(tab) {
-  document.getElementById('tab-board').style.display = tab === 'board' ? 'block' : 'none';
-  document.getElementById('tab-mgmt').style.display  = tab === 'mgmt'  ? 'block' : 'none';
-  document.querySelectorAll('.tab').forEach((t,i) => t.className = 'tab' + (['board','mgmt'][i] === tab ? ' active' : ''));
-}
-
-// ── Line-level button actions ────────────────────────────────
-function startLine()    { ws.send(JSON.stringify({ type: 'start' })); }
-function endLine()      { ws.send(JSON.stringify({ type: 'end'   })); }
-function pauseLine()    { ws.send(JSON.stringify({ type: 'pause' })); }
-function resumeLine()   { ws.send(JSON.stringify({ type: 'pause' })); }  // 'pause' handler toggles on server
-function unitComplete() { if (state?.running && !state.paused) ws.send(JSON.stringify({ type: 'apollo-unit-complete' })); }
-
-// ── Station-level actions (Stations tab) ─────────────────────
-function dismissReq(stationId, reqId) { ws.send(JSON.stringify({ type:'dismiss', stationId, reqId })); }
-function boardActivateStation(id) { ws.send(JSON.stringify({ type:'station-start', stationId: id })); }
-function boardHoldStation(id)     { const sel = document.getElementById('hold-sel-'+id); ws.send(JSON.stringify({ type:'station-hold', stationId: id, reason: sel ? sel.value : holdReasons[0] })); }
-function boardDoneStation(id)     { ws.send(JSON.stringify({ type:'done', stationId: id })); }
-
-function liveActiveMs(st) { let ms = st.activeMs||0; if (st.stationStatus==='active' && st.stationStartTime) ms += Date.now()-st.stationStartTime; return ms; }
-
-function render() {
-  if (!state) return;
-  clearInterval(timerInt);
-
-  // Line-level controls (mirrors Titan)
-  const btnStart  = document.getElementById('btn-start');
-  const btnPause  = document.getElementById('btn-pause');
-  const btnResume = document.getElementById('btn-resume');
-  const btnEnd    = document.getElementById('btn-end');
-  const btnUnit   = document.getElementById('btn-unit');
-  const pill      = document.getElementById('status-pill');
-
-  if (!state.running) {
-    btnStart.style.display  = '';
-    btnPause.style.display  = 'none';
-    btnResume.style.display = 'none';
-    btnEnd.style.display    = 'none';
-    pill.className   = 'status-pill stopped';
-    pill.textContent = 'Stopped';
-    btnUnit.disabled = true;
-    document.getElementById('timer').textContent = fmt(taktSec);
-    document.getElementById('timer').className = 'takt-time';
-  } else if (state.paused) {
-    btnStart.style.display  = 'none';
-    btnPause.style.display  = 'none';                                          // never show Pause while paused
-    btnResume.style.display = state.pauseLabel === 'Paused' ? '' : 'none';     // only show Resume for manual pauses (breaks auto-resume)
-    btnEnd.style.display    = '';
-    pill.className   = 'status-pill paused';
-    pill.textContent = state.pauseLabel || 'Paused';
-    btnUnit.disabled = true;
-    timerInt = setInterval(tick, 500); tick();
-  } else {
-    btnStart.style.display  = 'none';
-    btnPause.style.display  = '';
-    btnResume.style.display = 'none';
-    btnEnd.style.display    = '';
-    pill.className   = 'status-pill running';
-    pill.textContent = 'Running';
-    btnUnit.disabled = false;
-    timerInt = setInterval(tick, 500); tick();
-  }
-
-  // Cycle counter + last cycle display
-  document.getElementById('cycle-count').textContent = state.cycleCount || 0;
-  const lastEl = document.getElementById('last-cycle-time');
-  if (state.lastCycleSeconds != null) {
-    const target = taktSec;
-    const diff = state.lastCycleSeconds - target;
-    const diffStr = (diff >= 0 ? '+' : '-') + fmt(Math.abs(diff));
-    lastEl.textContent = 'Last unit: ' + fmt(state.lastCycleSeconds) + ' (' + diffStr + ')';
-  } else {
-    lastEl.textContent = '';
-  }
-
-  renderBanner();
-  renderFeed(state.stations);
-  renderMgmt('mgmt-main', state.stations.filter(s => s.type==='main'));
-  renderMgmt('mgmt-sub',  state.stations.filter(s => s.type==='sub'));
+function enterRole(roleId, remember) {
+  var role = ROLES.find(function(r){ return r.id === roleId; });
+  if (!role) return showRolePicker();
+  if (remember) localStorage.setItem('pms-role', roleId);
+  PMS.role = roleId;
+  if (!booted) { PMS.connect(role.ws); booted = true; }
+  if (roleId === 'board-apollo') initBoard(root, 'apollo');
+  else if (roleId === 'board-titan') initBoard(root, 'titan');
+  else if (roleId === 'station') initStation(root);
+  else if (roleId === 'warehouse') initWarehouse(root);
+  else if (roleId === 'line') initLine(root);
 }
 
-function renderBanner() {
-  const banner = document.getElementById('break-banner');
-  if (!state?.running || !state.paused) { banner.className = 'break-banner'; return; }
-  const label = state.pauseLabel || 'Paused', isLunch = label==='Lunch', isManual = label==='Paused';
-  banner.className = 'break-banner visible' + (isLunch ? ' lunch' : '');
-  document.getElementById('banner-icon').textContent  = isManual ? '⏸' : isLunch ? '🍽️' : '☕';
-  document.getElementById('banner-title').textContent = label;
-  document.getElementById('banner-sub').textContent   = isManual ? 'Timer paused manually' : 'Auto-resumes when break ends';
-}
+document.getElementById('home-btn').onclick = function() {
+  // Changing role mid-session: a clean reload reconnects the WS with the
+  // right query (picker vs board routing on the server).
+  localStorage.removeItem('pms-role');
+  location.href = '/';
+};
 
-// ── Stations tab card rendering (with I'm Done, cycle count) ──
-function renderMgmt(id, stations) {
-  document.getElementById(id).innerHTML = stations.map(s => {
-    const isActive = s.stationStatus === 'active' && !s.done;
-    const isHold   = s.stationStatus === 'hold'   && !s.done;
-    const isIdle   = s.stationStatus === 'idle'   && !s.done;
-    const isDone   = !!s.done;
+/* Shared message wiring (all roles) */
+PMS.on('requests', function(msg){ PMS.state.requests = msg.requests || []; });
+PMS.on('locations', function(msg){ PMS.state.locations = msg.locations || []; });
 
-    let cardCls, badgeCls, badgeTxt;
-    if (isDone)        { cardCls = 'done-flash'; badgeCls = 'done';   badgeTxt = 'Complete'; }
-    else if (isActive) { cardCls = 'active';     badgeCls = 'active'; badgeTxt = 'Active'; }
-    else if (isHold)   { cardCls = 'on-hold';    badgeCls = 'on-hold'; badgeTxt = 'On Hold'; }
-    else               { cardCls = 'idle';       badgeCls = 'idle';   badgeTxt = 'Idle'; }
+startClock();
+PMS.loadInventory();
+PMS.loadPlaces();
+setInterval(PMS.loadInventory, 5 * 60 * 1000);
 
-    const canActivate = state.running && !state.paused && !isDone && (isIdle || isHold);
-    const canHold     = state.running && !isDone && isActive;
-    const canDone     = state.running && !state.paused && !isDone && isActive;
-    const reasonOpts  = holdReasons.map(r => `<option value="${esc(r)}" ${s.holdReason===r?'selected':''}>${esc(r)}</option>`).join('');
-
-    const cycleCount = s.stationCycleCount || 0;
-    const activeDisplay = isActive ? fmtMs(liveActiveMs(s)) : (isDone ? fmtSec(s.completedAt) : '—');
-
-    return `<div class="mgmt-card ${cardCls}">
-      <div class="mgmt-top"><div class="mgmt-name">${s.name}</div><div class="mgmt-badge ${badgeCls}">${badgeTxt}</div></div>
-      <div class="mgmt-meta">
-        <div class="mgmt-active-time">Active: <span>${activeDisplay}</span></div>
-        <div class="mgmt-cycle-count">Today: <span>${cycleCount}</span></div>
-      </div>
-      ${isHold && s.holdReason ? `<div class="mgmt-hold-reason">${esc(s.holdReason)}</div>` : ''}
-      <div class="mgmt-actions">
-        ${isHold ? `<select class="hold-reason-select" id="hold-sel-${s.id}">${reasonOpts}</select>` : ''}
-        ${isActive
-          ? `<button class="mgmt-btn mgmt-btn-done"     onclick="boardDoneStation(${s.id})"     ${canDone?'':'disabled'}>✓ I'm Done</button>
-             <button class="mgmt-btn mgmt-btn-hold"     onclick="boardHoldStation(${s.id})"     ${canHold?'':'disabled'}>⏸ Put On Hold</button>`
-          : `<button class="mgmt-btn mgmt-btn-activate" onclick="boardActivateStation(${s.id})" ${canActivate?'':'disabled'}>▶ Start Station</button>`
-        }
-      </div></div>`;
-  }).join('');
-}
-
-// ── Live Alerts feed (Board tab right panel) ──────────────────
-// Pulls from:
-//   - state.stations[].andon  → andon items (station-scoped)
-//   - state.stations[].stationStatus==='hold'  → hold items (station-scoped)
-//   - activeRequests (global) → inventory items (both line- and station-scoped)
-function renderFeed(stations) {
-  const andons  = stations.filter(s => s.andon);
-  const holds   = stations.filter(s => s.stationStatus==='hold' && !s.done && state.running);
-  // Include ALL Apollo-line inventory requests (station-scoped and line-scoped).
-  // Fall back to station-scoped if global list isn't populated yet.
-  const apolloReqs = (activeRequests || [])
-    .filter(r => !r.fulfilled && (r.line === 'Apollo' || !r.line));
-  const total  = andons.length + holds.length + apolloReqs.length;
-  document.getElementById('feed-badge').textContent = total;
-  let html = '';
-  if (andons.length) {
-    html += '<div class="feed-section-title">Andon</div>';
-    html += andons.map(s => `<div class="feed-item ${s.andon==='floor-manager'?'andon-m':'andon-l'}"><div class="feed-item-top"><span class="feed-station ${s.andon==='floor-manager'?'andon-m':'andon-l'}">${esc(s.name)}</span><span class="feed-time">${s.andonTime||''}</span></div><div class="feed-msg">${s.andon==='floor-manager'?'Floor Manager needed':'Line Lead needed'}</div></div>`).join('');
-  }
-  if (holds.length) {
-    html += '<div class="feed-section-title">On Hold</div>';
-    html += holds.map(s => `<div class="feed-item hold"><div class="feed-item-top"><span class="feed-station hold">${esc(s.name)}</span></div><div class="feed-msg">${esc(s.holdReason||'On Hold')}</div></div>`).join('');
-  }
-  if (apolloReqs.length) {
-    html += '<div class="feed-section-title">Inventory</div>';
-    apolloReqs.forEach(r => {
-      const origin = r.station ? esc(r.station) : 'Line';
-      const bodyText = r.text || ((r.partNum || '') + (r.partName ? ' — ' + r.partName : ''));
-      const qtyLabel = r.qty ? (' ('+r.qty+' '+(r.unit||'')+')') : '';
-      html += `<div class="feed-item inv"><div class="feed-item-top"><span class="feed-station inv">${origin}</span><span class="feed-time">${esc(r.time||'')}</span></div><div class="feed-msg">${esc(bodyText)}${esc(qtyLabel)}</div></div>`;
-    });
-  }
-  document.getElementById('feed-list').innerHTML = html || '<div class="feed-empty">— Clear —</div>';
-}
-
-function tick() {
-  if (!state?.running) return;
-  const el = document.getElementById('timer');
-  if (state.paused) {
-    const pausedSoFar = state.totalPausedMs + (state.pauseStart ? Date.now()-state.pauseStart : 0);
-    const remaining = taktSec - (Date.now()-state.startTime-pausedSoFar)/1000;
-    el.textContent = remaining<=0 ? '-'+fmt(Math.abs(remaining)) : fmt(Math.ceil(remaining));
-    el.className = 'takt-time paused'; updateBannerTimer(); return;
-  }
-  const remaining = taktSec - (Date.now()-state.startTime-state.totalPausedMs)/1000;
-  el.textContent = remaining<=0 ? '-'+fmt(Math.abs(Math.round(remaining))) : fmt(Math.ceil(remaining));
-  el.className = 'takt-time' + (remaining<=0 ? ' over' : remaining<taktSec*0.1 ? ' warning' : '');
-}
-
-function updateBannerTimer() {
-  const el = document.getElementById('banner-timer');
-  if (!state?.paused || state.pauseLabel === 'Paused') { el.textContent = ''; return; }
-  const ENDS = {'Morning Break':[10,45], 'Lunch':[13,30], 'Afternoon Break':[15,15]};
-  const ends = ENDS[state.pauseLabel]; if (!ends) { el.textContent = ''; return; }
-  const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Chicago'}));
-  const end = new Date(now); end.setHours(ends[0], ends[1], 0, 0);
-  const left = Math.max(0, Math.round((end-now)/1000));
-  el.textContent = left > 0 ? fmt(left) : '';
-}
-
-function fmt(s){s=Math.round(Math.abs(s));const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
-function fmtSec(s){if(!s&&s!==0)return'';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h?h+'h ':'')+(m?m+'m ':'')+sec+'s';}
-function fmtMs(ms){return fmtSec(Math.floor((ms||0)/1000));}
-function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+var param = new URLSearchParams(location.search).get('role');
+var saved = localStorage.getItem('pms-role');
+if (param && ROLES.some(function(r){ return r.id === param; })) enterRole(param, true);
+else if (saved && ROLES.some(function(r){ return r.id === saved; })) enterRole(saved, false);
+else showRolePicker();
 </script>
 </body>
 </html>
