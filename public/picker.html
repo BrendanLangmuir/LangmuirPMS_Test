@@ -151,6 +151,7 @@
   .loc-suggest-tag.open  { background: #0e2f1d; color: #4ade80; }
   .loc-suggest-tag.inuse { background: #2e3440; color: #6b7280; }
   .loc-suggest-tag.area  { background: #16263d; color: #60a5fa; }
+  .loc-suggest-tag.here  { background: #3a2e0a; color: #fbbf24; }
 
   /* ── Existing locations for stow ── */
   .existing-locs { margin-bottom: 14px; }
@@ -1320,7 +1321,8 @@ function renderTransferForm() {
         (window.allLinesData || []).filter(function(l){ return !(fromLine && l === transferFromLoc.location); })
           .map(function(l){ return '<option value="'+esc(l)+'">'+esc(l)+'</option>'; }).join('')+
       '</select>'
-    : '<input class="transfer-dest-input" type="text" id="transfer-dest" placeholder="e.g. 02-B3-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>';
+    : '<input class="transfer-dest-input" type="text" id="transfer-dest" placeholder="e.g. 02-B3-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" oninput="renderTransferDestSuggest(this.value)" onfocus="renderTransferDestSuggest(this.value)" onblur="setTimeout(hideTransferDestSuggest,200)"/>'+
+      '<div class="loc-suggest" id="transfer-dest-suggest"></div>';
 
   anchor.innerHTML =
     '<div class="transfer-form">'+
@@ -1342,6 +1344,9 @@ function renderTransferForm() {
       '<button class="transfer-confirm-btn" id="transfer-confirm-btn" onclick="confirmTransfer()">↔ Confirm Transfer</button>'+
       '<button style="width:100%;margin-top:8px;padding:10px;border-radius:6px;border:1px solid #3a4150;background:#262b33;color:#6b7280;font-size:12px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;" onclick="cancelTransfer()">Cancel</button>'+
     '</div>';
+  // Proactively surface where this part already lives (recommended landing spots)
+  // the moment the form opens — they can still type a bin to see Open/In use/Areas.
+  if (!toLine) renderTransferDestSuggest('');
 }
 
 function clampTransferQty(max) {
@@ -1503,6 +1508,55 @@ function pickLocSuggest(place) {
   el.addEventListener('blur', function(){ setTimeout(function(){ var b = document.getElementById('loc-suggest'); if (b) b.style.display = 'none'; }, 200); });
   el.addEventListener('focus', function(){ if (this.value) renderLocSuggest(this.value); });
 })();
+
+// ── Transfer destination suggester ────────────────────────────
+// The location picker that used to live on Stow, now on the Transfer
+// destination: it recommends where the part can go — bins that already hold
+// this part (consolidate), plus what's Open vs already In use, plus named Areas.
+function renderTransferDestSuggest(q) {
+  var box = document.getElementById('transfer-dest-suggest');
+  if (!box) return;
+  q = String(q || '').trim().toUpperCase();
+  var rows = [];
+  // Recommendation first: bins already holding this part (skip the source bin).
+  if (transferPart && !transferBundle) {
+    var src = (transferFromLoc && transferFromLoc.location || '').toUpperCase();
+    var here = {};
+    locationsData.forEach(function(l) {
+      if (String(l.partNum||'').toLowerCase() !== String(transferPart.partNum).toLowerCase()) return;
+      var loc = String(l.location||'').toUpperCase();
+      if (!loc || loc === src || here[loc]) return;
+      if (q && loc.indexOf(q) === -1) return;
+      here[loc] = true;
+      rows.push({ p: l.location, tag: 'here', lbl: (parseInt(l.quantity)||0) + ' already here' });
+    });
+  }
+  // Bin grammar (Open / In use) + named Areas — once they start typing a code.
+  if (q.length >= 1) {
+    (placesData.open || []).forEach(function(b)     { if (b.indexOf(q) !== -1 && rows.length < 16) rows.push({ p: b, tag: 'open',  lbl: 'Open' }); });
+    (placesData.occupied || []).forEach(function(b) { if (b.indexOf(q) !== -1 && rows.length < 22) rows.push({ p: b, tag: 'inuse', lbl: 'In use' }); });
+    (placesData.areas || []).forEach(function(a)    { if (a.indexOf(q) !== -1 && rows.length < 26) rows.push({ p: a, tag: 'area',  lbl: 'Area' }); });
+  }
+  // De-dup by place, keeping the first/strongest tag (here > open > inuse > area).
+  var seen = {};
+  rows = rows.filter(function(r){ var k = String(r.p).toUpperCase(); if (seen[k]) return false; seen[k] = true; return true; });
+  if (!rows.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = rows.slice(0, 18).map(function(r) {
+    return '<div class="loc-suggest-item" onmousedown="pickTransferDest(\'' + esc(r.p) + '\')">' +
+      '<span class="loc-suggest-code">' + esc(r.p) + '</span>' +
+      '<span class="loc-suggest-tag ' + r.tag + '">' + r.lbl + '</span></div>';
+  }).join('');
+  box.style.display = 'block';
+}
+function pickTransferDest(place) {
+  var el = document.getElementById('transfer-dest');
+  if (el) el.value = String(place).toUpperCase();
+  hideTransferDestSuggest();
+}
+function hideTransferDestSuggest() {
+  var b = document.getElementById('transfer-dest-suggest');
+  if (b) b.style.display = 'none';
+}
 
 // ── Activity tab ──────────────────────────────────────────────
 function renderActivity() {
