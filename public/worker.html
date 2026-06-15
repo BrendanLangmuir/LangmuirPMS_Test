@@ -135,6 +135,9 @@
   .req-meta { font-size: 10px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
   .req-cancel { background: none; border: 1px solid #3a4150; border-radius: 3px; color: #6b7280; cursor: pointer; font-size: 10px; font-weight: 700; padding: 3px 8px; flex-shrink: 0; text-transform: uppercase; }
   .req-cancel:hover { border-color: #C8102E; color: #f87171; }
+  /* Fun-fact banner — mirrors the pick-queue egg banner (brand red, bold, pop). */
+  @keyframes funfact-pop { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+  #fun-fact-toast { position: fixed; left: 0; right: 0; margin: 0 auto; top: 14px; z-index: 9998; width: fit-content; max-width: 90%; background: linear-gradient(135deg, #C8102E, #7f0a1d); color: #fff; border-radius: 10px; padding: 15px 22px; text-align: center; font-size: 15px; font-weight: 900; letter-spacing: 0.03em; box-shadow: 0 10px 36px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -357,19 +360,30 @@ function renderParts(q) {
   const list = document.getElementById('parts-list');
   if (selectedPart || !q) { list.innerHTML = ''; return; }
   const ql = q.toLowerCase();
+  // On-hand by part number — the single source of truth for stock status, so the
+  // list's OUT OF STOCK tag always matches what the detail view (showStock)
+  // computes. Keyed by part number, so editing a description never desyncs
+  // stock from the part (the bug where a part read "out of stock" in the list
+  // but "in stock" once selected).
+  const onHandMap = {};
+  (locationsList || []).forEach(l => { const k = String(l.partNum||'').toLowerCase(); if (!k) return; onHandMap[k] = (onHandMap[k]||0) + (parseInt(l.quantity)||0); });
+  const onHand = pn => onHandMap[String(pn||'').toLowerCase()] || 0;
+
   const filtered = allItems.filter(i =>
     String(i.partNum||'').toLowerCase().includes(ql) ||
     String(i.partName||'').toLowerCase().includes(ql)
   );
-  // Fallback to the full Epicor catalog + Uline boxes so ANY part is requestable.
+  // Catalog fallback so ANY part is requestable. Seed _seen with EVERY known
+  // part (not just the current query matches) so a part already on the line is
+  // never re-listed from the catalog as a phantom "out of stock" duplicate.
   const _seen = {};
-  filtered.forEach(i => { if (i.partNum) _seen[String(i.partNum).toLowerCase()] = true; });
+  allItems.forEach(i => { if (i.partNum) _seen[String(i.partNum).toLowerCase()] = true; });
   (window._catalog || []).forEach(c => {
     const cpn = String(c.partNum||'').trim(); if (!cpn) return;
     const ck = cpn.toLowerCase(); if (_seen[ck]) return;
     if (ck.includes(ql) || String(c.partName||'').toLowerCase().includes(ql)) {
       _seen[ck] = true;
-      filtered.push({ partNum: cpn, partName: String(c.partName||''), outOfStock: true });
+      filtered.push({ partNum: cpn, partName: String(c.partName||'') });
     }
   });
   if (!filtered.length) {
@@ -378,12 +392,13 @@ function renderParts(q) {
   }
   list.innerHTML = filtered.slice(0,40).map(i => {
     const pn = String(i.partNum||''), pa = String(i.partName||'');
+    const oos = !i.isBundle && onHand(pn) === 0;   // authoritative, by part number
     let tag = '';
-    if (i.isBundle)      tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
-    else if (i.outOfStock) tag = '<div class="out-tag">OUT OF STOCK</div>';
+    if (i.isBundle)  tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
+    else if (oos)    tag = '<div class="out-tag">OUT OF STOCK</div>';
     const click = i.isBundle
       ? 'selectBundle(\''+esc(pa)+'\')'
-      : 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')';
+      : 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+oos+')';
     const primary = i.isBundle ? esc(pa) : esc(pn);
     const secondary = i.isBundle ? 'Bundle — multiple parts' : esc(pa);
     return '<div class="part-item" onclick="'+click+'">'
@@ -516,6 +531,22 @@ function showFlash(id, text) {
   setTimeout(() => { el.style.display = 'none'; }, 2500);
 }
 
+// ── Fun fact: a little "oh that's neat" stat after a request is submitted.
+// Server returns null early in the day (not enough data yet), so it naturally
+// ramps up as the morning fills in.
+function popFunFact() {
+  fetch('/api/fun-fact').then(r => r.json()).then(d => {
+    if (!d || !d.success || !d.fact) return;
+    const el = document.getElementById('fun-fact-toast');
+    if (!el) return;
+    el.textContent = '💡 ' + d.fact;
+    el.style.display = 'block';
+    el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'funfact-pop 0.45s ease-out';   // restart the pop
+    clearTimeout(window._funFactTimer);
+    window._funFactTimer = setTimeout(() => { el.style.display = 'none'; }, 6500);
+  }).catch(() => {});
+}
+
 // ── Station dropdown ─────────────────────────────────────────
 function populateStationSelect() {
   if (!state || !state.stations) return;
@@ -602,6 +633,7 @@ function sendRequest() {
     document.getElementById('qty-input').value = '1';
     document.getElementById('unit-select').value = 'Part';
     showFlash('sent-flash', null);
+    popFunFact();
     return;
   }
 
@@ -627,6 +659,7 @@ function sendRequest() {
   document.getElementById('qty-input').value = '1';
   document.getElementById('unit-select').value = 'Part';
   showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
+  popFunFact();
 }
 function cancelRequest(reqId) { ws.send(JSON.stringify({type:'dismiss',stationId,reqId})); }
 
@@ -724,5 +757,6 @@ function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').
     <button onclick="hideReason()" style="width:100%;padding:11px;margin-top:2px;border-radius:8px;border:none;background:none;color:#6b7280;font-size:13px;font-weight:700;cursor:pointer;">Keep the request</button>
   </div>
 </div>
+<div id="fun-fact-toast" style="display:none;"></div>
 </body>
 </html>

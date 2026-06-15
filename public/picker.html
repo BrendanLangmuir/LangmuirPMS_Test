@@ -258,8 +258,8 @@
 
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('pick')"   id="tab-pick">📦 Pick Queue</button>
-  <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
   <button class="tab"        onclick="showTab('transfer')" id="tab-transfer">↔ Transfer</button>
+  <button class="tab"        onclick="showTab('stow')"   id="tab-stow">📥 Stow</button>
   <button class="tab"        onclick="showTab('activity')" id="tab-activity">📈 Activity</button>
 </div>
 
@@ -314,9 +314,15 @@
     </div>
 
     <div class="field">
-      <label>Shelf Location <span style="font-weight:400;color:#4b5563;text-transform:none;letter-spacing:0;">(e.g. 01-A1-A)</span></label>
-      <input type="text" id="location-sel" placeholder="e.g. 01-A1-A" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"/>
-      <div class="loc-suggest" id="loc-suggest"></div>
+      <label>Destination</label>
+      <div style="display:flex;align-items:center;gap:11px;background:#161a20;border:1.5px solid #2a2f37;border-radius:8px;padding:13px 15px;">
+        <span style="font-size:22px;">🚚</span>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#f1f5f9;letter-spacing:0.04em;">RECEIVING</div>
+          <div style="font-size:11px;color:#6b7280;line-height:1.4;">Everything is stowed into Receiving, then moved to its bin with Transfer.</div>
+        </div>
+      </div>
+      <input type="hidden" id="location-sel" value="RECEIVING"/>
     </div>
     <div class="field">
       <label>Quantity</label>
@@ -344,14 +350,15 @@
 <!-- ACTIVITY TAB -->
 <div id="view-activity" class="page" style="display:none">
   <div class="activity-stat-row">
-    <div class="activity-stat"><div class="v" id="act-picks">0</div><div class="k">Picks this session</div></div>
-    <div class="activity-stat"><div class="v" id="act-stows">0</div><div class="k">Stows this session</div></div>
+    <div class="activity-stat"><div class="v" id="act-picks">0</div><div class="k">Your picks today</div></div>
+    <div class="activity-stat"><div class="v" id="act-stows">0</div><div class="k">Your stows today</div></div>
     <div class="activity-stat"><div class="v" id="act-open">0</div><div class="k">Open requests</div></div>
   </div>
+  <div id="act-whoami" style="font-size:12px;color:#6b7280;margin:-4px 0 8px;text-align:center;"></div>
   <div id="act-health"></div>
-  <div class="section-label" style="margin-top:0">Recently fulfilled</div>
+  <div class="section-label" style="margin-top:0">Recent fulfillments — last 10</div>
   <div id="act-recent-picks"><div class="empty" style="padding:20px 0">Nothing yet</div></div>
-  <div class="section-label">This session's stows</div>
+  <div class="section-label">Recent stows — last 10</div>
   <div id="act-recent-stows"><div class="empty" style="padding:20px 0">Nothing yet</div></div>
 </div>
 
@@ -362,8 +369,10 @@ var activeFilter  = 'all';
 var pickMap       = {};
 var pendingPick   = null;   // snapshot of the pick awaiting confirm-dialog approval
 var pickKey       = 0;
-var recentStows   = [];
-var recentPicks   = [];
+var recentStows   = [];   // client session list, shown on the Stow tab
+var recentPicks   = [];   // server-side recent fulfillments (Activity + Pick tab)
+var activityRecentStows = [];   // server-side recent stows (Activity tab)
+var activityTallies     = {};   // {nameLower: {name, picks, stows}} for today
 var lastPong      = Date.now();
 var adjustedQtys  = {};
 var stowSelected  = null;
@@ -404,14 +413,15 @@ function showEggBanner() {
 var sessionPicks = 0, sessionStows = 0;
 function bumpPickCount() {
   sessionPicks++;
-  var el = document.getElementById('act-picks'); if (el) el.textContent = sessionPicks;
-  // 💯 Century club
+  // The "Your picks today" stat is the server-side tally for your name (updated
+  // via the 'activity' broadcast / renderActivity), not this session counter.
   if (sessionPicks === 100) showResult(true, '💯 100 picks this session — century club!');
 }
 
 // ── Cancel with reason (P5): one tap, lands in the Transaction Log ──
 var pendingCancelId = null;
 function cancelWithReason(reqId) {
+  if (!requireLogin()) return;
   pendingCancelId = reqId;
   document.getElementById('cancel-reason-overlay').style.display = 'flex';
 }
@@ -483,6 +493,13 @@ ws.onmessage = function(e) {
   if (msg.type === 'stow-result')     { handleStowResult(msg); }
   if (msg.type === 'transfer-result') { handleTransferResult(msg); }
   if (msg.type === 'recent-picks') { recentPicks = msg.recentPicks || []; renderRecentPicks(); }
+  if (msg.type === 'activity') {
+    if (msg.recentPicks) recentPicks = msg.recentPicks;
+    activityRecentStows = msg.recentStows || [];
+    activityTallies     = msg.tallies || {};
+    renderRecentPicks();
+    renderActivity();
+  }
 };
 setInterval(function() { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 25000);
 setInterval(function() { if (Date.now() - lastPong > 35000) location.reload(); }, 5000);
@@ -490,7 +507,9 @@ setInterval(function() {
   fetch('/api/requests').then(function(r){return r.json();}).then(function(d){ handleRequestsUpdate(d.requests); }).catch(function(){});
 }, 8000);
 setInterval(function() {
-  fetch('/api/recent-picks').then(function(r){return r.json();}).then(function(d){ if (d.success) { recentPicks = d.recentPicks || []; renderRecentPicks(); }}).catch(function(){});
+  fetch('/api/activity').then(function(r){return r.json();}).then(function(d){
+    if (d.success) { recentPicks = d.recentPicks || []; activityRecentStows = d.recentStows || []; activityTallies = d.tallies || {}; renderRecentPicks(); renderActivity(); }
+  }).catch(function(){});
 }, 30000);
 
 function loadLocations() {
@@ -605,6 +624,7 @@ function blurQtyInput(key) {
   adjustedQtys[entry.reqId + '|' + entry.location] = val;
 }
 function handlePick(key) {
+  if (!requireLogin()) return;
   var entry = pickMap[key];
   if (!entry || entry.exhausted) return;
   if (!entry.qty || entry.qty < 1) return;   // nothing to pick
@@ -776,7 +796,7 @@ function renderRecentPicks() {
   var list = document.getElementById('recent-picks-list');
   if (!recentPicks.length) { sec.style.display = 'none'; return; }
   sec.style.display = 'block';
-  list.innerHTML = recentPicks.map(function(p) {
+  list.innerHTML = recentPicks.slice(0, 3).map(function(p) {
     return '<div class="recent-pick-card">'+
       '<div class="recent-pick-part">'+esc(p.partNum)+' — '+esc(p.partName)+'</div>'+
       '<div class="recent-pick-meta">'+
@@ -935,11 +955,11 @@ var stowSlowTimer    = null;
 var stowFailTimer    = null;
 
 function stowPart() {
+  if (!requireLogin()) return;
   if (stowInFlight) return;   // hard guard against double-taps
-  var location = document.getElementById('location-sel').value.trim().toUpperCase();
+  var location = 'RECEIVING';   // stow is Receiving-only; relocate later via Transfer
   var qty      = Math.max(1, parseInt(document.getElementById('qty-stow').value) || 1);
   if (!stowSelected) { showResult(false, 'Please search and select a part'); return; }
-  if (!location)     { showResult(false, 'Please enter a shelf location'); return; }
   var payload = stowSelected.isBundle
     ? { type: 'stow', location: location, bundleName: stowSelected.bundleName, qty: qty }
     : { type: 'stow', location: location, partNum: stowSelected.partNum, partName: stowSelected.partName, qty: qty };
@@ -1008,18 +1028,15 @@ function handleStowResult(msg) {
   if (msg.duplicate)      { showStowDupConfirm(msg.message); return; }
   if (msg.epicorCeiling)  { showCeilingConfirm(msg.message); return; }
   if (msg.success) {
-    var location = document.getElementById('location-sel').value;
+    var location = 'RECEIVING';   // stow is Receiving-only
     var qty      = parseInt(document.getElementById('qty-stow').value) || 1;
     showResult(true, msg.message || 'Stowed successfully');
     sessionStows++;
-    var actEl = document.getElementById('act-stows'); if (actEl) actEl.textContent = sessionStows;
-    // 🥚 stowing to TEST never goes unnoticed
-    if (String(location).trim().toUpperCase() === 'TEST') setTimeout(function(){ showResult(true, '🧪 TEST stow logged. QA sees everything.'); }, 1200);
+    // "Your stows today" comes from the server-side tally (via renderActivity).
     recentStows.unshift({ location: location, partNum: stowSelected ? stowSelected.partNum : '', partName: stowSelected ? stowSelected.partName : '', qty: qty, time: new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) });
     if (recentStows.length > 10) recentStows.pop();
     renderRecent();
     clearStowPart();
-    document.getElementById('location-sel').value = '';
     document.getElementById('qty-stow').value = '1';
     loadLocations();
   } else {
@@ -1114,9 +1131,15 @@ function renderTransferResults(q) {
     seen[key] = true; matches.push({ partNum: p.partNum, partName: p.partName });
   });
 
-  // Bundle search — matched by name; transferred as their component parts
+  // Bundle search — matched by name OR by bin location. Searching a location
+  // (e.g. "RECEIVING") surfaces any bundle that can be pulled complete from
+  // there, so the whole bundle moves in one action instead of part-by-part.
   var bundleMatches = (window.allStowParts || []).filter(function(p) {
-    return p.isBundle && String(p.bundleName||'').toLowerCase().includes(ql);
+    if (!p.isBundle) return false;
+    if (String(p.bundleName||'').toLowerCase().includes(ql)) return true;
+    return computeBundleLocsClient(p).some(function(l){
+      return l.completeBundles > 0 && String(l.location||'').toLowerCase().includes(ql);
+    });
   });
 
   // FIX "stuck on Selected": once a source is chosen, collapse the list to just
@@ -1346,6 +1369,7 @@ function cancelTransfer() {
 }
 
 function confirmTransfer() {
+  if (!requireLogin()) return;
   var qty    = parseInt(document.getElementById('transfer-qty').value) || 1;
   var toLine = transferDestType === 'line' && !transferBundle;
   var dest;
@@ -1482,24 +1506,33 @@ function pickLocSuggest(place) {
 
 // ── Activity tab ──────────────────────────────────────────────
 function renderActivity() {
-  document.getElementById('act-picks').textContent = sessionPicks;
-  document.getElementById('act-stows').textContent = sessionStows;
+  // Top stats are the logged-in person's own tally for today (server-side).
+  var me = activityTallies[(pickerName || '').toLowerCase()] || { picks: 0, stows: 0 };
+  document.getElementById('act-picks').textContent = me.picks || 0;
+  document.getElementById('act-stows').textContent = me.stows || 0;
   document.getElementById('act-open').textContent  = requests.length;
-  // Recently fulfilled (server-side, survives page reloads)
+  var whoami = document.getElementById('act-whoami');
+  if (whoami) whoami.textContent = pickerName ? ('Clocked in as ' + pickerName + ' · stats reset daily') : 'Not clocked in';
+  // Recent fulfillments — last 10, server-side, survives reloads, all users.
   var rp = document.getElementById('act-recent-picks');
-  rp.innerHTML = recentPicks.length ? recentPicks.map(function(p) {
+  var picks = (recentPicks || []).slice(0, 10);
+  rp.innerHTML = picks.length ? picks.map(function(p) {
     var name = p.isBundle ? (p.bundleName || p.partName) : (p.partNum ? p.partNum + ' — ' + (p.partName || '') : (p.text || ''));
     return '<div class="recent-pick-card"><div class="recent-pick-part">' + esc(name) + '</div>' +
       '<div class="recent-pick-meta"><span>' + esc(p.line || '') + '</span><span>Qty ' + esc(String(p.qtyFulfilled != null ? p.qtyFulfilled : p.qty || '')) + '</span>' +
       (p.location ? '<span class="recent-pick-loc">' + esc(p.location) + '</span>' : '') +
+      (p.time ? '<span>' + esc(p.time) + '</span>' : '') +
       (p.by ? '<span>👤 ' + esc(p.by) + '</span>' : '') + '</div></div>';
   }).join('') : '<div class="empty" style="padding:20px 0">Nothing fulfilled recently</div>';
-  // Session stows
+  // Recent stows — last 10, server-side (whoever stowed it).
   var rs = document.getElementById('act-recent-stows');
-  rs.innerHTML = recentStows.length ? recentStows.map(function(s) {
-    return '<div class="recent-item"><div class="recent-part">' + esc(s.partNum) + ' — ' + esc(s.partName) + '</div>' +
-      '<div class="recent-meta">' + esc(s.location) + ' · Qty: ' + s.qty + ' · ' + s.time + '</div></div>';
-  }).join('') : '<div class="empty" style="padding:20px 0">No stows yet this session</div>';
+  var stows = (activityRecentStows || []).slice(0, 10);
+  rs.innerHTML = stows.length ? stows.map(function(s) {
+    var nm = s.isBundle ? (esc(s.partName) + ' (bundle)') : (esc(s.partNum) + ' — ' + esc(s.partName));
+    return '<div class="recent-item"><div class="recent-part">' + nm + '</div>' +
+      '<div class="recent-meta">' + esc(s.location || '') + ' · Qty: ' + esc(String(s.qty)) + ' · ' + esc(s.time || '') +
+      (s.by ? ' · 👤 ' + esc(s.by) : '') + '</div></div>';
+  }).join('') : '<div class="empty" style="padding:20px 0">No stows yet today</div>';
   // Write health — failed background writes are never silent
   fetch('/api/write-health').then(function(r){ return r.json(); }).then(function(d) {
     var el = document.getElementById('act-health');
@@ -1527,6 +1560,12 @@ function refreshUserChip() {
   var chip = document.getElementById('user-chip');
   if (pickerName) { chip.style.display = 'inline-block'; chip.textContent = '👤 ' + pickerName; }
   else chip.style.display = 'none';
+}
+// Hard gate: every action (pick / stow / transfer / cancel) routes through this.
+// No clocked-in name = no transaction, and the Clock-In overlay re-appears.
+function requireLogin() {
+  if (!pickerName) { showLogin(); return false; }
+  return true;
 }
 function showLogin() {
   document.getElementById('login-overlay').style.display = 'flex';

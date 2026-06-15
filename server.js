@@ -81,7 +81,45 @@ function todayStr() { return new Date().toDateString(); }
 // ── Global request store ─────────────────────────────────────
 let allRequests      = [];
 let nextReqId        = 1;
-let recentlyFulfilled = []; // max 2, server-side persisted
+let recentlyFulfilled = []; // recent completed picks (most-recent first); shown in Activity + Pick tab
+let recentlyStowed    = []; // recent stows (most-recent first); shown in Activity tab
+let dailyActivity     = { date: todayStr(), byUser: {} }; // per-name tallies, reset at the day boundary
+
+// ── Per-name activity (Activity tab) ─────────────────────────
+// tallyActivity bumps a person's daily pick/stow counts (units moved);
+// recordStow logs a stow into the recent list; broadcastActivity pushes the
+// whole activity snapshot to picker screens so they update live.
+function rollActivityDay() {
+  const t = todayStr();
+  if (dailyActivity.date !== t) dailyActivity = { date: t, byUser: {} };
+}
+function tallyActivity(kind, name, units) {
+  rollActivityDay();
+  const key = String(name || '').trim().toLowerCase();
+  if (!key) return;
+  const u = dailyActivity.byUser[key] || (dailyActivity.byUser[key] = { name: String(name).trim(), picks: 0, stows: 0 });
+  if (kind === 'pick') u.picks += (parseInt(units) || 0);
+  else if (kind === 'stow') u.stows += (parseInt(units) || 0);
+}
+function broadcastActivity() {
+  rollActivityDay();
+  const payload = JSON.stringify({ type: 'activity', recentPicks: recentlyFulfilled, recentStows: recentlyStowed, tallies: dailyActivity.byUser });
+  pickerClients.forEach(c => { if (c.readyState === 1) c.send(payload); });
+}
+function recordStow(by, partNum, partName, qty, location, isBundle) {
+  recentlyStowed.unshift({
+    partNum:  isBundle ? '' : (partNum || ''),
+    partName: partName || '',
+    qty:      parseInt(qty) || 1,
+    location: location || '',
+    by:       String(by || ''),
+    time:     new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
+    isBundle: !!isBundle,
+  });
+  if (recentlyStowed.length > 12) recentlyStowed.pop();
+  tallyActivity('stow', by, parseInt(qty) || 1);
+  broadcastActivity();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // PR 5a — Per-line state model
@@ -444,6 +482,7 @@ function maybeResetApolloDay() {
 function dayBoundaryCheck() {
   titanMaybeResetDay();
   maybeResetApolloDay();
+  rollActivityDay();   // reset per-name pick/stow tallies at midnight (CST)
 }
 setInterval(dayBoundaryCheck, 60 * 1000);
 
@@ -1144,6 +1183,67 @@ app.get('/api/lines',      (req, res) => res.json({ lines: OTHER_LINES }));
 app.get('/api/recent-picks', (req, res) => {
   res.json({ success: true, recentPicks: recentlyFulfilled });
 });
+// Activity tab: recent completions, recent stows, and per-name daily tallies.
+app.get('/api/activity', (req, res) => {
+  rollActivityDay();
+  res.json({ success: true, recentPicks: recentlyFulfilled, recentStows: recentlyStowed, tallies: dailyActivity.byUser });
+});
+// ── Fun fact: a light, true "oh that's neat" stat from live caches. Four
+// flavors (floor activity, inventory trivia, pace & picks, milestones); returns
+// one at random from whatever currently has data. Self-contained — no sheet/BAQ.
+function fmtMinSec(sec) {
+  if (sec == null || !isFinite(sec)) return '';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? (m + 'm ' + s + 's') : (s + 's');
+}
+function buildFunFacts() {
+  const facts = [];
+  const reqs = allRequests || [];
+  // Floor activity
+  const totalToday = reqs.length;
+  if (totalToday >= 3) facts.push('📋 ' + totalToday + ' part requests have come through the floor today.');
+  const byLine = {};
+  reqs.forEach(r => { const l = String(r.line || '').trim(); if (l) byLine[l] = (byLine[l] || 0) + 1; });
+  const topLine = Object.keys(byLine).sort((a, b) => byLine[b] - byLine[a])[0];
+  if (topLine && byLine[topLine] >= 3) facts.push('🏭 ' + topLine + ' has been the busiest line today (' + byLine[topLine] + ' requests).');
+  // Inventory trivia
+  const byPart = {};
+  let totalUnits = 0; const bins = new Set(); const receivingParts = new Set();
+  (locationsCache || []).forEach(l => {
+    const k = String(l.partNum || '').toLowerCase(); if (!k) return;
+    const q = parseInt(l.quantity) || 0;
+    totalUnits += q; if (l.location) bins.add(String(l.location).toUpperCase());
+    if (String(l.location || '').toUpperCase() === 'RECEIVING') receivingParts.add(k);
+    const e = byPart[k] || (byPart[k] = { qty: 0, name: l.partName || l.partNum });
+    e.qty += q;
+  });
+  const topPart = Object.keys(byPart).sort((a, b) => byPart[b].qty - byPart[a].qty)[0];
+  if (topPart && byPart[topPart].qty > 0) facts.push('📦 Most-stocked part right now: ' + byPart[topPart].name + ' (' + byPart[topPart].qty.toLocaleString() + ' on hand).');
+  if (receivingParts.size >= 2) facts.push('🚚 ' + receivingParts.size + ' distinct parts are waiting in Receiving to be put away.');
+  if (totalUnits > 0 && bins.size > 0) facts.push('🗃️ The warehouse is tracking ' + totalUnits.toLocaleString() + ' units across ' + bins.size + ' locations.');
+  // Pace & picks
+  const completed = reqs.filter(r => r.fulfilled).length;
+  const durations = (recentlyFulfilled || []).map(p => p.durationSec).filter(d => d != null && isFinite(d));
+  if (completed >= 3) facts.push('✅ ' + completed + ' requests have been fulfilled so far today.');
+  if (durations.length >= 2) {
+    const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length);
+    facts.push('⏱️ Recent picks have averaged ' + fmtMinSec(avg) + ' from request to fulfillment.');
+    facts.push('🏁 Fastest pick recently: ' + fmtMinSec(Math.min(...durations)) + ' from tap to done.');
+  }
+  // Milestones
+  const totalPicksToday = Object.values(dailyActivity.byUser).reduce((a, u) => a + (u.picks || 0), 0);
+  if (totalPicksToday > 0 && totalPicksToday % 25 === 0) facts.push('🎉 ' + totalPicksToday + ' parts picked today and counting!');
+  if (completed >= 10 && completed % 10 === 0) facts.push('🎯 ' + completed + ' requests cleared today — nice rhythm.');
+  const topUser = Object.values(dailyActivity.byUser).sort((a, b) => (b.picks + b.stows) - (a.picks + a.stows))[0];
+  if (topUser && (topUser.picks + topUser.stows) >= 5) facts.push('⭐ ' + topUser.name + ' is leading the floor today (' + topUser.picks + ' picks, ' + topUser.stows + ' stows).');
+  return facts;
+}
+app.get('/api/fun-fact', (req, res) => {
+  rollActivityDay();
+  const facts = buildFunFacts();
+  if (!facts.length) return res.json({ success: true, fact: null });
+  res.json({ success: true, fact: facts[Math.floor(Math.random() * facts.length)] });
+});
 app.get('/api/orphans',    (req, res) => res.json({ success: true, orphanParts: orphanPartsCache, orphanAssignments: orphanAssignCache, allLines: ALL_LINES }));
 // Optional `line` query param filters bundles to those available on that line.
 // A bundle with an empty assignedLines list is considered available on every line.
@@ -1192,6 +1292,8 @@ wss.on('connection', (ws, req) => {
     pickerClients.add(ws);
     ws.send(JSON.stringify({ type: 'requests', requests: getActiveRequestsWithPositions() }));
     ws.send(JSON.stringify({ type: 'recent-picks', recentPicks: recentlyFulfilled }));
+    rollActivityDay();
+    ws.send(JSON.stringify({ type: 'activity', recentPicks: recentlyFulfilled, recentStows: recentlyStowed, tallies: dailyActivity.byUser }));
   } else if (isTitan) {
     titanClients.add(ws);
     ws.send(JSON.stringify({ type: 'titan-state', state: serializeLine(states.titan), taktSeconds: TITAN_TAKT_SECONDS }));
@@ -1573,6 +1675,7 @@ wss.on('connection', (ws, req) => {
 
       if (!req.qtyFulfilled) req.qtyFulfilled = 0;
       req.qtyFulfilled += pickedQty;
+      if (pickedQty > 0) { tallyActivity('pick', msg.by, pickedQty); broadcastActivity(); }
 
       const qtyOriginal  = req.qty || 1;
       const qtyRemaining = Math.max(0, qtyOriginal - req.qtyFulfilled);
@@ -1677,13 +1780,15 @@ wss.on('connection', (ws, req) => {
           partNum:  req.isBundle ? '' : (req.partNum || ''),
           partName: req.isBundle ? req.bundleName : (req.partName || ''),
           qty:      req.qty      || 1,
+          qtyFulfilled: req.qtyFulfilled,
           location: location,
           line:     req.line     || '',
           by:       String(msg.by || ''),
           time:     new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' }),
+          durationSec: req.submittedAt ? Math.max(0, Math.round((Date.now() - req.submittedAt) / 1000)) : null,
           isBundle: !!req.isBundle,
         });
-        if (recentlyFulfilled.length > 2) recentlyFulfilled.pop();
+        if (recentlyFulfilled.length > 12) recentlyFulfilled.pop();
 
         s.stations.forEach(st => {
           if (st.requests) st.requests = st.requests.filter(r => r.id !== req.id);
@@ -1693,6 +1798,7 @@ wss.on('connection', (ws, req) => {
         pickerClients.forEach(c => {
           if (c.readyState === 1) c.send(JSON.stringify({ type: 'recent-picks', recentPicks: recentlyFulfilled }));
         });
+        broadcastActivity();
       }
 
       broadcastRequests();
@@ -1707,8 +1813,10 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'stow') {
       if (!LOCATIONS_URL) return;
 
-      // Canonicalize the location silently (unicode hyphens, spacing, rack padding)
-      msg.location = normalizePlace(msg.location);
+      // Stow is Receiving-only: everything is received into Receiving and then
+      // relocated via Transfer. Force it server-side so no client can stow
+      // straight to a rack bin, regardless of what the payload says.
+      msg.location = 'RECEIVING';
 
       // ── Epicor stow ceiling ──
       // Tracked total (warehouse + lines) must not exceed Epicor on-hand;
@@ -1798,7 +1906,7 @@ wss.on('connection', (ws, req) => {
               if (!d.success) break;  // stop on first failure
             }
             const allOk = results.every(d => d.success);
-            if (allOk) { fetchLocations(); fetchInventory(); }
+            if (allOk) { fetchLocations(); fetchInventory(); recordStow(msg.by, '', bundle.name, bundleQty, msg.location, true); }
             else recentStowKeys.delete(dupKey);   // failed — let them retry without the dup prompt
             ws.send(JSON.stringify({
               type:    'stow-result',
@@ -1810,7 +1918,7 @@ wss.on('connection', (ws, req) => {
           } else {
             const d = await stowOne(msg.partNum || '', msg.partName || '', msg.qty || 1, null);
             console.log('Stow response:', d);
-            if (d.success) { fetchLocations(); fetchInventory(); }
+            if (d.success) { fetchLocations(); fetchInventory(); recordStow(msg.by, msg.partNum || '', msg.partName || '', msg.qty || 1, msg.location, false); }
             else recentStowKeys.delete(dupKey);   // failed — let them retry without the dup prompt
             ws.send(JSON.stringify({ type: 'stow-result', success: d.success, message: d.message || d.error }));
           }
@@ -1837,7 +1945,7 @@ wss.on('connection', (ws, req) => {
       if ((msg.toType || 'warehouse') !== 'line') msg.toLocation = normalizePlace(msg.toLocation);
       // Content duplicate guard — identical move within 30s needs force.
       const tKey = String(msg.bundleName || msg.partNum || '').toLowerCase() + '|' + String(msg.fromLocation || '').toLowerCase() + '|' + String(msg.toLocation || '').toLowerCase() + '|' + (parseInt(msg.qty) || 1);
-      if (!msg.force && contentDup(recentTransferKeys, tKey, 30 * 1000)) {
+      if (!msg.force && contentDup(recentTransferKeys, tKey, 90 * 1000)) {   // 90s: audit data showed re-fires up to ~130s after the old early-timeout
         const r = { type: 'transfer-result', success: false, duplicate: true, message: 'An identical transfer was received seconds ago and may have already gone through — check the part\'s locations.' };
         opResult(msg.opId, r); ws.send(JSON.stringify(r));
         return;

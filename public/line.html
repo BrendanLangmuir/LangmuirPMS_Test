@@ -89,6 +89,9 @@ input::placeholder { color: #64748b; }
 .reason-title { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; margin-bottom: 12px; text-align: center; }
 .reason-btn { display: block; width: 100%; padding: 13px; margin-bottom: 8px; border-radius: 8px; border: 1.5px solid #3a4150; background: #262b33; color: #f1f5f9; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
 .reason-btn:hover { border-color: #C8102E; }
+  /* Fun-fact banner — mirrors the pick-queue egg banner (brand red, bold, pop). */
+  @keyframes funfact-pop { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+  #fun-fact-toast { position: fixed; left: 0; right: 0; margin: 0 auto; top: 14px; z-index: 9998; width: fit-content; max-width: 90%; background: linear-gradient(135deg, #C8102E, #7f0a1d); color: #fff; border-radius: 10px; padding: 15px 22px; text-align: center; font-size: 15px; font-weight: 900; letter-spacing: 0.03em; box-shadow: 0 10px 36px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -421,20 +424,29 @@ function renderParts(q) {
   var list = document.getElementById('parts-list');
   if (selectedPart || !q) { list.innerHTML = ''; return; }
   var ql = q.toLowerCase();
+  // On-hand by part number — single source of truth for stock status, so the
+  // list's OUT OF STOCK tag always matches the detail view (showStock). Keyed by
+  // part number, so editing a description never desyncs stock from the part (the
+  // bug where a part read "out of stock" in the list but "in stock" once selected).
+  var onHandMap = {};
+  (window._locations || []).forEach(function(l){ var k = String(l.partNum||'').toLowerCase(); if (!k) return; onHandMap[k] = (onHandMap[k]||0) + (parseInt(l.quantity)||0); });
+  function onHand(pn){ return onHandMap[String(pn||'').toLowerCase()] || 0; }
+
   var filtered = allItems.filter(function(i){
     return String(i.partNum||'').toLowerCase().includes(ql) ||
            String(i.partName||'').toLowerCase().includes(ql);
   });
-  // Fallback to the full Epicor catalog + Uline boxes so ANY part is requestable
-  // on this line, even if it isn't on the line's BOM or in stock.
+  // Catalog fallback so ANY part is requestable on this line. Seed _seen with
+  // EVERY known part (not just current matches) so a part already on the line is
+  // never re-listed from the catalog as a phantom "out of stock" duplicate.
   var _seen = {};
-  filtered.forEach(function(i){ if (i.partNum) _seen[String(i.partNum).toLowerCase()] = true; });
+  allItems.forEach(function(i){ if (i.partNum) _seen[String(i.partNum).toLowerCase()] = true; });
   (window._catalog || []).forEach(function(c){
     var cpn = String(c.partNum||'').trim(); if (!cpn) return;
     var ck = cpn.toLowerCase(); if (_seen[ck]) return;
     if (ck.includes(ql) || String(c.partName||'').toLowerCase().includes(ql)) {
       _seen[ck] = true;
-      filtered.push({ partNum: cpn, partName: String(c.partName||''), outOfStock: true });
+      filtered.push({ partNum: cpn, partName: String(c.partName||'') });
     }
   });
   if (!filtered.length) {
@@ -443,16 +455,17 @@ function renderParts(q) {
   }
   list.innerHTML = filtered.slice(0,40).map(function(i){
     var pn = String(i.partNum||''), pa = String(i.partName||'');
+    var oos = !i.isBundle && onHand(pn) === 0;   // authoritative, by part number
     var tag = '';
-    if (i.isBundle)        tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
-    else if (i.outOfStock) tag = '<div class="out-tag">OUT OF STOCK</div>';
+    if (i.isBundle)  tag = '<div class="out-tag" style="background:#1e1535;color:#a78bfa;border:1px solid #6d28d9">BUNDLE</div>';
+    else if (oos)    tag = '<div class="out-tag">OUT OF STOCK</div>';
     var click, primary, secondary;
     if (i.isBundle) {
       click     = 'selectBundle(\''+esc(pa)+'\')';
       primary   = esc(pa);
       secondary = 'Bundle — multiple parts';
     } else {
-      click     = 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+!!i.outOfStock+')';
+      click     = 'selectPart(\''+esc(pn)+'\',\''+esc(pa)+'\','+oos+')';
       primary   = esc(pn);
       secondary = esc(pa);
     }
@@ -584,6 +597,7 @@ document.getElementById('send-btn').addEventListener('click', function() {
     document.getElementById('qty-input').value = '1';
     document.getElementById('unit-select').value = 'Part';
     showFlash('sent-flash', null);
+    popFunFact();
     return;
   }
 
@@ -609,6 +623,7 @@ document.getElementById('send-btn').addEventListener('click', function() {
   document.getElementById('qty-input').value = '1';
   document.getElementById('unit-select').value = 'Part';
   showFlash('sent-flash', isOut ? '⚠ Escalation Sent!' : null);
+  popFunFact();
 });
 
 // ── Orphan view ───────────────────────────────────────────────
@@ -718,6 +733,22 @@ function showFlash(id, msg) {
   el.style.display = 'block';
   setTimeout(function(){ el.style.display='none'; }, 2500);
 }
+
+// ── Fun fact: a little "oh that's neat" stat after a request is submitted.
+// Server returns null early in the day (not enough data yet) — then we show
+// nothing, so it naturally ramps up as the morning fills in.
+function popFunFact() {
+  fetch('/api/fun-fact').then(function(r){ return r.json(); }).then(function(d){
+    if (!d || !d.success || !d.fact) return;
+    var el = document.getElementById('fun-fact-toast');
+    if (!el) return;
+    el.textContent = '💡 ' + d.fact;
+    el.style.display = 'block';
+    el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'funfact-pop 0.45s ease-out';   // restart the pop
+    clearTimeout(window._funFactTimer);
+    window._funFactTimer = setTimeout(function(){ el.style.display = 'none'; }, 6500);
+  }).catch(function(){});
+}
 var pendingCancelId = null;
 function cancelReq(id) { pendingCancelId = id; document.getElementById('reason-overlay').style.display = 'flex'; }
 function hideReason() { pendingCancelId = null; document.getElementById('reason-overlay').style.display = 'none'; }
@@ -769,5 +800,6 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
     <button onclick="hideReason()" style="width:100%;padding:11px;margin-top:2px;border-radius:8px;border:none;background:none;color:#6b7280;font-size:13px;font-weight:700;cursor:pointer;">Keep the request</button>
   </div>
 </div>
+<div id="fun-fact-toast" style="display:none;"></div>
 </body>
 </html>
