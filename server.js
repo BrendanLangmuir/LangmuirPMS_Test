@@ -4,7 +4,66 @@ const { WebSocketServer } = require('ws');
 
 const app    = express();
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ server });
+
+// ── Network allowlist ────────────────────────────────────────────────────────
+// Lock the app to the shop's public IP(s). Set ALLOWED_IPS in Railway to a
+// comma-separated list (e.g. "1.2.3.4,5.6.7.8"). Leave it UNSET to allow all
+// traffic (fail-open), so a fresh deploy never locks the floor out by accident.
+// To find the IP Railway sees, open /healthz from a shop device and read
+// `yourIp`. If you ever get locked out, clear ALLOWED_IPS in Railway to restore
+// access instantly. This trusts the forwarded client IP, so treat it as one
+// layer of defense — not the only one (see the Apps Script token plan).
+const ALLOWED_IPS = (process.env.ALLOWED_IPS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+function clientIp(req) {
+  const xff = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return (xff || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
+}
+function ipAllowed(req) {
+  if (ALLOWED_IPS.length === 0) return true;          // unset → allow all
+  return ALLOWED_IPS.includes(clientIp(req));
+}
+
+// WebSocket upgrades aren't covered by HTTP middleware, so gate them here too.
+const wss = new WebSocketServer({
+  server,
+  verifyClient: (info, cb) => cb(ipAllowed(info.req)),
+});
+
+// Generous in-memory, per-IP rate limiter. The whole shop shares one public IP
+// (NAT), so limits are high — the goal is to stop a runaway loop, not throttle
+// normal floor use. Resets on restart; fine for a single Railway instance.
+function rateLimiter({ windowMs, max }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip  = clientIp(req);
+    const arr = (hits.get(ip) || []).filter(t => now - t < windowMs);
+    arr.push(now);
+    hits.set(ip, arr);
+    if (arr.length > max) return res.status(429).json({ success: false, error: 'Too many requests — slow down.' });
+    next();
+  };
+}
+
+app.set('trust proxy', true);
+
+// Security headers (conservative — no CSP, which would break inline scripts).
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  next();
+});
+
+// IP allowlist — runs before anything that serves content. /healthz is exempt
+// so Railway's liveness probe (and IP discovery) always works.
+app.use((req, res, next) => {
+  if (req.path === '/healthz') return next();
+  if (ipAllowed(req)) return next();
+  res.status(403).send('Forbidden: access is restricted to the Langmuir shop network.');
+});
 
 app.use(express.json());
 app.use(express.static('public'));
@@ -1163,7 +1222,7 @@ app.get('/api/places', (req, res) => {
 // it's attribution: every stow/pick/transfer/cancel carries the name so odd
 // transactions have someone to ask. PIN set via PICKER_PIN env var.
 const PICKER_PIN = process.env.PICKER_PIN || '2580';
-app.post('/api/picker-login', (req, res) => {
+app.post('/api/picker-login', rateLimiter({ windowMs: 60000, max: 100 }), (req, res) => {
   const name = String((req.body || {}).name || '').trim();
   const pin  = String((req.body || {}).pin || '');
   if (!name) return res.json({ success: false, error: 'Enter your first name' });
@@ -2083,4 +2142,14 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => console.log(`LangmuirPMS running on port ${PORT}`));
+app.get('/healthz', (req, res) => res.json({
+  ok: true,
+  yourIp: clientIp(req),
+  allowlist: ALLOWED_IPS.length ? 'on' : 'off',
+}));
+
+server.listen(PORT, () => {
+  console.log(`LangmuirPMS running on port ${PORT}`);
+  if (!process.env.PICKER_PIN) console.warn('  ⚠ PICKER_PIN not set — using the built-in default. Set PICKER_PIN in Railway.');
+  if (ALLOWED_IPS.length === 0) console.warn('  ⚠ ALLOWED_IPS not set — reachable from any network. Set it in Railway to lock to the shop IP.');
+});
